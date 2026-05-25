@@ -39,7 +39,10 @@ const boundingBoxSchema = z.object({
 	y: z.number().min(0).max(1),
 	width: z.number().min(0).max(1),
 	height: z.number().min(0).max(1),
-	confidence: z.number().min(0).max(1).optional(),
+	// OpenAI's strict structured-output mode requires every property to be in
+	// `required`; optional fields must use nullable instead. We translate null
+	// back to undefined when returning to match the BoundingBox type.
+	confidence: z.number().min(0).max(1).nullable(),
 });
 
 const suggestedTaskSchema = z.object({
@@ -170,7 +173,10 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 		const durationMs = Date.now() - startedAt;
 
 		return {
-			value: result.object.elements,
+			value: result.object.elements.map((element) => {
+				const { confidence, ...rest } = element;
+				return confidence == null ? rest : { ...rest, confidence };
+			}),
 			debug: buildDebug({
 				prompt: promptText,
 				object: result.object,
