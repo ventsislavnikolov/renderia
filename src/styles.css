@@ -421,24 +421,28 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 1rem;
+  /* `start` keeps the photo column from stretching to match a tall sibling
+     (e.g. when the debug panel is open) — otherwise the photo canvas grows
+     and the overlay boxes float over empty space above the image. */
+  align-items: start;
 }
 
 .photo-canvas {
   position: relative;
-  min-height: 420px;
   background: #eef2f7;
   border: 1px solid #d1d5db;
   border-radius: .5rem;
   overflow: hidden;
+  /* Empty-state minimum height; once the image loads the canvas shrinks to
+     match the image's natural aspect ratio so overlay box percentages map
+     correctly to image coordinates. */
+  min-height: 240px;
 }
 
 .photo-canvas-img {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
-  position: absolute;
-  inset: 0;
+  height: auto;
 }
 
 .overlay-box {

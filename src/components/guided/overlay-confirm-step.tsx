@@ -257,9 +257,9 @@ export function OverlayConfirmStep(props: {
 							Run detection to see suggested bounding boxes.
 						</p>
 					)}
-					<DebugPanel debug={debug} label="Detection" />
 				</aside>
 			</div>
+			<DebugPanel debug={debug} label="Detection" />
 		</div>
 	);
 }
