@@ -275,6 +275,43 @@ describe("OverlayConfirmStep", () => {
 		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));
 	});
 
+	it("renders the dev debug panel when the server fn returns { data, debug }", async () => {
+		const user = userEvent.setup();
+		createSignedUrlMock.mockResolvedValue({
+			data: { signedUrl: "https://signed/a.png" },
+			error: null,
+		});
+		detectProtectedElementsMock.mockResolvedValue({
+			data: sampleBoxes,
+			debug: {
+				model: "gpt-5-mini",
+				prompt: "Identify protected visual elements...",
+				rawResponse: '{"elements":[]}',
+				durationMs: 42,
+			},
+		});
+
+		render(
+			<OverlayConfirmStep
+				photo={samplePhoto}
+				taskTitle="ceiling"
+				confirmedElements={[]}
+				onConfirm={vi.fn()}
+			/>,
+		);
+
+		await screen.findByAltText("photo.png");
+		await user.click(
+			screen.getByRole("button", { name: /detect protected elements/i }),
+		);
+
+		// The summary text includes the model id, duration, and the label.
+		const summary = await screen.findByText(
+			/Debug — Detection AI request\/response \(gpt-5-mini, 42ms\)/i,
+		);
+		expect(summary).toBeTruthy();
+	});
+
 	it("does not call onConfirm with stale state after unmount", async () => {
 		const user = userEvent.setup();
 		// Hold detection in flight so the unmount lands before resolution.

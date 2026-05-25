@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BoundingBox } from "../../lib/ai/types";
+import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -7,6 +7,7 @@ import {
 import { supabaseBrowser } from "../../lib/supabase/browser";
 import type { Tables } from "../../lib/types/database";
 import { detectProtectedElements } from "../../server/generation";
+import { DebugPanel } from "./debug-panel";
 
 type PhotoRow = Tables<"photos">;
 
@@ -59,6 +60,7 @@ export function OverlayConfirmStep(props: {
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [detectError, setDetectError] = useState<string | null>(null);
 	const [detecting, setDetecting] = useState(false);
+	const [debug, setDebug] = useState<ProviderDebug | null>(null);
 	const cancelledRef = useRef(false);
 
 	const mintUrl = useCallback(async () => {
@@ -85,6 +87,7 @@ export function OverlayConfirmStep(props: {
 		setDetected(null);
 		setSelected(new Set());
 		setDetectError(null);
+		setDebug(null);
 		void mintUrl();
 		return () => {
 			cancelledRef.current = true;
@@ -106,23 +109,33 @@ export function OverlayConfirmStep(props: {
 				.createSignedUrl(props.photo.storage_path, SIGNED_URL_TTL_SECONDS);
 			if (signError) throw signError;
 			const headers = await getAuthHeaders();
-			const result: BoundingBox[] = await detectProtectedElements({
+			// Server fns now return `{ data, debug? }`. The legacy bare-array
+			// shape is also accepted so older snapshots in tests still work
+			// (and so a future plain endpoint can opt out of the wrapper).
+			const response = (await detectProtectedElements({
 				data: {
 					photoUrl: data.signedUrl,
 					taskTitle: props.taskTitle,
 				},
 				headers,
-			});
+			})) as BoundingBox[] | { data: BoundingBox[]; debug?: ProviderDebug };
 			if (cancelledRef.current) return;
+			const elements: BoundingBox[] = Array.isArray(response)
+				? response
+				: response.data;
+			const responseDebug: ProviderDebug | undefined = Array.isArray(response)
+				? undefined
+				: response.debug;
 			// Tag each box with a stable client id so React keys and selection
 			// state both reference the same identity. `randomId()` falls back
 			// to a Date.now()+Math.random() string on non-HTTPS origins where
 			// `crypto.randomUUID` is undefined.
-			const keyed: KeyedElement[] = result.map((box) => ({
+			const keyed: KeyedElement[] = elements.map((box) => ({
 				id: randomId(),
 				box,
 			}));
 			setDetected(keyed);
+			setDebug(responseDebug ?? null);
 			// Default: select every detected element. The user can deselect
 			// individual boxes before confirming.
 			setSelected(new Set(keyed.map((entry) => entry.id)));
@@ -244,6 +257,7 @@ export function OverlayConfirmStep(props: {
 							Run detection to see suggested bounding boxes.
 						</p>
 					)}
+					<DebugPanel debug={debug} label="Detection" />
 				</aside>
 			</div>
 		</div>

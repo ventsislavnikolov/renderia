@@ -1,11 +1,12 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
-import type { BoundingBox } from "../../lib/ai/types";
+import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
 } from "../../lib/server-client/auth-headers";
 import { createDesignBrief } from "../../server/generation";
+import { DebugPanel } from "./debug-panel";
 
 /**
  * Maximum chars accepted by `createDesignBriefSchema.styleRules` and
@@ -38,6 +39,7 @@ export function BriefStep(props: {
 	);
 	const [generating, setGenerating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [debug, setDebug] = useState<ProviderDebug | null>(null);
 	const cancelledRef = useRef(false);
 
 	useEffect(() => {
@@ -52,17 +54,31 @@ export function BriefStep(props: {
 		setGenerating(true);
 		try {
 			const headers = await getAuthHeaders();
-			const result = await createDesignBrief({
+			const response = (await createDesignBrief({
 				data: {
 					taskTitle: props.taskTitle,
 					styleRules: styleRules.slice(0, STYLE_RULES_MAX),
 					protectedElements: props.protectedElements,
 				},
 				headers,
-			});
+			})) as
+				| { markdown: string; prompt: string }
+				| {
+						data: { markdown: string; prompt: string };
+						debug?: ProviderDebug;
+				  };
 			if (cancelledRef.current) return;
-			props.onBriefChange(result.markdown);
-			props.onPromptChange(result.prompt);
+			// Accept both the legacy bare shape and the new `{ data, debug? }`
+			// wrapper so the same UI works against either server fn revision.
+			const payload =
+				"data" in response && response.data
+					? response.data
+					: (response as { markdown: string; prompt: string });
+			const responseDebug: ProviderDebug | undefined =
+				"debug" in response ? response.debug : undefined;
+			props.onBriefChange(payload.markdown);
+			props.onPromptChange(payload.prompt);
+			setDebug(responseDebug ?? null);
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
@@ -151,6 +167,8 @@ export function BriefStep(props: {
 					Continue to generation
 				</button>
 			</div>
+
+			<DebugPanel debug={debug} label="Design brief" />
 		</div>
 	);
 }
