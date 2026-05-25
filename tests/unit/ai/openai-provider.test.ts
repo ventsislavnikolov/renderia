@@ -279,13 +279,13 @@ describe("openAiRenovationProvider", () => {
 			]);
 			expect(openAiConstructorMock).toHaveBeenCalledWith({ apiKey: "sk-test" });
 			expect(imagesGenerateMock).toHaveBeenCalledWith({
-				model: "gpt-image-1.5",
+				model: "gpt-image-2",
 				prompt: "render the room",
 				n: 2,
 				size: "auto",
 				quality: "high",
 			});
-			expect(result.debug?.model).toBe("gpt-image-1.5");
+			expect(result.debug?.model).toBe("gpt-image-2");
 		});
 
 		it("returns an empty array when the SDK omits the data field", async () => {
