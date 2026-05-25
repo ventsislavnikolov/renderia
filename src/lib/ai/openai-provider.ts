@@ -15,7 +15,7 @@ import type {
  * Models picked per plan. Kept as constants so swaps land in one place and
  * tests can assert against the same identifiers without hardcoding strings.
  */
-const TEXT_MODEL = "gpt-5.5";
+const TEXT_MODEL = "gpt-5.4-mini";
 export const OPENAI_IMAGE_MODEL = "gpt-image-2";
 const IMAGE_MODEL = OPENAI_IMAGE_MODEL;
 

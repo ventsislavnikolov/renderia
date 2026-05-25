@@ -9,7 +9,7 @@ import {
 } from "../../../src/server/generation";
 
 const SAMPLE_DEBUG = {
-	model: "gpt-5.5",
+	model: "gpt-5.4-mini",
 	prompt: "test prompt",
 	rawResponse: '{"ok":true}',
 	durationMs: 12,

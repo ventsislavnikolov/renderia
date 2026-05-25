@@ -284,7 +284,7 @@ describe("OverlayConfirmStep", () => {
 		detectProtectedElementsMock.mockResolvedValue({
 			data: sampleBoxes,
 			debug: {
-				model: "gpt-5.5",
+				model: "gpt-5.4-mini",
 				prompt: "Identify protected visual elements...",
 				rawResponse: '{"elements":[]}',
 				durationMs: 42,
@@ -307,7 +307,7 @@ describe("OverlayConfirmStep", () => {
 
 		// The summary text includes the model id, duration, and the label.
 		const summary = await screen.findByText(
-			/Debug — Detection AI request\/response \(gpt-5\.5, 42ms\)/i,
+			/Debug — Detection AI request\/response \(gpt-5\.4-mini, 42ms\)/i,
 		);
 		expect(summary).toBeTruthy();
 	});
