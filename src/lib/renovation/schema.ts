@@ -132,3 +132,78 @@ export const setImageFavoriteSchema = z.object({
 	isFavorite: z.boolean(),
 });
 export type SetImageFavoriteInput = z.infer<typeof setImageFavoriteSchema>;
+
+/**
+ * Bounding box schema for detection results that are persisted to the DB.
+ *
+ * This is the wire shape `saveDetectedElements` accepts and the basis for
+ * each `protected_elements` row insert. Mirrors the column-level CHECKs in
+ * `0001_initial_schema.sql`: width/height must be strictly positive,
+ * coordinates fit in 0..1, confidence is nullable and bounded to 0..1.
+ *
+ * Distinct from `protectedElementSchema` above (which is keyed `confidence:
+ * optional`) because we want `null` to be an explicit "unknown" signal at
+ * persistence time, not "field absent". The DB column is nullable too.
+ */
+export const detectedProtectedElementSchema = z.object({
+	label: z.string().min(1).max(120),
+	kind: z.enum([
+		"window",
+		"door",
+		"stairs",
+		"ceiling_line",
+		"wall_edge",
+		"structure",
+		"other",
+	]),
+	x: z.number().min(0).max(1),
+	y: z.number().min(0).max(1),
+	width: z.number().min(0).max(1),
+	height: z.number().min(0).max(1),
+	confidence: z.number().min(0).max(1).nullable(),
+});
+export type DetectedProtectedElementInput = z.infer<
+	typeof detectedProtectedElementSchema
+>;
+
+/**
+ * Inputs for `listProtectedElements`. Returns every persisted protected
+ * element for a (task, photo) pair owned by the caller — used by the
+ * overlay-confirm step on mount to avoid re-running detection after the
+ * user navigates back.
+ */
+export const listProtectedElementsSchema = z.object({
+	taskId: z.string().uuid(),
+	photoId: z.string().uuid(),
+});
+export type ListProtectedElementsInput = z.infer<
+	typeof listProtectedElementsSchema
+>;
+
+/**
+ * Inputs for `saveDetectedElements`. The handler deletes all existing
+ * protected elements for the (task, photo, owner) tuple before inserting
+ * the new set, so a re-detect cleanly replaces stale results.
+ */
+export const saveDetectedElementsSchema = z.object({
+	taskId: z.string().uuid(),
+	photoId: z.string().uuid(),
+	projectId: z.string().uuid(),
+	elements: z.array(detectedProtectedElementSchema),
+});
+export type SaveDetectedElementsInput = z.infer<
+	typeof saveDetectedElementsSchema
+>;
+
+/**
+ * Inputs for `updateProtectedElementStatus`. Used when the user toggles a
+ * box selection in the overlay — flips `status` to 'confirmed' or
+ * 'rejected' on the row already in the DB.
+ */
+export const updateProtectedElementStatusSchema = z.object({
+	elementId: z.string().uuid(),
+	status: z.enum(["confirmed", "rejected", "suggested"]),
+});
+export type UpdateProtectedElementStatusInput = z.infer<
+	typeof updateProtectedElementStatusSchema
+>;

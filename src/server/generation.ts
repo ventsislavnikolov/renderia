@@ -11,8 +11,14 @@ import {
 	detectProtectedElementsSchema,
 	type GenerateRenovationImagesInput,
 	generateRenovationImagesSchema,
+	type ListProtectedElementsInput,
+	listProtectedElementsSchema,
+	type SaveDetectedElementsInput,
 	type SetImageFavoriteInput,
+	saveDetectedElementsSchema,
 	setImageFavoriteSchema,
+	type UpdateProtectedElementStatusInput,
+	updateProtectedElementStatusSchema,
 } from "../lib/renovation/schema";
 import {
 	readBearerToken,
@@ -246,6 +252,112 @@ export async function __setImageFavoriteHandler(args: {
 	return data;
 }
 
+/**
+ * Row shape returned to the overlay-confirm UI. We snake_case the column
+ * names so the React component can pass the rows straight back to
+ * `updateProtectedElementStatus` without an extra mapping layer; the DB
+ * column names are stable contract here.
+ */
+export type ProtectedElementRow = {
+	id: string;
+	task_id: string;
+	photo_id: string;
+	project_id: string;
+	label: string;
+	kind: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	confidence: number | null;
+	status: "suggested" | "confirmed" | "rejected";
+	created_at: string;
+};
+
+/** @internal */
+export async function __listProtectedElementsHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: ListProtectedElementsInput;
+}): Promise<ProtectedElementRow[]> {
+	const { data, error } = await args.supabase
+		.from("protected_elements")
+		.select(
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+		)
+		.eq("task_id", args.input.taskId)
+		.eq("photo_id", args.input.photoId)
+		.eq("owner_id", args.userId)
+		.order("created_at", { ascending: true });
+	if (error) throw wrapSupabaseError(error);
+	return (data ?? []) as ProtectedElementRow[];
+}
+
+/** @internal */
+export async function __saveDetectedElementsHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: SaveDetectedElementsInput;
+}): Promise<ProtectedElementRow[]> {
+	// Replace strategy: delete all existing rows for (task, photo, owner)
+	// then insert the new set. Not transactional — if the insert fails the
+	// user is left with zero persisted elements and can re-run detection.
+	// This is acceptable because the alternative (an RPC + transaction)
+	// adds infrastructure for a recoverable case.
+	const deletion = await args.supabase
+		.from("protected_elements")
+		.delete()
+		.eq("task_id", args.input.taskId)
+		.eq("photo_id", args.input.photoId)
+		.eq("owner_id", args.userId);
+	if (deletion.error) throw wrapSupabaseError(deletion.error);
+
+	if (args.input.elements.length === 0) return [];
+
+	const rows = args.input.elements.map((element) => ({
+		owner_id: args.userId,
+		task_id: args.input.taskId,
+		photo_id: args.input.photoId,
+		project_id: args.input.projectId,
+		label: element.label,
+		kind: element.kind,
+		x: element.x,
+		y: element.y,
+		width: element.width,
+		height: element.height,
+		confidence: element.confidence,
+		status: "suggested" as const,
+	}));
+	const inserted = await args.supabase
+		.from("protected_elements")
+		.insert(rows)
+		.select(
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+		);
+	if (inserted.error) throw wrapSupabaseError(inserted.error);
+	return (inserted.data ?? []) as ProtectedElementRow[];
+}
+
+/** @internal */
+export async function __updateProtectedElementStatusHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: UpdateProtectedElementStatusInput;
+}): Promise<ProtectedElementRow> {
+	const { data, error } = await args.supabase
+		.from("protected_elements")
+		.update({ status: args.input.status })
+		.eq("id", args.input.elementId)
+		.eq("owner_id", args.userId)
+		.select(
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+		)
+		.maybeSingle();
+	if (error) throw wrapSupabaseError(error);
+	if (!data) throw new Error("Not found");
+	return data as ProtectedElementRow;
+}
+
 function readAuthToken(): string | undefined {
 	return readBearerToken(getRequestHeader("authorization"));
 }
@@ -286,4 +398,29 @@ export const setImageFavorite = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __setImageFavoriteHandler({ userId, supabase, input: data });
+	});
+
+export const listProtectedElements = createServerFn({ method: "POST" })
+	.inputValidator(listProtectedElementsSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __listProtectedElementsHandler({ userId, supabase, input: data });
+	});
+
+export const saveDetectedElements = createServerFn({ method: "POST" })
+	.inputValidator(saveDetectedElementsSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __saveDetectedElementsHandler({ userId, supabase, input: data });
+	});
+
+export const updateProtectedElementStatus = createServerFn({ method: "POST" })
+	.inputValidator(updateProtectedElementStatusSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __updateProtectedElementStatusHandler({
+			userId,
+			supabase,
+			input: data,
+		});
 	});

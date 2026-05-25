@@ -5,7 +5,10 @@ import {
 	__createDesignBriefHandler,
 	__detectProtectedElementsHandler,
 	__generateRenovationImagesHandler,
+	__listProtectedElementsHandler,
+	__saveDetectedElementsHandler,
 	__setImageFavoriteHandler,
+	__updateProtectedElementStatusHandler,
 } from "../../../src/server/generation";
 
 const SAMPLE_DEBUG = {
@@ -513,6 +516,362 @@ describe("setImageFavoriteHandler", () => {
 				userId: "user-1",
 				supabase: stub.supabase,
 				input: { imageId: "img-1", isFavorite: false },
+			}),
+		).rejects.toThrow("Not authorized");
+	});
+});
+
+/**
+ * `protected_elements` chain stub — wraps a single PostgREST query path that
+ * the list handler uses: `.select(...).eq().eq().eq().order(...)`. Returns
+ * `result` from the terminal `.order(...)` call.
+ */
+function buildListProtectedElementsStub(opts: {
+	listResult?: { data: Row[] | null; error: unknown };
+}) {
+	const fromMock = vi.fn();
+	const chain: Record<string, (...args: unknown[]) => unknown> = {};
+	chain.select = vi.fn(() => chain);
+	chain.eq = vi.fn(() => chain);
+	chain.order = vi.fn(() =>
+		Promise.resolve(opts.listResult ?? { data: [], error: null }),
+	);
+	fromMock.mockImplementation(() => chain);
+	return {
+		supabase: {
+			from: fromMock,
+		} as unknown as Parameters<typeof __listProtectedElementsHandler>[0]["supabase"],
+		fromMock,
+		chain,
+	};
+}
+
+/**
+ * `saveDetectedElements` chain stub — two separate operations:
+ * `.delete().eq().eq().eq()` resolves first, then `.insert(...).select(...)`
+ * resolves with the inserted rows. We use `Promise.resolve(...).then(cb)`
+ * indirection via thenable on the last `.eq` so the delete chain awaits.
+ */
+function buildSaveDetectedElementsStub(opts: {
+	deleteResult?: { error: unknown };
+	insertResult?: { data: Row[] | null; error: unknown };
+}) {
+	const fromMock = vi.fn();
+
+	const deleteChain: Record<string, (...args: unknown[]) => unknown> = {};
+	let deleteEqCalls = 0;
+	deleteChain.eq = vi.fn(() => {
+		deleteEqCalls += 1;
+		if (deleteEqCalls >= 3) {
+			return Promise.resolve(opts.deleteResult ?? { error: null });
+		}
+		return deleteChain;
+	});
+
+	const insertChain: Record<string, (...args: unknown[]) => unknown> = {};
+	insertChain.select = vi.fn(() =>
+		Promise.resolve(opts.insertResult ?? { data: [], error: null }),
+	);
+
+	const chain: Record<string, (...args: unknown[]) => unknown> = {};
+	chain.delete = vi.fn(() => deleteChain);
+	chain.insert = vi.fn(() => insertChain);
+
+	fromMock.mockImplementation(() => chain);
+	return {
+		supabase: {
+			from: fromMock,
+		} as unknown as Parameters<typeof __saveDetectedElementsHandler>[0]["supabase"],
+		fromMock,
+		chain,
+		deleteChain,
+		insertChain,
+	};
+}
+
+function buildUpdateProtectedElementStatusStub(opts: {
+	updateResult?: { data: Row | null; error: unknown };
+}) {
+	const fromMock = vi.fn();
+	const chain: Record<string, (...args: unknown[]) => unknown> = {};
+	chain.update = vi.fn(() => chain);
+	chain.eq = vi.fn(() => chain);
+	chain.select = vi.fn(() => chain);
+	chain.maybeSingle = vi.fn(() =>
+		Promise.resolve(opts.updateResult ?? { data: null, error: null }),
+	);
+	fromMock.mockImplementation(() => chain);
+	return {
+		supabase: {
+			from: fromMock,
+		} as unknown as Parameters<typeof __updateProtectedElementStatusHandler>[0]["supabase"],
+		fromMock,
+		chain,
+	};
+}
+
+const SAMPLE_ROW: Row = {
+	id: "el-1",
+	task_id: "t1",
+	photo_id: "ph-1",
+	project_id: "p1",
+	label: "left window",
+	kind: "window",
+	x: 0.1,
+	y: 0.2,
+	width: 0.2,
+	height: 0.3,
+	confidence: 0.9,
+	status: "suggested",
+	created_at: "2026-01-01T00:00:00Z",
+};
+
+describe("listProtectedElementsHandler", () => {
+	it("queries by task, photo, and owner and returns the rows", async () => {
+		const stub = buildListProtectedElementsStub({
+			listResult: { data: [SAMPLE_ROW], error: null },
+		});
+
+		const result = await __listProtectedElementsHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: {
+				taskId: "11111111-1111-1111-1111-111111111111",
+				photoId: "22222222-2222-2222-2222-222222222222",
+			},
+		});
+
+		expect(result).toHaveLength(1);
+		expect(result[0]?.label).toBe("left window");
+		expect(stub.fromMock).toHaveBeenCalledWith("protected_elements");
+		expect(stub.chain.eq).toHaveBeenCalledWith(
+			"task_id",
+			"11111111-1111-1111-1111-111111111111",
+		);
+		expect(stub.chain.eq).toHaveBeenCalledWith(
+			"photo_id",
+			"22222222-2222-2222-2222-222222222222",
+		);
+		expect(stub.chain.eq).toHaveBeenCalledWith("owner_id", "user-1");
+	});
+
+	it("returns an empty array when no rows match", async () => {
+		const stub = buildListProtectedElementsStub({
+			listResult: { data: [], error: null },
+		});
+
+		const result = await __listProtectedElementsHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: {
+				taskId: "11111111-1111-1111-1111-111111111111",
+				photoId: "22222222-2222-2222-2222-222222222222",
+			},
+		});
+
+		expect(result).toEqual([]);
+	});
+
+	it("wraps supabase errors", async () => {
+		const stub = buildListProtectedElementsStub({
+			listResult: { data: null, error: { code: "42501", message: "rls" } },
+		});
+
+		await expect(
+			__listProtectedElementsHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				input: {
+					taskId: "11111111-1111-1111-1111-111111111111",
+					photoId: "22222222-2222-2222-2222-222222222222",
+				},
+			}),
+		).rejects.toThrow("Not authorized");
+	});
+});
+
+describe("saveDetectedElementsHandler", () => {
+	it("deletes existing rows then inserts the new set with status 'suggested'", async () => {
+		const stub = buildSaveDetectedElementsStub({
+			insertResult: { data: [SAMPLE_ROW], error: null },
+		});
+
+		const result = await __saveDetectedElementsHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: {
+				taskId: "11111111-1111-1111-1111-111111111111",
+				photoId: "22222222-2222-2222-2222-222222222222",
+				projectId: "33333333-3333-3333-3333-333333333333",
+				elements: [
+					{
+						label: "left window",
+						kind: "window",
+						x: 0.1,
+						y: 0.2,
+						width: 0.2,
+						height: 0.3,
+						confidence: 0.9,
+					},
+				],
+			},
+		});
+
+		expect(result).toHaveLength(1);
+		expect(result[0]?.id).toBe("el-1");
+		expect(stub.chain.delete).toHaveBeenCalledTimes(1);
+		expect(stub.chain.insert).toHaveBeenCalledTimes(1);
+		const insertedRows = (stub.chain.insert as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0] as Array<Record<string, unknown>>;
+		expect(insertedRows[0]).toMatchObject({
+			owner_id: "user-1",
+			task_id: "11111111-1111-1111-1111-111111111111",
+			photo_id: "22222222-2222-2222-2222-222222222222",
+			project_id: "33333333-3333-3333-3333-333333333333",
+			status: "suggested",
+			label: "left window",
+		});
+	});
+
+	it("skips the insert when the elements array is empty", async () => {
+		const stub = buildSaveDetectedElementsStub({});
+
+		const result = await __saveDetectedElementsHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: {
+				taskId: "11111111-1111-1111-1111-111111111111",
+				photoId: "22222222-2222-2222-2222-222222222222",
+				projectId: "33333333-3333-3333-3333-333333333333",
+				elements: [],
+			},
+		});
+
+		expect(result).toEqual([]);
+		expect(stub.chain.delete).toHaveBeenCalledTimes(1);
+		expect(stub.chain.insert).not.toHaveBeenCalled();
+	});
+
+	it("wraps supabase errors from the delete step", async () => {
+		const stub = buildSaveDetectedElementsStub({
+			deleteResult: { error: { code: "42501", message: "rls" } },
+		});
+
+		await expect(
+			__saveDetectedElementsHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				input: {
+					taskId: "11111111-1111-1111-1111-111111111111",
+					photoId: "22222222-2222-2222-2222-222222222222",
+					projectId: "33333333-3333-3333-3333-333333333333",
+					elements: [
+						{
+							label: "x",
+							kind: "window",
+							x: 0,
+							y: 0,
+							width: 0.1,
+							height: 0.1,
+							confidence: null,
+						},
+					],
+				},
+			}),
+		).rejects.toThrow("Not authorized");
+		expect(stub.chain.insert).not.toHaveBeenCalled();
+	});
+
+	it("wraps supabase errors from the insert step", async () => {
+		const stub = buildSaveDetectedElementsStub({
+			insertResult: { data: null, error: { code: "PGRST116", message: "x" } },
+		});
+
+		await expect(
+			__saveDetectedElementsHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				input: {
+					taskId: "11111111-1111-1111-1111-111111111111",
+					photoId: "22222222-2222-2222-2222-222222222222",
+					projectId: "33333333-3333-3333-3333-333333333333",
+					elements: [
+						{
+							label: "x",
+							kind: "window",
+							x: 0,
+							y: 0,
+							width: 0.1,
+							height: 0.1,
+							confidence: null,
+						},
+					],
+				},
+			}),
+		).rejects.toThrow("Not found");
+	});
+});
+
+describe("updateProtectedElementStatusHandler", () => {
+	it("updates status and returns the updated row", async () => {
+		const stub = buildUpdateProtectedElementStatusStub({
+			updateResult: {
+				data: { ...SAMPLE_ROW, status: "confirmed" },
+				error: null,
+			},
+		});
+
+		const result = await __updateProtectedElementStatusHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: {
+				elementId: "44444444-4444-4444-4444-444444444444",
+				status: "confirmed",
+			},
+		});
+
+		expect(result.status).toBe("confirmed");
+		expect(stub.chain.update).toHaveBeenCalledWith({ status: "confirmed" });
+		expect(stub.chain.eq).toHaveBeenCalledWith(
+			"id",
+			"44444444-4444-4444-4444-444444444444",
+		);
+		expect(stub.chain.eq).toHaveBeenCalledWith("owner_id", "user-1");
+	});
+
+	it("throws 'Not found' when no row matched", async () => {
+		const stub = buildUpdateProtectedElementStatusStub({
+			updateResult: { data: null, error: null },
+		});
+
+		await expect(
+			__updateProtectedElementStatusHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				input: {
+					elementId: "44444444-4444-4444-4444-444444444444",
+					status: "rejected",
+				},
+			}),
+		).rejects.toThrow("Not found");
+	});
+
+	it("wraps supabase errors", async () => {
+		const stub = buildUpdateProtectedElementStatusStub({
+			updateResult: {
+				data: null,
+				error: { code: "42501", message: "rls" },
+			},
+		});
+
+		await expect(
+			__updateProtectedElementStatusHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				input: {
+					elementId: "44444444-4444-4444-4444-444444444444",
+					status: "rejected",
+				},
 			}),
 		).rejects.toThrow("Not authorized");
 	});
