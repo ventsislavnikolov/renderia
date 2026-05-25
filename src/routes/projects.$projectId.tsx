@@ -1,4 +1,10 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	redirect,
+	useChildMatches,
+} from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "../components/layout/app-shell";
 import { TaskList } from "../components/tasks/task-list";
@@ -37,6 +43,11 @@ function ProjectRoute() {
 	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<ProjectRow | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	// File-routing nests `/projects/$projectId/tasks/$taskId` underneath this
+	// route. Without delegating to the `<Outlet />` we'd render the task list
+	// over the top of the guided task workspace. When any child match exists
+	// we hand off rendering to the child route entirely.
+	const hasChildRoute = useChildMatches().length > 0;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -74,6 +85,10 @@ function ProjectRoute() {
 			<span aria-current="page">{project?.name ?? "…"}</span>
 		</>
 	);
+
+	if (hasChildRoute) {
+		return <Outlet />;
+	}
 
 	return (
 		<AppShell breadcrumbs={breadcrumbs}>

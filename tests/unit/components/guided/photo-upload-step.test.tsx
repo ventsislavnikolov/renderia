@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
 	afterEach,
 	beforeEach,
@@ -136,6 +137,45 @@ describe("PhotoUploadStep", () => {
 			data: { projectId: "p1" },
 			headers: { Authorization: "Bearer test-token" },
 		});
+	});
+
+	it("uploads via userEvent.upload — guards against label-pattern refactors (MED-2)", async () => {
+		// The `pickFile` helper in this file dispatches a raw `change` event,
+		// which bypasses React's synthetic-event normalisation and would keep
+		// passing even if the visually-hidden input were re-wired through a
+		// different label or trigger. Drive the full label→input flow via
+		// `user.upload` so a refactor that breaks the hidden input pairing
+		// fails this assertion.
+		listProjectPhotosMock
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([samplePhoto]);
+		getSessionMock.mockResolvedValue({
+			data: { session: { user: { id: "user-1" } } },
+		});
+		uploadMock.mockResolvedValue({ data: { path: "ok" }, error: null });
+		createPhotoRecordMock.mockResolvedValue(samplePhoto);
+		const onPhotoSelected = vi.fn();
+		const user = userEvent.setup();
+
+		render(
+			<PhotoUploadStep
+				projectId="p1"
+				selectedPhotoId={null}
+				onPhotoSelected={onPhotoSelected}
+			/>,
+		);
+
+		const hiddenInput = (await screen.findByLabelText(
+			/choose a photo to upload/i,
+		)) as HTMLInputElement;
+		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
+			type: "image/png",
+		});
+		await user.upload(hiddenInput, file);
+
+		await waitFor(() => expect(onPhotoSelected).toHaveBeenCalledTimes(1));
+		expect(onPhotoSelected).toHaveBeenCalledWith(samplePhoto);
+		expect(uploadMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("uploads a valid PNG and notifies the parent with the inserted row", async () => {

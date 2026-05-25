@@ -21,9 +21,18 @@ import {
  */
 
 vi.mock("streamdown", () => ({
-	Streamdown: (props: { children: string }) => (
-		<div data-testid="streamdown-preview">{props.children}</div>
-	),
+	Streamdown: (props: { children: unknown }) => {
+		// Catch contract drift: Streamdown is contractually fed markdown as
+		// a string. If the component ever starts passing a fragment, array,
+		// or non-string node we want the test suite to fail loudly here
+		// rather than silently rendering `[object Object]`.
+		if (typeof props.children !== "string") {
+			throw new Error(
+				`Streamdown shim expected a string child but received ${typeof props.children}`,
+			);
+		}
+		return <div data-testid="streamdown-preview">{props.children}</div>;
+	},
 }));
 
 const { createDesignBriefMock, getAuthHeadersMock } = vi.hoisted(() => ({
