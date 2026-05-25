@@ -1,13 +1,14 @@
 import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import { generateObject } from "ai";
 import OpenAI from "openai";
+import { z } from "zod";
 import { requireEnv } from "../env";
 import { buildDesignPrompt, sanitizePromptField } from "./prompts";
 import type {
-	BoundingBox,
 	GeneratedImageResult,
+	ProviderDebug,
+	ProviderResult,
 	RenovationAiProvider,
-	SuggestedTask,
 } from "./types";
 
 /**
@@ -17,15 +18,43 @@ import type {
 const TEXT_MODEL = "gpt-5-mini";
 const IMAGE_MODEL = "gpt-image-1.5";
 
-const ALLOWED_BBOX_KINDS = new Set<BoundingBox["kind"]>([
-	"window",
-	"door",
-	"stairs",
-	"ceiling_line",
-	"wall_edge",
-	"structure",
-	"other",
-]);
+/**
+ * Zod schemas mirror the BoundingBox + SuggestedTask types. We feed these
+ * directly to `generateObject` so the AI SDK enforces the structure (including
+ * the bounded `kind` enum) at the model boundary — that replaces the manual
+ * `assert*` helpers and the JSON-fence stripping that used to live here.
+ */
+const boundingBoxSchema = z.object({
+	label: z.string().min(1).max(120),
+	kind: z.enum([
+		"window",
+		"door",
+		"stairs",
+		"ceiling_line",
+		"wall_edge",
+		"structure",
+		"other",
+	]),
+	x: z.number().min(0).max(1),
+	y: z.number().min(0).max(1),
+	width: z.number().min(0).max(1),
+	height: z.number().min(0).max(1),
+	confidence: z.number().min(0).max(1).optional(),
+});
+
+const suggestedTaskSchema = z.object({
+	title: z.string().min(1).max(200),
+	category: z.string().min(1).max(80),
+	rationale: z.string().min(1).max(800),
+});
+
+const detectionResponseSchema = z.object({
+	elements: z.array(boundingBoxSchema),
+});
+
+const tasksResponseSchema = z.object({
+	tasks: z.array(suggestedTaskSchema),
+});
 
 /**
  * Lazy OpenAI client. Constructed on first use so importing this module never
@@ -51,85 +80,16 @@ export function __resetOpenAiClientForTestsInternal(): void {
 	cachedClient = undefined;
 }
 
-/**
- * Parse JSON returned by an LLM. Models sometimes wrap arrays in markdown
- * code fences; strip a single optional fence before parsing so suggestTasks
- * and detectProtectedElements remain resilient to that formatting. Callers
- * provide a per-element shape guard so we fail loudly on malformed payloads.
- */
-function parseJsonArray<T>(
-	text: string,
-	assertItem: (item: unknown) => T,
-): T[] {
-	const trimmed = text.trim();
-	const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-	const payload = fenced ? fenced[1] : trimmed;
-	const parsed = JSON.parse(payload);
-	if (!Array.isArray(parsed)) {
-		throw new Error("Expected JSON array from model");
-	}
-	return parsed.map(assertItem);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
-function assertSuggestedTask(item: unknown): SuggestedTask {
-	if (!isRecord(item)) {
-		throw new Error("SuggestedTask must be an object");
-	}
-	if (typeof item.title !== "string") {
-		throw new Error("SuggestedTask.title must be a string");
-	}
-	if (typeof item.category !== "string") {
-		throw new Error("SuggestedTask.category must be a string");
-	}
-	if (typeof item.rationale !== "string") {
-		throw new Error("SuggestedTask.rationale must be a string");
-	}
+function buildDebug(args: {
+	prompt: string;
+	object: unknown;
+	durationMs: number;
+}): ProviderDebug {
 	return {
-		title: item.title,
-		category: item.category,
-		rationale: item.rationale,
-	};
-}
-
-function assertDetectedElement(item: unknown): BoundingBox {
-	if (!isRecord(item)) {
-		throw new Error("BoundingBox must be an object");
-	}
-	if (typeof item.label !== "string") {
-		throw new Error("BoundingBox.label must be a string");
-	}
-	if (
-		typeof item.kind !== "string" ||
-		!ALLOWED_BBOX_KINDS.has(item.kind as BoundingBox["kind"])
-	) {
-		throw new Error("BoundingBox.kind must be one of the allowed kinds");
-	}
-	if (typeof item.x !== "number") {
-		throw new Error("BoundingBox.x must be a number");
-	}
-	if (typeof item.y !== "number") {
-		throw new Error("BoundingBox.y must be a number");
-	}
-	if (typeof item.width !== "number") {
-		throw new Error("BoundingBox.width must be a number");
-	}
-	if (typeof item.height !== "number") {
-		throw new Error("BoundingBox.height must be a number");
-	}
-	const confidence =
-		typeof item.confidence === "number" ? item.confidence : undefined;
-	return {
-		label: item.label,
-		kind: item.kind as BoundingBox["kind"],
-		x: item.x,
-		y: item.y,
-		width: item.width,
-		height: item.height,
-		...(confidence !== undefined ? { confidence } : {}),
+		model: TEXT_MODEL,
+		prompt: args.prompt,
+		rawResponse: JSON.stringify(args.object, null, 2),
+		durationMs: args.durationMs,
 	};
 }
 
@@ -142,32 +102,81 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			}
 			return header;
 		});
-		const result = await generateText({
+		const promptText = [
+			"Suggest concrete renovation tasks for the described project.",
+			"Look at each attached photo and propose tasks grounded in what you see.",
+			"Return an object { tasks: [{ title, category, rationale }, ...] }.",
+			`Project notes: ${sanitizePromptField(input.projectNotes)}`,
+			`Photo count: ${input.photos.length}`,
+			...(photoLines.length > 0 ? ["Photos:", ...photoLines] : []),
+		].join("\n");
+
+		// Build a single user message that carries the text prompt plus every
+		// attached photo as an `image` content part. `gpt-5-mini` is multimodal
+		// — passing a URL inside text caused refusals because the model has no
+		// fetch capability. Attaching the image as a content part is the
+		// correct multimodal contract.
+		const userContent: Array<
+			{ type: "text"; text: string } | { type: "image"; image: URL }
+		> = [{ type: "text", text: promptText }];
+		for (const photo of input.photos) {
+			if (photo.signedUrl) {
+				userContent.push({ type: "image", image: new URL(photo.signedUrl) });
+			}
+		}
+
+		const startedAt = Date.now();
+		const result = await generateObject({
 			model: openai(TEXT_MODEL),
-			prompt: [
-				"Suggest renovation tasks for the described project.",
-				"Respond with a JSON array of objects with keys: title, category, rationale.",
-				`Project notes: ${sanitizePromptField(input.projectNotes)}`,
-				`Photo count: ${input.photos.length}`,
-				...(photoLines.length > 0 ? ["Photos:", ...photoLines] : []),
-			].join("\n"),
+			schema: tasksResponseSchema,
+			messages: [{ role: "user", content: userContent }],
 		});
-		return parseJsonArray<SuggestedTask>(result.text, assertSuggestedTask);
+		const durationMs = Date.now() - startedAt;
+
+		return {
+			value: result.object.tasks,
+			debug: buildDebug({
+				prompt: promptText,
+				object: result.object,
+				durationMs,
+			}),
+		};
 	},
 
 	async detectProtectedElements(input) {
-		const result = await generateText({
+		const promptText = [
+			"Identify protected visual elements in the attached photo that must be preserved exactly during renovation.",
+			"Return an object { elements: [{ label, kind, x, y, width, height, confidence }, ...] }.",
+			"Coordinates are normalized to the 0..1 range relative to the photo (x,y is the top-left corner; width/height are fractions of the photo).",
+			"Allowed kind values (pick the closest match): window, door, stairs, ceiling_line, wall_edge, structure, other. Use 'other' only when nothing else fits.",
+			`Task: ${sanitizePromptField(input.taskTitle)}`,
+			`Notes: ${sanitizePromptField(input.notes ?? "")}`,
+		].join("\n");
+
+		const startedAt = Date.now();
+		const result = await generateObject({
 			model: openai(TEXT_MODEL),
-			prompt: [
-				"Identify protected visual elements in the photo that must be preserved exactly during renovation.",
-				"Respond with a JSON array of objects with keys: label, kind, x, y, width, height, confidence.",
-				"Coordinates are normalized to the 0..1 range relative to the photo.",
-				`Task: ${sanitizePromptField(input.taskTitle)}`,
-				`Notes: ${sanitizePromptField(input.notes ?? "")}`,
-				`Photo URL: ${sanitizePromptField(input.photoUrl)}`,
-			].join("\n"),
+			schema: detectionResponseSchema,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: promptText },
+						{ type: "image", image: new URL(input.photoUrl) },
+					],
+				},
+			],
 		});
-		return parseJsonArray<BoundingBox>(result.text, assertDetectedElement);
+		const durationMs = Date.now() - startedAt;
+
+		return {
+			value: result.object.elements,
+			debug: buildDebug({
+				prompt: promptText,
+				object: result.object,
+				durationMs,
+			}),
+		};
 	},
 
 	async createDesignBrief(input) {
@@ -185,18 +194,21 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			),
 		].join("\n");
 		return {
-			markdown,
-			prompt: buildDesignPrompt({
-				taskTitle: safeTaskTitle,
-				styleRules: safeStyleRules,
-				briefMarkdown: markdown,
-				protectedElements: input.protectedElements,
-			}),
+			value: {
+				markdown,
+				prompt: buildDesignPrompt({
+					taskTitle: safeTaskTitle,
+					styleRules: safeStyleRules,
+					briefMarkdown: markdown,
+					protectedElements: input.protectedElements,
+				}),
+			},
 		};
 	},
 
 	async generateRenovationImages(input) {
 		const client = getOpenAiClient();
+		const startedAt = Date.now();
 		const response = await client.images.generate({
 			model: IMAGE_MODEL,
 			prompt: input.prompt,
@@ -204,10 +216,25 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			size: "auto",
 			quality: "high",
 		});
+		const durationMs = Date.now() - startedAt;
 		const data = response.data ?? [];
-		return data.map<GeneratedImageResult>((image) => ({
+		const images = data.map<GeneratedImageResult>((image) => ({
 			base64: image.b64_json ?? "",
 			contentType: "image/png" as const,
 		}));
+		const result: ProviderResult<GeneratedImageResult[]> = {
+			value: images,
+			debug: {
+				model: IMAGE_MODEL,
+				prompt: input.prompt,
+				rawResponse: JSON.stringify(
+					{ images: images.map((_, i) => ({ index: i })) },
+					null,
+					2,
+				),
+				durationMs,
+			},
+		};
+		return result;
 	},
 };

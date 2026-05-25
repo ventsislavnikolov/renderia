@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRenovationAiProvider } from "../lib/ai/provider";
-import type { RenovationAiProvider } from "../lib/ai/types";
+import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
 	type CreateDesignBriefInput,
 	createDesignBriefSchema,
@@ -18,14 +18,31 @@ import {
  * `enqueueGenerationJob`) will land in a follow-up task once the UI knows
  * which shapes to send back. Keeping these handlers pure makes that
  * follow-up wiring trivial.
+ *
+ * The handlers return `{ data, debug? }`. `debug` is the provider's debug
+ * payload (model id, assembled prompt, raw response, duration) and is only
+ * forwarded outside the server in non-production builds — see
+ * `attachDebugIfDev` below. Returning the same shape in dev and prod keeps
+ * the client types stable; `debug` is just always `undefined` in prod.
  */
+
+/**
+ * Strip the debug payload in production so prompts and raw model responses
+ * never leak to end users. Tests stub `process.env.NODE_ENV` directly when
+ * they need to exercise both paths.
+ */
+function attachDebugIfDev<T>(value: T, debug: ProviderDebug | undefined) {
+	if (process.env.NODE_ENV === "production") return { data: value };
+	return debug === undefined ? { data: value } : { data: value, debug };
+}
 
 /** @internal */
 export async function __detectProtectedElementsHandler(args: {
 	provider: RenovationAiProvider;
 	input: DetectProtectedElementsInput;
 }) {
-	return args.provider.detectProtectedElements(args.input);
+	const result = await args.provider.detectProtectedElements(args.input);
+	return attachDebugIfDev(result.value, result.debug);
 }
 
 /** @internal */
@@ -33,7 +50,8 @@ export async function __createDesignBriefHandler(args: {
 	provider: RenovationAiProvider;
 	input: CreateDesignBriefInput;
 }) {
-	return args.provider.createDesignBrief(args.input);
+	const result = await args.provider.createDesignBrief(args.input);
+	return attachDebugIfDev(result.value, result.debug);
 }
 
 export const detectProtectedElements = createServerFn({ method: "POST" })

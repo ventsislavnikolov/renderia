@@ -49,15 +49,41 @@ export type GeneratedImageResult = {
 	contentType: "image/png" | "image/jpeg" | "image/webp";
 };
 
+/**
+ * Debug payload attached to provider responses when running outside production.
+ *
+ * The server function decides whether to forward this to the client based on
+ * `NODE_ENV` — providers populate it unconditionally so the gating logic lives
+ * in one place (the server fn) rather than scattered across providers.
+ */
+export type ProviderDebug = {
+	model: string;
+	prompt: string;
+	rawResponse: string;
+	durationMs: number;
+};
+
+/**
+ * Wrapper for every provider call result. The `debug` field is optional so
+ * cheap/synchronous providers (e.g. the mock) can skip populating it. The
+ * server functions surface `debug` to the UI only in dev builds.
+ */
+export type ProviderResult<T> = {
+	value: T;
+	debug?: ProviderDebug;
+};
+
 export type RenovationAiProvider = {
-	suggestTasks(input: SuggestTasksInput): Promise<SuggestedTask[]>;
+	suggestTasks(
+		input: SuggestTasksInput,
+	): Promise<ProviderResult<SuggestedTask[]>>;
 	detectProtectedElements(
 		input: DetectProtectedElementsInput,
-	): Promise<BoundingBox[]>;
+	): Promise<ProviderResult<BoundingBox[]>>;
 	createDesignBrief(
 		input: CreateDesignBriefInput,
-	): Promise<{ markdown: string; prompt: string }>;
+	): Promise<ProviderResult<{ markdown: string; prompt: string }>>;
 	generateRenovationImages(
 		input: GenerateRenovationImagesInput,
-	): Promise<GeneratedImageResult[]>;
+	): Promise<ProviderResult<GeneratedImageResult[]>>;
 };

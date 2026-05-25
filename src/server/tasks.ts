@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { getRenovationAiProvider } from "../lib/ai/provider";
-import type { RenovationAiProvider } from "../lib/ai/types";
+import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
 	type CreateTaskInput,
 	createTaskSchema,
@@ -21,13 +21,28 @@ import type { Database } from "../lib/types/database";
 /**
  * Server functions for renovation tasks plus the AI-backed task suggester.
  *
- * The suggester reads the project's photos under RLS, then hands raw
- * storage paths to the provider as `signedUrl`. The plan documents this as
- * an interim signed-URL stand-in — a follow-up task can swap this for
- * actual signed URLs from Supabase Storage once the upload flow is wired.
+ * The suggester reads the project's photos under RLS and mints a short-lived
+ * Supabase Storage signed URL per photo so the AI provider can attach each
+ * one as a multimodal `image` content part. Storage paths alone would force
+ * the model to "see" a literal URL string in the prompt — `gpt-5-mini` would
+ * then refuse with "I can't access external links". Signed URLs are minted
+ * per request and expire in 10 minutes; the model only needs them long
+ * enough to download once.
  */
 
 type SupabaseScoped = SupabaseClient<Database>;
+
+const SIGNED_URL_TTL_SECONDS = 600;
+
+/**
+ * Mirror of the dev-only gate in `src/server/generation.ts`. Centralised so
+ * the two AI server fns make the same prod/dev decision about leaking
+ * prompts + raw responses to the client.
+ */
+function attachDebugIfDev<T>(value: T, debug: ProviderDebug | undefined) {
+	if (process.env.NODE_ENV === "production") return { data: value };
+	return debug === undefined ? { data: value } : { data: value, debug };
+}
 
 /** @internal */
 export async function __listProjectTasksHandler(args: {
@@ -92,24 +107,45 @@ export async function __suggestTasksForProjectHandler(args: {
 }) {
 	const { data, error } = await args.supabase
 		.from("photos")
-		.select("id, storage_path, notes")
+		.select("id, storage_bucket, storage_path, notes")
 		.eq("owner_id", args.userId)
 		.eq("project_id", args.input.projectId);
 
 	if (error) throw wrapSupabaseError(error);
 
-	const photos = (data ?? []).map((photo) => {
-		const id = String((photo as { id: unknown }).id);
-		const signedUrl = String((photo as { storage_path: unknown }).storage_path);
-		const notesRaw = (photo as { notes: unknown }).notes;
-		const notes = typeof notesRaw === "string" ? notesRaw : undefined;
-		return notes === undefined ? { id, signedUrl } : { id, signedUrl, notes };
-	});
+	// Mint a fresh signed URL per photo. Done in parallel so a project with N
+	// photos doesn't add N round-trip latencies serially — the limiting factor
+	// is the slowest single call, not the sum.
+	const photoRows = (data ?? []) as Array<{
+		id: unknown;
+		storage_bucket: unknown;
+		storage_path: unknown;
+		notes: unknown;
+	}>;
+	const photos = await Promise.all(
+		photoRows.map(async (photo) => {
+			const id = String(photo.id);
+			const bucket = String(photo.storage_bucket);
+			const path = String(photo.storage_path);
+			const notesRaw = photo.notes;
+			const notes = typeof notesRaw === "string" ? notesRaw : undefined;
 
-	return args.provider.suggestTasks({
+			const signed = await args.supabase.storage
+				.from(bucket)
+				.createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+			if (signed.error || !signed.data?.signedUrl) {
+				throw new Error("Failed to mint signed URL for project photo");
+			}
+			const signedUrl = signed.data.signedUrl;
+			return notes === undefined ? { id, signedUrl } : { id, signedUrl, notes };
+		}),
+	);
+
+	const result = await args.provider.suggestTasks({
 		projectNotes: args.input.projectNotes,
 		photos,
 	});
+	return attachDebugIfDev(result.value, result.debug);
 }
 
 function readAuthToken(): string | undefined {
