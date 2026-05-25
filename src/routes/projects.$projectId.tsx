@@ -2,15 +2,15 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "../components/layout/app-shell";
 import { TaskList } from "../components/tasks/task-list";
-import { getAuthHeaders } from "../lib/server-client/auth-headers";
+import {
+	getAuthHeaders,
+	UNAUTHENTICATED_ERROR,
+} from "../lib/server-client/auth-headers";
 import { supabaseBrowser } from "../lib/supabase/browser";
+import type { Tables } from "../lib/types/database";
 import { getProject } from "../server/projects";
 
-type ProjectRow = {
-	id: string;
-	name: string;
-	description: string | null;
-};
+type ProjectRow = Tables<"projects">;
 
 /**
  * `/projects/:projectId` — project detail / task workspace.
@@ -43,17 +43,23 @@ function ProjectRoute() {
 		(async () => {
 			try {
 				const headers = await getAuthHeaders();
-				const row = (await getProject({
+				const row: ProjectRow = await getProject({
 					data: { projectId },
 					headers,
-				})) as ProjectRow;
+				});
 				if (!cancelled) setProject(row);
 			} catch (caught) {
-				if (!cancelled) {
-					setError(
-						caught instanceof Error ? caught.message : "Failed to load project",
-					);
+				if (cancelled) return;
+				if (
+					caught instanceof Error &&
+					caught.message === UNAUTHENTICATED_ERROR
+				) {
+					window.location.assign("/auth");
+					return;
 				}
+				setError(
+					caught instanceof Error ? caught.message : "Failed to load project",
+				);
 			}
 		})();
 		return () => {
@@ -65,7 +71,7 @@ function ProjectRoute() {
 		<>
 			<Link to="/projects">Projects</Link>
 			<span aria-hidden="true"> / </span>
-			<span>{project?.name ?? "…"}</span>
+			<span aria-current="page">{project?.name ?? "…"}</span>
 		</>
 	);
 

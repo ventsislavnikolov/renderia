@@ -1,16 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { getAuthHeaders } from "../../lib/server-client/auth-headers";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	getAuthHeaders,
+	UNAUTHENTICATED_ERROR,
+} from "../../lib/server-client/auth-headers";
+import type { Tables } from "../../lib/types/database";
 import { createTask, listProjectTasks } from "../../server/tasks";
 
-type TaskRow = {
-	id: string;
-	title: string;
-	category: string;
-	status: "suggested" | "active" | "archived";
-	notes: string | null;
-	created_at: string;
-};
+type TaskRow = Tables<"renovation_tasks">;
 
 /**
  * Lists renovation tasks for a project plus a quick-create form.
@@ -31,25 +28,46 @@ export function TaskList(props: { projectId: string }) {
 	const [category, setCategory] = useState("");
 	const [notes, setNotes] = useState("");
 	const [submitting, setSubmitting] = useState(false);
+	const [createdAnnouncement, setCreatedAnnouncement] = useState<string | null>(
+		null,
+	);
+	const cancelledRef = useRef(false);
 
 	const refresh = useCallback(async () => {
+		if (cancelledRef.current) return;
 		setLoadError(null);
 		try {
 			const headers = await getAuthHeaders();
-			const rows = (await listProjectTasks({
+			const rows: TaskRow[] = await listProjectTasks({
 				data: { projectId: props.projectId },
 				headers,
-			})) as TaskRow[];
+			});
+			if (cancelledRef.current) return;
 			setTasks(rows);
 		} catch (error) {
+			if (cancelledRef.current) return;
+			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/auth");
+				return;
+			}
 			setLoadError(error instanceof Error ? error.message : "Failed to load");
 			setTasks([]);
 		}
 	}, [props.projectId]);
 
 	useEffect(() => {
+		cancelledRef.current = false;
 		void refresh();
+		return () => {
+			cancelledRef.current = true;
+		};
 	}, [refresh]);
+
+	useEffect(() => {
+		if (!createdAnnouncement) return;
+		const timer = window.setTimeout(() => setCreatedAnnouncement(null), 3000);
+		return () => window.clearTimeout(timer);
+	}, [createdAnnouncement]);
 
 	async function handleCreate(event: React.FormEvent) {
 		event.preventDefault();
@@ -66,14 +84,22 @@ export function TaskList(props: { projectId: string }) {
 				},
 				headers,
 			});
+			if (cancelledRef.current) return;
 			setTitle("");
 			setCategory("");
 			setNotes("");
 			await refresh();
+			if (cancelledRef.current) return;
+			setCreatedAnnouncement("Task created.");
 		} catch (error) {
+			if (cancelledRef.current) return;
+			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/auth");
+				return;
+			}
 			setCreateError(error instanceof Error ? error.message : "Failed to save");
 		} finally {
-			setSubmitting(false);
+			if (!cancelledRef.current) setSubmitting(false);
 		}
 	}
 
@@ -89,21 +115,29 @@ export function TaskList(props: { projectId: string }) {
 				</p>
 			</header>
 
-			<form className="workspace-form" onSubmit={handleCreate}>
+			<form
+				className="workspace-form"
+				onSubmit={handleCreate}
+				aria-busy={submitting}
+			>
 				<h2>New task</h2>
-				<label>
+				<label htmlFor="new-task-title">
 					Title
 					<input
+						id="new-task-title"
 						value={title}
 						onChange={(event) => setTitle(event.target.value)}
 						placeholder="2nd floor — ceiling"
 						required
 						maxLength={200}
+						aria-describedby={createError ? "new-task-error" : undefined}
+						aria-invalid={createError ? true : undefined}
 					/>
 				</label>
-				<label>
+				<label htmlFor="new-task-category">
 					Category
 					<input
+						id="new-task-category"
 						value={category}
 						onChange={(event) => setCategory(event.target.value)}
 						placeholder="ceiling, facade, kitchen…"
@@ -111,9 +145,10 @@ export function TaskList(props: { projectId: string }) {
 						maxLength={200}
 					/>
 				</label>
-				<label>
+				<label htmlFor="new-task-notes">
 					Notes
 					<textarea
+						id="new-task-notes"
 						value={notes}
 						onChange={(event) => setNotes(event.target.value)}
 						placeholder="Optional context for the AI provider."
@@ -123,11 +158,18 @@ export function TaskList(props: { projectId: string }) {
 				<button type="submit" disabled={submitting || !formValid}>
 					{submitting ? "Saving…" : "Create task"}
 				</button>
-				{createError ? <p role="alert">{createError}</p> : null}
+				{createError ? (
+					<p id="new-task-error" role="alert">
+						{createError}
+					</p>
+				) : null}
+				<output aria-live="polite" className="sr-only">
+					{createdAnnouncement ?? ""}
+				</output>
 			</form>
 
 			{tasks === null && loadError === null ? (
-				<p className="workspace-status">Loading tasks…</p>
+				<output className="workspace-status">Loading tasks…</output>
 			) : null}
 			{loadError ? <p role="alert">{loadError}</p> : null}
 
@@ -138,23 +180,24 @@ export function TaskList(props: { projectId: string }) {
 			) : null}
 
 			{tasks && tasks.length > 0 ? (
-				<div className="card-grid">
+				<ul className="card-grid">
 					{tasks.map((task) => (
-						<Link
-							className="workspace-card"
-							key={task.id}
-							to="/projects/$projectId/tasks/$taskId"
-							params={{ projectId: props.projectId, taskId: task.id }}
-						>
-							<h2>{task.title}</h2>
-							<p className="workspace-card-meta">
-								<span className="badge">{task.category}</span>
-								<span className="badge badge-status">{task.status}</span>
-							</p>
-							{task.notes ? <p>{task.notes}</p> : null}
-						</Link>
+						<li key={task.id}>
+							<Link
+								className="workspace-card"
+								to="/projects/$projectId/tasks/$taskId"
+								params={{ projectId: props.projectId, taskId: task.id }}
+							>
+								<h3>{task.title}</h3>
+								<p className="workspace-card-meta">
+									<span className="badge">{task.category}</span>
+									<span className="badge badge-status">{task.status}</span>
+								</p>
+								{task.notes ? <p>{task.notes}</p> : null}
+							</Link>
+						</li>
 					))}
-				</div>
+				</ul>
 			) : null}
 		</section>
 	);

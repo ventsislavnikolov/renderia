@@ -33,7 +33,7 @@ function TaskWorkspaceRoute() {
 				Project
 			</Link>
 			<span aria-hidden="true"> / </span>
-			<span>Task</span>
+			<span aria-current="page">Task</span>
 		</>
 	);
 

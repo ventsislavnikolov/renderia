@@ -75,6 +75,7 @@ body {
 }
 
 .workspace-status {
+  display: block;
   color: #6b7280;
   font-style: italic;
 }
@@ -136,6 +137,14 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
+  /* Reset for when `<ul>` carries `.card-grid` (semantic list of cards). */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card-grid > li {
+  display: contents;
 }
 
 .workspace-card {
@@ -153,7 +162,7 @@ body {
   border-color: #2563eb;
 }
 
-.workspace-card h2 {
+.workspace-card h3 {
   margin: 0 0 .25rem;
   font-size: 1.05rem;
 }
@@ -164,11 +173,13 @@ body {
   font-size: .875rem;
 }
 
-.workspace-card-meta {
+/* Scoped under .workspace-card so its specificity beats the sibling
+   `.workspace-card p` rule above without needing !important. */
+.workspace-card p.workspace-card-meta {
   display: flex;
   flex-wrap: wrap;
   gap: .375rem;
-  margin: .375rem 0 .5rem !important;
+  margin: .375rem 0 .5rem;
 }
 
 .badge {
