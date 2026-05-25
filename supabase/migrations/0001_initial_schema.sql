@@ -13,7 +13,7 @@ create table public.projects (
 create table public.renovation_tasks (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid not null references public.projects(id) on delete cascade,
+  project_id uuid not null,
   title text not null,
   category text not null,
   status text not null default 'active' check (status in ('suggested', 'active', 'archived')),
@@ -28,7 +28,7 @@ create table public.renovation_tasks (
 create table public.photos (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid not null references public.projects(id) on delete cascade,
+  project_id uuid not null,
   storage_bucket text not null default 'source-photos' check (storage_bucket = 'source-photos'),
   storage_path text not null,
   original_name text not null,
@@ -45,9 +45,9 @@ create table public.photos (
 
 create table public.task_photos (
   owner_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid not null references public.projects(id) on delete cascade,
-  task_id uuid not null references public.renovation_tasks(id) on delete cascade,
-  photo_id uuid not null references public.photos(id) on delete cascade,
+  project_id uuid not null,
+  task_id uuid not null,
+  photo_id uuid not null,
   primary key (task_id, photo_id),
   foreign key (task_id, owner_id, project_id) references public.renovation_tasks (id, owner_id, project_id) on delete cascade,
   foreign key (photo_id, owner_id, project_id) references public.photos (id, owner_id, project_id) on delete cascade
@@ -56,9 +56,9 @@ create table public.task_photos (
 create table public.protected_elements (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid not null references public.projects(id) on delete cascade,
-  task_id uuid not null references public.renovation_tasks(id) on delete cascade,
-  photo_id uuid not null references public.photos(id) on delete cascade,
+  project_id uuid not null,
+  task_id uuid not null,
+  photo_id uuid not null,
   label text not null,
   kind text not null,
   x numeric not null check (x >= 0),
@@ -75,7 +75,7 @@ create table public.protected_elements (
 create table public.design_briefs (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  task_id uuid not null references public.renovation_tasks(id) on delete cascade,
+  task_id uuid not null,
   markdown text not null,
   prompt text not null,
   version integer not null default 1 check (version > 0),
@@ -87,7 +87,7 @@ create table public.design_briefs (
 create table public.generation_jobs (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  task_id uuid not null references public.renovation_tasks(id) on delete cascade,
+  task_id uuid not null,
   brief_id uuid,
   provider text not null,
   model text not null,
@@ -104,8 +104,8 @@ create table public.generation_jobs (
 create table public.generated_images (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
-  job_id uuid not null references public.generation_jobs(id) on delete cascade,
-  task_id uuid not null references public.renovation_tasks(id) on delete cascade,
+  job_id uuid not null,
+  task_id uuid not null,
   storage_bucket text not null default 'generated-outputs' check (storage_bucket = 'generated-outputs'),
   storage_path text not null,
   variation_index integer not null check (variation_index >= 0),
