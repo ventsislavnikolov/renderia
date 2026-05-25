@@ -6,7 +6,8 @@ create table public.projects (
   name text not null,
   description text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, owner_id)
 );
 
 create table public.renovation_tasks (
@@ -18,7 +19,10 @@ create table public.renovation_tasks (
   status text not null default 'active' check (status in ('suggested', 'active', 'archived')),
   notes text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (id, owner_id),
+  unique (id, owner_id, project_id),
+  foreign key (project_id, owner_id) references public.projects (id, owner_id) on delete cascade
 );
 
 create table public.photos (
@@ -33,18 +37,26 @@ create table public.photos (
   height integer check (height is null or height > 0),
   notes text,
   created_at timestamptz not null default now(),
-  unique (storage_bucket, storage_path)
+  unique (storage_bucket, storage_path),
+  unique (id, owner_id),
+  unique (id, owner_id, project_id),
+  foreign key (project_id, owner_id) references public.projects (id, owner_id) on delete cascade
 );
 
 create table public.task_photos (
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
   task_id uuid not null references public.renovation_tasks(id) on delete cascade,
   photo_id uuid not null references public.photos(id) on delete cascade,
-  primary key (task_id, photo_id)
+  primary key (task_id, photo_id),
+  foreign key (task_id, owner_id, project_id) references public.renovation_tasks (id, owner_id, project_id) on delete cascade,
+  foreign key (photo_id, owner_id, project_id) references public.photos (id, owner_id, project_id) on delete cascade
 );
 
 create table public.protected_elements (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
   task_id uuid not null references public.renovation_tasks(id) on delete cascade,
   photo_id uuid not null references public.photos(id) on delete cascade,
   label text not null,
@@ -55,7 +67,9 @@ create table public.protected_elements (
   height numeric not null check (height > 0),
   confidence numeric check (confidence is null or (confidence >= 0 and confidence <= 1)),
   status text not null default 'suggested' check (status in ('suggested', 'confirmed', 'rejected')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  foreign key (task_id, owner_id, project_id) references public.renovation_tasks (id, owner_id, project_id) on delete cascade,
+  foreign key (photo_id, owner_id, project_id) references public.photos (id, owner_id, project_id) on delete cascade
 );
 
 create table public.design_briefs (
@@ -65,21 +79,26 @@ create table public.design_briefs (
   markdown text not null,
   prompt text not null,
   version integer not null default 1 check (version > 0),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (id, owner_id, task_id),
+  foreign key (task_id, owner_id) references public.renovation_tasks (id, owner_id) on delete cascade
 );
 
 create table public.generation_jobs (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
   task_id uuid not null references public.renovation_tasks(id) on delete cascade,
-  brief_id uuid references public.design_briefs(id) on delete set null,
+  brief_id uuid,
   provider text not null,
   model text not null,
   status text not null default 'pending' check (status in ('pending', 'running', 'succeeded', 'failed')),
   prompt text not null,
   error_message text,
   created_at timestamptz not null default now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  unique (id, owner_id, task_id),
+  foreign key (task_id, owner_id) references public.renovation_tasks (id, owner_id) on delete cascade,
+  foreign key (brief_id, owner_id, task_id) references public.design_briefs (id, owner_id, task_id) on delete set null (brief_id)
 );
 
 create table public.generated_images (
@@ -94,12 +113,15 @@ create table public.generated_images (
   notes text,
   created_at timestamptz not null default now(),
   unique (storage_bucket, storage_path),
-  unique (job_id, variation_index)
+  unique (job_id, variation_index),
+  foreign key (job_id, owner_id, task_id) references public.generation_jobs (id, owner_id, task_id) on delete cascade,
+  foreign key (task_id, owner_id) references public.renovation_tasks (id, owner_id) on delete cascade
 );
 
 create index projects_owner_id_idx on public.projects (owner_id);
 create index renovation_tasks_owner_project_idx on public.renovation_tasks (owner_id, project_id);
 create index photos_owner_project_idx on public.photos (owner_id, project_id);
+create index task_photos_owner_project_idx on public.task_photos (owner_id, project_id);
 create index task_photos_photo_id_idx on public.task_photos (photo_id);
 create index protected_elements_owner_task_idx on public.protected_elements (owner_id, task_id);
 create index design_briefs_owner_task_idx on public.design_briefs (owner_id, task_id);
@@ -130,7 +152,7 @@ create policy "renovation tasks owner access"
     and exists (
       select 1
       from public.projects p
-      where p.id = project_id
+      where p.id = renovation_tasks.project_id
         and p.owner_id = auth.uid()
     )
   );
@@ -145,7 +167,7 @@ create policy "photos owner access"
     and exists (
       select 1
       from public.projects p
-      where p.id = project_id
+      where p.id = photos.project_id
         and p.owner_id = auth.uid()
     )
   );
@@ -153,26 +175,14 @@ create policy "photos owner access"
 create policy "task photos owner access"
   on public.task_photos
   for all
-  using (
-    exists (
-      select 1
-      from public.renovation_tasks t
-      join public.photos p on p.id = photo_id
-      where t.id = task_id
-        and t.owner_id = auth.uid()
-        and p.owner_id = auth.uid()
-        and p.project_id = t.project_id
-    )
-  )
+  using (owner_id = auth.uid())
   with check (
-    exists (
+    owner_id = auth.uid()
+    and exists (
       select 1
-      from public.renovation_tasks t
-      join public.photos p on p.id = photo_id
-      where t.id = task_id
-        and t.owner_id = auth.uid()
+      from public.projects p
+      where p.id = task_photos.project_id
         and p.owner_id = auth.uid()
-        and p.project_id = t.project_id
     )
   );
 
@@ -185,11 +195,13 @@ create policy "protected elements owner access"
     and exists (
       select 1
       from public.renovation_tasks t
-      join public.photos p on p.id = photo_id
-      where t.id = task_id
+      join public.photos p on p.id = protected_elements.photo_id
+      where t.id = protected_elements.task_id
         and t.owner_id = auth.uid()
         and p.owner_id = auth.uid()
+        and p.id = protected_elements.photo_id
         and p.project_id = t.project_id
+        and p.project_id = protected_elements.project_id
     )
   );
 
@@ -202,7 +214,7 @@ create policy "design briefs owner access"
     and exists (
       select 1
       from public.renovation_tasks t
-      where t.id = task_id
+      where t.id = design_briefs.task_id
         and t.owner_id = auth.uid()
     )
   );
@@ -216,17 +228,17 @@ create policy "generation jobs owner access"
     and exists (
       select 1
       from public.renovation_tasks t
-      where t.id = task_id
+      where t.id = generation_jobs.task_id
         and t.owner_id = auth.uid()
     )
     and (
-      brief_id is null
+      generation_jobs.brief_id is null
       or exists (
         select 1
         from public.design_briefs b
-        where b.id = brief_id
+        where b.id = generation_jobs.brief_id
           and b.owner_id = auth.uid()
-          and b.task_id = task_id
+          and b.task_id = generation_jobs.task_id
       )
     )
   );
@@ -241,9 +253,9 @@ create policy "generated images owner access"
     and exists (
       select 1
       from public.generation_jobs j
-      where j.id = job_id
+      where j.id = generated_images.job_id
         and j.owner_id = auth.uid()
-        and j.task_id = task_id
+        and j.task_id = generated_images.task_id
     )
   );
 

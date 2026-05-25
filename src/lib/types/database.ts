@@ -140,18 +140,30 @@ export type Database = {
 			};
 			task_photos: {
 				Row: {
+					owner_id: string;
+					project_id: string;
 					task_id: string;
 					photo_id: string;
 				};
 				Insert: {
+					owner_id: string;
+					project_id: string;
 					task_id: string;
 					photo_id: string;
 				};
 				Update: {
+					owner_id?: string;
+					project_id?: string;
 					task_id?: string;
 					photo_id?: string;
 				};
 				Relationships: [
+					{
+						foreignKeyName: "task_photos_project_id_fkey";
+						columns: ["project_id"];
+						referencedRelation: "projects";
+						referencedColumns: ["id"];
+					},
 					{
 						foreignKeyName: "task_photos_task_id_fkey";
 						columns: ["task_id"];
@@ -164,12 +176,25 @@ export type Database = {
 						referencedRelation: "photos";
 						referencedColumns: ["id"];
 					},
+					{
+						foreignKeyName: "task_photos_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "task_photos_photo_id_owner_id_project_id_fkey";
+						columns: ["photo_id", "owner_id", "project_id"];
+						referencedRelation: "photos";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
 				];
 			};
 			protected_elements: {
 				Row: {
 					id: string;
 					owner_id: string;
+					project_id: string;
 					task_id: string;
 					photo_id: string;
 					label: string;
@@ -185,6 +210,7 @@ export type Database = {
 				Insert: {
 					id?: string;
 					owner_id: string;
+					project_id: string;
 					task_id: string;
 					photo_id: string;
 					label: string;
@@ -200,6 +226,7 @@ export type Database = {
 				Update: {
 					id?: string;
 					owner_id?: string;
+					project_id?: string;
 					task_id?: string;
 					photo_id?: string;
 					label?: string;
@@ -214,6 +241,12 @@ export type Database = {
 				};
 				Relationships: [
 					{
+						foreignKeyName: "protected_elements_project_id_fkey";
+						columns: ["project_id"];
+						referencedRelation: "projects";
+						referencedColumns: ["id"];
+					},
+					{
 						foreignKeyName: "protected_elements_task_id_fkey";
 						columns: ["task_id"];
 						referencedRelation: "renovation_tasks";
@@ -224,6 +257,18 @@ export type Database = {
 						columns: ["photo_id"];
 						referencedRelation: "photos";
 						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "protected_elements_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "protected_elements_photo_id_owner_id_project_id_fkey";
+						columns: ["photo_id", "owner_id", "project_id"];
+						referencedRelation: "photos";
+						referencedColumns: ["id", "owner_id", "project_id"];
 					},
 				];
 			};
@@ -261,6 +306,12 @@ export type Database = {
 						columns: ["task_id"];
 						referencedRelation: "renovation_tasks";
 						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "design_briefs_task_id_owner_id_fkey";
+						columns: ["task_id", "owner_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id"];
 					},
 				];
 			};
@@ -312,10 +363,16 @@ export type Database = {
 						referencedColumns: ["id"];
 					},
 					{
-						foreignKeyName: "generation_jobs_brief_id_fkey";
-						columns: ["brief_id"];
+						foreignKeyName: "generation_jobs_task_id_owner_id_fkey";
+						columns: ["task_id", "owner_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id"];
+					},
+					{
+						foreignKeyName: "generation_jobs_brief_id_owner_id_task_id_fkey";
+						columns: ["brief_id", "owner_id", "task_id"];
 						referencedRelation: "design_briefs";
-						referencedColumns: ["id"];
+						referencedColumns: ["id", "owner_id", "task_id"];
 					},
 				];
 			};
@@ -368,6 +425,18 @@ export type Database = {
 						columns: ["task_id"];
 						referencedRelation: "renovation_tasks";
 						referencedColumns: ["id"];
+					},
+					{
+						foreignKeyName: "generated_images_job_id_owner_id_task_id_fkey";
+						columns: ["job_id", "owner_id", "task_id"];
+						referencedRelation: "generation_jobs";
+						referencedColumns: ["id", "owner_id", "task_id"];
+					},
+					{
+						foreignKeyName: "generated_images_task_id_owner_id_fkey";
+						columns: ["task_id", "owner_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id"];
 					},
 				];
 			};
