@@ -7,7 +7,7 @@ import {
 } from "../../../src/server/generation";
 
 const SAMPLE_DEBUG = {
-	model: "gpt-5-mini",
+	model: "gpt-5",
 	prompt: "test prompt",
 	rawResponse: '{"ok":true}',
 	durationMs: 12,
