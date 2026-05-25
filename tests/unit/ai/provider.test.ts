@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockRenovationProvider } from "../../../src/lib/ai/mock-provider";
+import { openAiRenovationProvider } from "../../../src/lib/ai/openai-provider";
 import { getRenovationAiProvider } from "../../../src/lib/ai/provider";
 
 describe("getRenovationAiProvider", () => {
@@ -12,11 +13,9 @@ describe("getRenovationAiProvider", () => {
 		expect(getRenovationAiProvider()).toBe(mockRenovationProvider);
 	});
 
-	it("throws for AI_PROVIDER=openai until Task 5 lands", () => {
+	it("returns the openai provider when AI_PROVIDER=openai", () => {
 		vi.stubEnv("AI_PROVIDER", "openai");
-		expect(() => getRenovationAiProvider()).toThrow(
-			"OpenAI provider added in Task 5",
-		);
+		expect(getRenovationAiProvider()).toBe(openAiRenovationProvider);
 	});
 
 	it("throws for unknown AI_PROVIDER values", () => {

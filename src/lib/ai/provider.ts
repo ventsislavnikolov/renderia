@@ -1,4 +1,5 @@
 import { mockRenovationProvider } from "./mock-provider";
+import { openAiRenovationProvider } from "./openai-provider";
 import type { RenovationAiProvider } from "./types";
 
 export function getRenovationAiProvider(): RenovationAiProvider {
@@ -7,7 +8,7 @@ export function getRenovationAiProvider(): RenovationAiProvider {
 		case "mock":
 			return mockRenovationProvider;
 		case "openai":
-			throw new Error("OpenAI provider added in Task 5");
+			return openAiRenovationProvider;
 		default:
 			throw new Error(`Unknown AI_PROVIDER: ${provider}`);
 	}
