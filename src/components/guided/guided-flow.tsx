@@ -34,7 +34,11 @@ const STEP_LABELS: Record<StepId, string> = {
  * data isn't ready (e.g. overlay step needs a photo, brief step needs
  * confirmed elements) so the user can't render a half-wired child.
  */
-export function GuidedFlow(props: { projectId: string; taskTitle: string }) {
+export function GuidedFlow(props: {
+	projectId: string;
+	taskId: string;
+	taskTitle: string;
+}) {
 	const [step, setStep] = useState<StepId>("photo");
 	const [photo, setPhoto] = useState<PhotoRow | null>(null);
 	const [protectedElements, setProtectedElements] = useState<BoundingBox[]>([]);
@@ -121,7 +125,12 @@ export function GuidedFlow(props: { projectId: string; taskTitle: string }) {
 			) : null}
 
 			{step === "generate" ? (
-				<GenerationStep brief={brief} prompt={prompt} />
+				<GenerationStep
+					taskId={props.taskId}
+					briefId={null}
+					brief={brief}
+					prompt={prompt}
+				/>
 			) : null}
 		</section>
 	);

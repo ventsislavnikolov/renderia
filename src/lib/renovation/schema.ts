@@ -103,3 +103,32 @@ export const createDesignBriefSchema = z.object({
 	protectedElements: z.array(protectedElementSchema),
 });
 export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
+
+/**
+ * Inputs for `generateRenovationImages` server fn.
+ *
+ * `count` is capped at 4 so a single request can't burn an unbounded number
+ * of `gpt-image-2` generations. `briefId` is nullable because brief
+ * persistence is not yet wired into the guided flow — once that lands,
+ * callers can pass the persisted brief's id so the `generation_jobs` row
+ * has a foreign-key trail back to the prompt source.
+ */
+export const generateRenovationImagesSchema = z.object({
+	taskId: z.string().uuid(),
+	briefId: z.string().uuid().nullable(),
+	prompt: z.string().min(1).max(8000),
+	count: z.number().int().min(1).max(4).default(4),
+});
+export type GenerateRenovationImagesInput = z.infer<
+	typeof generateRenovationImagesSchema
+>;
+
+/**
+ * Inputs for `setImageFavorite` server fn. The image id alone is enough —
+ * the handler enforces ownership via the `owner_id` filter on the row.
+ */
+export const setImageFavoriteSchema = z.object({
+	imageId: z.string().uuid(),
+	isFavorite: z.boolean(),
+});
+export type SetImageFavoriteInput = z.infer<typeof setImageFavoriteSchema>;

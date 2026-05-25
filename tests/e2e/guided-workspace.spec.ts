@@ -114,6 +114,40 @@ const FAKE_BRIEF = {
 	prompt: "PRESERVE EXACTLY main window, ceiling beam. Apply requested style.",
 };
 
+const FAKE_GENERATION = {
+	jobId: "44444444-4444-4444-4444-444444444444",
+	images: [
+		{
+			id: "55555555-5555-5555-5555-000000000001",
+			storagePath: `${USER_ID}/job-1-0.png`,
+			signedUrl: "/storage/v1/object/generated/fake-0.png?token=fake",
+			variationIndex: 0,
+			isFavorite: false,
+		},
+		{
+			id: "55555555-5555-5555-5555-000000000002",
+			storagePath: `${USER_ID}/job-1-1.png`,
+			signedUrl: "/storage/v1/object/generated/fake-1.png?token=fake",
+			variationIndex: 1,
+			isFavorite: false,
+		},
+		{
+			id: "55555555-5555-5555-5555-000000000003",
+			storagePath: `${USER_ID}/job-1-2.png`,
+			signedUrl: "/storage/v1/object/generated/fake-2.png?token=fake",
+			variationIndex: 2,
+			isFavorite: false,
+		},
+		{
+			id: "55555555-5555-5555-5555-000000000004",
+			storagePath: `${USER_ID}/job-1-3.png`,
+			signedUrl: "/storage/v1/object/generated/fake-3.png?token=fake",
+			variationIndex: 3,
+			isFavorite: false,
+		},
+	],
+};
+
 /**
  * Install fake session before any client script runs. We can't write
  * localStorage before navigation (it requires an active page context), so we
@@ -317,7 +351,29 @@ async function installApiMocks(page: Page, state: PageState) {
 		if (fnId.includes("createDesignBrief")) {
 			return serializedResult(FAKE_BRIEF);
 		}
+		if (fnId.includes("generateRenovationImages")) {
+			return serializedResult({ data: FAKE_GENERATION });
+		}
+		if (fnId.includes("setImageFavorite")) {
+			return serializedResult({
+				id: "55555555-5555-5555-5555-000000000001",
+				is_favorite: true,
+				storage_path: `${USER_ID}/job-1-0.png`,
+				variation_index: 0,
+			});
+		}
 		return serializedResult(null);
+	});
+
+	// The generation step renders <img src={signedUrl}> using the signed URLs
+	// the (mocked) server fn returned. Stub the asset paths so the browser
+	// doesn't 404 on them.
+	await page.route(/\/storage\/v1\/object\/generated\/.*/, async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "image/png",
+			body: FIXTURE_BYTES,
+		});
 	});
 }
 

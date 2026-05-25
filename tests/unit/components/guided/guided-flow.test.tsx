@@ -169,8 +169,14 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 }));
 
 vi.mock("../../../../src/components/guided/generation-step", () => ({
-	GenerationStep: (props: { brief: string; prompt: string }) => (
+	GenerationStep: (props: {
+		taskId: string;
+		briefId: string | null;
+		brief: string;
+		prompt: string;
+	}) => (
 		<div data-testid="generation-step">
+			<span data-testid="generation-task-id">{props.taskId}</span>
 			<span data-testid="generation-brief">{props.brief}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
 		</div>
@@ -185,7 +191,7 @@ describe("GuidedFlow orchestrator", () => {
 	});
 
 	it("starts on the Upload step with downstream steps disabled", () => {
-		render(<GuidedFlow projectId="p1" taskTitle="ceiling" />);
+		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		const stepper = screen.getByRole("navigation", {
 			name: /guided renovation steps/i,
 		});
@@ -208,7 +214,7 @@ describe("GuidedFlow orchestrator", () => {
 
 	it("advances to the overlay step when a photo is selected", async () => {
 		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskTitle="ceiling" />);
+		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		await user.click(screen.getByText("select-photo"));
 		expect(screen.getByTestId("overlay-step")).toBeDefined();
 		// Confirm step is now reachable in the stepper.
@@ -224,7 +230,7 @@ describe("GuidedFlow orchestrator", () => {
 
 	it("advances through confirm → brief → generate, exposing prompt + brief to the final step", async () => {
 		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskTitle="ceiling" />);
+		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		await user.click(screen.getByText("select-photo"));
 		await user.click(screen.getByText("confirm-elements"));
 		expect(screen.getByTestId("brief-step")).toBeDefined();
@@ -242,7 +248,7 @@ describe("GuidedFlow orchestrator", () => {
 
 	it("resets downstream state when a different photo is selected", async () => {
 		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskTitle="ceiling" />);
+		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		// Walk all the way to generate so brief + protected elements are set.
 		await user.click(screen.getByText("select-photo"));
 		await user.click(screen.getByText("confirm-elements"));
@@ -267,7 +273,7 @@ describe("GuidedFlow orchestrator", () => {
 
 	it("ignores stepper clicks on unreachable steps", async () => {
 		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskTitle="ceiling" />);
+		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		const stepper = screen.getByRole("navigation", {
 			name: /guided renovation steps/i,
 		});

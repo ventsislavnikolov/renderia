@@ -16,7 +16,8 @@ import type {
  * tests can assert against the same identifiers without hardcoding strings.
  */
 const TEXT_MODEL = "gpt-5.5";
-const IMAGE_MODEL = "gpt-image-2";
+export const OPENAI_IMAGE_MODEL = "gpt-image-2";
+const IMAGE_MODEL = OPENAI_IMAGE_MODEL;
 
 /**
  * Zod schemas mirror the BoundingBox + SuggestedTask types. We feed these

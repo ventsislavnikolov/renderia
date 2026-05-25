@@ -98,7 +98,11 @@ function TaskWorkspaceRoute() {
 				</header>
 				{loadError ? <p role="alert">{loadError}</p> : null}
 				{task ? (
-					<GuidedFlow projectId={projectId} taskTitle={task.title} />
+					<GuidedFlow
+						projectId={projectId}
+						taskId={taskId}
+						taskTitle={task.title}
+					/>
 				) : !loadError ? (
 					<output className="workspace-status">Loading task…</output>
 				) : null}
