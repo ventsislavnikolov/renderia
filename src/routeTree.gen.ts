@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ProjectsProjectIdTasksTaskIdRouteImport } from './routes/projects.$projectId.tasks.$taskId'
 
 const AuthRoute = AuthRouteImport.update({
@@ -35,6 +36,11 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 const ProjectsProjectIdTasksTaskIdRoute =
   ProjectsProjectIdTasksTaskIdRouteImport.update({
     id: '/tasks/$taskId',
@@ -44,14 +50,16 @@ const ProjectsProjectIdTasksTaskIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects': typeof ProjectsIndexRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
@@ -59,7 +67,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
@@ -69,6 +78,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/auth/callback'
     | '/projects/$projectId'
     | '/projects/'
     | '/projects/$projectId/tasks/$taskId'
@@ -76,6 +86,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/auth/callback'
     | '/projects/$projectId'
     | '/projects'
     | '/projects/$projectId/tasks/$taskId'
@@ -83,6 +94,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/auth/callback'
     | '/projects/$projectId'
     | '/projects/'
     | '/projects/$projectId/tasks/$taskId'
@@ -90,7 +102,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
   ProjectsIndexRoute: typeof ProjectsIndexRoute
 }
@@ -125,6 +137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/projects/$projectId/tasks/$taskId': {
       id: '/projects/$projectId/tasks/$taskId'
       path: '/tasks/$taskId'
@@ -134,6 +153,16 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdTasksTaskIdRoute: typeof ProjectsProjectIdTasksTaskIdRoute
@@ -148,7 +177,7 @@ const ProjectsProjectIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
   ProjectsIndexRoute: ProjectsIndexRoute,
 }
