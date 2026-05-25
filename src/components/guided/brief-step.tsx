@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import type { BoundingBox } from "../../lib/ai/types";
 import {
@@ -82,6 +82,11 @@ export function BriefStep(props: {
 		`# ${props.taskTitle}\n\nPreserve ${props.protectedElements.length} confirmed fixed element${
 			props.protectedElements.length === 1 ? "" : "s"
 		}.\n\nApply the configured style rules.`;
+	// Streamdown parses + sanitises markdown on every render, so keystrokes in
+	// the textarea would otherwise re-walk the full document each character.
+	// `useDeferredValue` lets React stream the textarea update first and defer
+	// the preview render, which keeps typing fluid even on large briefs.
+	const deferredBrief = useDeferredValue(briefValue);
 
 	return (
 		<div className="guided-step" aria-busy={generating}>
@@ -133,7 +138,7 @@ export function BriefStep(props: {
 					/>
 				</label>
 				<section className="brief-preview" aria-label="Brief preview">
-					<Streamdown>{briefValue}</Streamdown>
+					<Streamdown>{deferredBrief}</Streamdown>
 				</section>
 			</div>
 

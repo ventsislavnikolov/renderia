@@ -102,6 +102,7 @@ export function GuidedFlow(props: { projectId: string; taskTitle: string }) {
 			{step === "overlay" && photo ? (
 				<OverlayConfirmStep
 					photo={photo}
+					taskTitle={props.taskTitle}
 					confirmedElements={protectedElements}
 					onConfirm={handleElementsConfirmed}
 				/>

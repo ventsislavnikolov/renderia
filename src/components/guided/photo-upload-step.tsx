@@ -156,16 +156,35 @@ export function PhotoUploadStep(props: {
 				throw new Error(upload.error.message);
 			}
 
-			const headers = await getAuthHeaders();
-			const row: PhotoRow = await createPhotoRecord({
-				data: {
-					projectId: props.projectId,
-					storagePath,
-					originalName: file.name.slice(0, 255),
-					contentType: file.type as "image/png" | "image/jpeg" | "image/webp",
-				},
-				headers,
-			});
+			// If `createPhotoRecord` throws after the upload succeeds, the
+			// object would otherwise sit in the bucket with no `photos` row
+			// pointing at it. Wrap the metadata insert so we can `remove()` the
+			// orphan before surfacing the original error to the user.
+			let row: PhotoRow;
+			try {
+				const headers = await getAuthHeaders();
+				row = await createPhotoRecord({
+					data: {
+						projectId: props.projectId,
+						storagePath,
+						originalName: file.name.slice(0, 255),
+						contentType: file.type as "image/png" | "image/jpeg" | "image/webp",
+					},
+					headers,
+				});
+			} catch (createError) {
+				try {
+					await supabaseBrowser.storage.from(BUCKET).remove([storagePath]);
+				} catch (cleanupError) {
+					// Cleanup is best-effort — never let it mask the real failure
+					// the user needs to see.
+					console.error(
+						"Failed to remove orphaned storage object",
+						cleanupError,
+					);
+				}
+				throw createError;
+			}
 
 			if (cancelledRef.current) return;
 			setAnnouncement("Photo uploaded.");

@@ -38,10 +38,12 @@ export function GenerationStep(props: { brief: string; prompt: string }) {
 				</p>
 			</header>
 
-			<details className="guided-prompt-debug">
-				<summary>Show prompt sent to provider</summary>
-				<pre>{props.prompt || "(prompt not generated yet)"}</pre>
-			</details>
+			{import.meta.env.MODE !== "production" && (
+				<details className="guided-prompt-debug">
+					<summary>Show prompt sent to provider</summary>
+					<pre>{props.prompt || "(prompt not generated yet)"}</pre>
+				</details>
+			)}
 
 			<div className="generation-grid">
 				{Array.from({ length: VARIATION_COUNT }, (_, index) => {

@@ -35,8 +35,21 @@ const SIGNED_URL_TTL_SECONDS = 600;
  */
 type KeyedElement = { id: string; box: BoundingBox };
 
+/**
+ * `crypto.randomUUID` is undefined on non-HTTPS origins (e.g. LAN device
+ * testing via `http://192.168.x.x`). The fallback keeps ids stable enough for
+ * client-side React keys + selection sets without pulling in a UUID dep.
+ */
+function randomId(): string {
+	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+		return crypto.randomUUID();
+	}
+	return `elem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function OverlayConfirmStep(props: {
 	photo: PhotoRow;
+	taskTitle: string;
 	confirmedElements: BoundingBox[];
 	onConfirm: (elements: BoundingBox[]) => void;
 }) {
@@ -83,20 +96,30 @@ export function OverlayConfirmStep(props: {
 		setDetectError(null);
 		setDetecting(true);
 		try {
+			// Always mint a fresh URL right before the detection call. The URL
+			// stored in component state may be older than the 10-minute TTL if
+			// the user revisited this step, which would cause the provider to
+			// fail to fetch the image. The on-screen `<img>` keeps using the
+			// state URL — it loaded successfully when first minted.
+			const { data, error: signError } = await supabaseBrowser.storage
+				.from(photoBucketFor(props.photo))
+				.createSignedUrl(props.photo.storage_path, SIGNED_URL_TTL_SECONDS);
+			if (signError) throw signError;
 			const headers = await getAuthHeaders();
 			const result: BoundingBox[] = await detectProtectedElements({
 				data: {
-					photoUrl: signedUrl,
-					taskTitle: "Protected element detection",
+					photoUrl: data.signedUrl,
+					taskTitle: props.taskTitle,
 				},
 				headers,
 			});
 			if (cancelledRef.current) return;
 			// Tag each box with a stable client id so React keys and selection
-			// state both reference the same identity. `crypto.randomUUID` is
-			// available in modern browsers and in jsdom-based tests.
+			// state both reference the same identity. `randomId()` falls back
+			// to a Date.now()+Math.random() string on non-HTTPS origins where
+			// `crypto.randomUUID` is undefined.
 			const keyed: KeyedElement[] = result.map((box) => ({
-				id: crypto.randomUUID(),
+				id: randomId(),
 				box,
 			}));
 			setDetected(keyed);
@@ -184,6 +207,7 @@ export function OverlayConfirmStep(props: {
 									height: `${box.height * 100}%`,
 								}}
 								aria-pressed={isSelected}
+								aria-label={`Toggle ${box.label} protection`}
 								onClick={() => toggleSelection(id)}
 							>
 								{box.label}
