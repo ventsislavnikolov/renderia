@@ -90,7 +90,7 @@ function buildSupabaseStub(opts: {
 }
 
 const SAMPLE_DEBUG = {
-	model: "gpt-5",
+	model: "gpt-5.5",
 	prompt: "test prompt",
 	rawResponse: "{}",
 	durationMs: 7,

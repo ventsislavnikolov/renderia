@@ -89,7 +89,7 @@ describe("openAiRenovationProvider", () => {
 			expect(result.value).toEqual([
 				{ title: "ceiling", category: "ceiling", rationale: "r" },
 			]);
-			expect(openaiModelMock).toHaveBeenCalledWith("gpt-5");
+			expect(openaiModelMock).toHaveBeenCalledWith("gpt-5.5");
 			expect(callText(0)).toContain("needs work");
 			expect(callText(0)).toContain("Photo count: 1");
 			// The signed URL is attached as an image content part — never as a
@@ -101,7 +101,7 @@ describe("openAiRenovationProvider", () => {
 
 			// Debug payload is populated unconditionally — the server fn decides
 			// whether to forward it to the client based on NODE_ENV.
-			expect(result.debug?.model).toBe("gpt-5");
+			expect(result.debug?.model).toBe("gpt-5.5");
 			expect(typeof result.debug?.durationMs).toBe("number");
 			expect(result.debug?.prompt).toContain("Photo count: 1");
 			expect(result.debug?.rawResponse).toContain("ceiling");
@@ -189,7 +189,7 @@ describe("openAiRenovationProvider", () => {
 			expect(callText(0)).toContain("window, door, stairs");
 
 			// Debug payload included for the dev console.
-			expect(result.debug?.model).toBe("gpt-5");
+			expect(result.debug?.model).toBe("gpt-5.5");
 		});
 
 		it("passes a Zod schema that constrains the elements shape", async () => {
