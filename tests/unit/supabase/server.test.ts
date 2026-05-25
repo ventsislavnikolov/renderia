@@ -2,24 +2,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Supabase server client constructs at module level if you call the
 // factory at import time, so we mock @supabase/supabase-js to keep
-// `createSupabaseServerClient` from reaching the network and to capture
-// constructor arguments.
+// the factories from reaching the network and to capture constructor
+// arguments.
 const createClientMock = vi.fn();
 vi.mock("@supabase/supabase-js", () => ({
 	createClient: (...args: unknown[]) => createClientMock(...args),
 }));
 
 import {
-	createSupabaseServerClient,
+	createSupabaseAdminClient,
+	createSupabaseUserClient,
 	readBearerToken,
 	requireAuthedSupabase,
 	requireUserId,
+	wrapSupabaseError,
 } from "../../../src/lib/supabase/server";
 
 describe("supabase server helpers", () => {
 	beforeEach(() => {
 		createClientMock.mockReset();
 		vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+		vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "pk-anon");
 		vi.stubEnv("SUPABASE_SECRET_KEY", "sk-secret");
 	});
 
@@ -27,32 +30,38 @@ describe("supabase server helpers", () => {
 		vi.unstubAllEnvs();
 	});
 
-	describe("createSupabaseServerClient", () => {
-		it("uses the secret key and persists no session", () => {
+	describe("createSupabaseUserClient", () => {
+		it("uses the publishable (anon) key and forwards the bearer token", () => {
 			createClientMock.mockReturnValueOnce({ id: "client" });
 
-			const client = createSupabaseServerClient();
+			const client = createSupabaseUserClient("user-jwt");
 
 			expect(client).toEqual({ id: "client" });
+			expect(createClientMock).toHaveBeenCalledWith(
+				"https://example.supabase.co",
+				"pk-anon",
+				expect.objectContaining({ auth: { persistSession: false } }),
+			);
+			const opts = createClientMock.mock.calls[0]?.[2] as {
+				global: { headers: Record<string, string> };
+			};
+			expect(opts.global.headers.Authorization).toBe("Bearer user-jwt");
+		});
+	});
+
+	describe("createSupabaseAdminClient", () => {
+		it("uses the secret (service-role) key without an Authorization header", () => {
+			createClientMock.mockReturnValueOnce({ id: "admin" });
+
+			createSupabaseAdminClient();
+
 			expect(createClientMock).toHaveBeenCalledWith(
 				"https://example.supabase.co",
 				"sk-secret",
 				expect.objectContaining({ auth: { persistSession: false } }),
 			);
-			// no Authorization header when no access token is provided
 			const opts = createClientMock.mock.calls[0]?.[2] as { global?: unknown };
 			expect(opts.global).toBeUndefined();
-		});
-
-		it("forwards a bearer access token via Authorization header", () => {
-			createClientMock.mockReturnValueOnce({ id: "client" });
-
-			createSupabaseServerClient("user-jwt");
-
-			const opts = createClientMock.mock.calls[0]?.[2] as {
-				global: { headers: Record<string, string> };
-			};
-			expect(opts.global.headers.Authorization).toBe("Bearer user-jwt");
 		});
 	});
 
@@ -106,7 +115,7 @@ describe("supabase server helpers", () => {
 			);
 		});
 
-		it("returns the user id and a request-scoped client on success", async () => {
+		it("returns the user id and a publishable-key-scoped client on success", async () => {
 			const getUser = vi
 				.fn()
 				.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
@@ -116,14 +125,45 @@ describe("supabase server helpers", () => {
 
 			expect(result.userId).toBe("user-1");
 			expect(result.supabase).toBeDefined();
-			// Bearer token was forwarded when constructing the client
+			// Client is built with the publishable (anon) key, not the secret
+			// key — this is what makes RLS evaluate as the user instead of
+			// service_role.
+			expect(createClientMock).toHaveBeenCalledWith(
+				"https://example.supabase.co",
+				"pk-anon",
+				expect.anything(),
+			);
 			const opts = createClientMock.mock.calls[0]?.[2] as {
 				global: { headers: Record<string, string> };
 			};
 			expect(opts.global.headers.Authorization).toBe("Bearer user-jwt");
-			// getUser was called with the same token (defensive — handlers should
-			// verify the token rather than trust the request envelope).
+			// getUser was called with the same token (defensive — handlers
+			// should verify the token rather than trust the request envelope).
 			expect(getUser).toHaveBeenCalledWith("user-jwt");
+		});
+	});
+
+	describe("wrapSupabaseError", () => {
+		it("maps PostgREST 42501 to a clean 'Not authorized'", () => {
+			const err = wrapSupabaseError({ code: "42501", message: "policy" });
+			expect(err.message).toBe("Not authorized");
+		});
+
+		it("maps PostgREST PGRST116 (no rows) to 'Not found'", () => {
+			const err = wrapSupabaseError({
+				code: "PGRST116",
+				message: "0 rows",
+			});
+			expect(err.message).toBe("Not found");
+		});
+
+		it("collapses unknown codes to a generic 'Database error'", () => {
+			expect(
+				wrapSupabaseError({ code: "12345", message: "leaky internals" }).message,
+			).toBe("Database error");
+			expect(wrapSupabaseError({ message: "leaky internals" }).message).toBe(
+				"Database error",
+			);
 		});
 	});
 });

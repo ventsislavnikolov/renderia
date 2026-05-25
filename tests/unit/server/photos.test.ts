@@ -7,35 +7,57 @@ import {
 
 type Row = Record<string, unknown>;
 
+/**
+ * Build a PostgREST query stub keyed by table name.
+ *
+ * `projectsResult` controls what `.from("projects").select().eq().eq().maybeSingle()`
+ * returns — used by the parent-ownership pre-check in
+ * `__createPhotoRecordHandler`. Default is an owned project so existing
+ * happy-path tests keep working.
+ */
 function buildSupabaseStub(opts: {
 	listResult?: { data: Row[] | null; error: unknown };
 	singleResult?: { data: Row | null; error: unknown };
+	projectsResult?: { data: Row | null; error: unknown };
 }) {
 	const fromMock = vi.fn();
-	const chain: Record<string, (...args: unknown[]) => unknown> = {};
-	chain.select = vi.fn(() => chain);
-	chain.eq = vi.fn(() => chain);
-	chain.order = vi.fn(() =>
+	const photosChain: Record<string, (...args: unknown[]) => unknown> = {};
+	photosChain.select = vi.fn(() => photosChain);
+	photosChain.eq = vi.fn(() => photosChain);
+	photosChain.order = vi.fn(() =>
 		Promise.resolve(opts.listResult ?? { data: [], error: null }),
 	);
-	chain.single = vi.fn(() =>
+	photosChain.single = vi.fn(() =>
 		Promise.resolve(opts.singleResult ?? { data: null, error: null }),
 	);
-	chain.insert = vi.fn(() => chain);
-	fromMock.mockReturnValue(chain);
+	photosChain.insert = vi.fn(() => photosChain);
+
+	const projectsChain: Record<string, (...args: unknown[]) => unknown> = {};
+	projectsChain.select = vi.fn(() => projectsChain);
+	projectsChain.eq = vi.fn(() => projectsChain);
+	projectsChain.maybeSingle = vi.fn(() =>
+		Promise.resolve(
+			opts.projectsResult ?? { data: { id: "p1" }, error: null },
+		),
+	);
+
+	fromMock.mockImplementation((table: string) =>
+		table === "projects" ? projectsChain : photosChain,
+	);
 	return {
 		supabase: { from: fromMock } as unknown as Parameters<
 			typeof __listProjectPhotosHandler
 		>[0]["supabase"],
 		fromMock,
-		chain,
+		photosChain,
+		projectsChain,
 	};
 }
 
 describe("listProjectPhotosHandler", () => {
 	it("returns photo rows filtered by project and owner", async () => {
 		const photos = [{ id: "ph-1", project_id: "p1" }];
-		const { supabase, chain, fromMock } = buildSupabaseStub({
+		const { supabase, photosChain, fromMock } = buildSupabaseStub({
 			listResult: { data: photos, error: null },
 		});
 
@@ -48,11 +70,11 @@ describe("listProjectPhotosHandler", () => {
 		expect(result).toEqual(photos);
 		expect(fromMock).toHaveBeenCalledWith("photos");
 		// owner_id and project_id were filtered — defense in depth alongside RLS.
-		expect(chain.eq).toHaveBeenCalledWith("owner_id", "user-1");
-		expect(chain.eq).toHaveBeenCalledWith("project_id", "p1");
+		expect(photosChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
+		expect(photosChain.eq).toHaveBeenCalledWith("project_id", "p1");
 	});
 
-	it("propagates supabase errors", async () => {
+	it("wraps supabase errors instead of leaking raw messages", async () => {
 		const { supabase } = buildSupabaseStub({
 			listResult: { data: null, error: { message: "broken" } },
 		});
@@ -63,7 +85,7 @@ describe("listProjectPhotosHandler", () => {
 				supabase,
 				input: { projectId: "p1" },
 			}),
-		).rejects.toThrow("broken");
+		).rejects.toThrow("Database error");
 	});
 });
 
@@ -75,7 +97,7 @@ describe("createPhotoRecordHandler", () => {
 			project_id: "p1",
 			storage_path: "user-1/photo.png",
 		};
-		const { supabase, chain, fromMock } = buildSupabaseStub({
+		const { supabase, photosChain, fromMock } = buildSupabaseStub({
 			singleResult: { data: created, error: null },
 		});
 
@@ -94,7 +116,7 @@ describe("createPhotoRecordHandler", () => {
 		expect(fromMock).toHaveBeenCalledWith("photos");
 		// insert was called with an owner_id derived from the authed user, never
 		// from the caller-provided payload.
-		expect(chain.insert).toHaveBeenCalledWith(
+		expect(photosChain.insert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				owner_id: "user-1",
 				project_id: "p1",
@@ -105,7 +127,27 @@ describe("createPhotoRecordHandler", () => {
 		);
 	});
 
-	it("propagates insert errors", async () => {
+	it("rejects with 'Project not found' when parent project is not owned by user", async () => {
+		const { supabase, photosChain } = buildSupabaseStub({
+			projectsResult: { data: null, error: null },
+		});
+
+		await expect(
+			__createPhotoRecordHandler({
+				userId: "user-1",
+				supabase,
+				input: {
+					projectId: "p1",
+					storagePath: "user-1/photo.png",
+					originalName: "photo.png",
+					contentType: "image/png",
+				},
+			}),
+		).rejects.toThrow("Project not found");
+		expect(photosChain.insert).not.toHaveBeenCalled();
+	});
+
+	it("wraps insert errors", async () => {
 		const { supabase } = buildSupabaseStub({
 			singleResult: { data: null, error: { message: "constraint" } },
 		});
@@ -121,6 +163,6 @@ describe("createPhotoRecordHandler", () => {
 					contentType: "image/png",
 				},
 			}),
-		).rejects.toThrow("constraint");
+		).rejects.toThrow("Database error");
 	});
 });

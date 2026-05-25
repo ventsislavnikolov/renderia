@@ -11,7 +11,11 @@ import {
 	type SuggestTasksInput,
 	suggestTasksSchema,
 } from "../lib/renovation/schema";
-import { readBearerToken, requireAuthedSupabase } from "../lib/supabase/server";
+import {
+	readBearerToken,
+	requireAuthedSupabase,
+	wrapSupabaseError,
+} from "../lib/supabase/server";
 import type { Database } from "../lib/types/database";
 
 /**
@@ -25,6 +29,7 @@ import type { Database } from "../lib/types/database";
 
 type SupabaseScoped = SupabaseClient<Database>;
 
+/** @internal */
 export async function __listProjectTasksHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -37,15 +42,30 @@ export async function __listProjectTasksHandler(args: {
 		.eq("project_id", args.input.projectId)
 		.order("created_at", { ascending: false });
 
-	if (error) throw new Error(error.message);
+	if (error) throw wrapSupabaseError(error);
 	return data ?? [];
 }
 
+/** @internal */
 export async function __createTaskHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
 	input: CreateTaskInput;
 }) {
+	// Parent-ownership pre-check. RLS will already reject the insert when the
+	// parent project isn't visible to this user, but PostgREST surfaces that
+	// as a generic 42501 with internals in the message. Doing the select up
+	// front lets us throw a clean "Project not found" instead.
+	const parent = await args.supabase
+		.from("projects")
+		.select("id")
+		.eq("id", args.input.projectId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+
+	if (parent.error) throw wrapSupabaseError(parent.error);
+	if (!parent.data) throw new Error("Project not found");
+
 	const { data, error } = await args.supabase
 		.from("renovation_tasks")
 		.insert({
@@ -59,10 +79,11 @@ export async function __createTaskHandler(args: {
 		.select()
 		.single();
 
-	if (error) throw new Error(error.message);
+	if (error) throw wrapSupabaseError(error);
 	return data;
 }
 
+/** @internal */
 export async function __suggestTasksForProjectHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -75,7 +96,7 @@ export async function __suggestTasksForProjectHandler(args: {
 		.eq("owner_id", args.userId)
 		.eq("project_id", args.input.projectId);
 
-	if (error) throw new Error(error.message);
+	if (error) throw wrapSupabaseError(error);
 
 	const photos = (data ?? []).map((photo) => {
 		const id = String((photo as { id: unknown }).id);

@@ -20,6 +20,7 @@ import {
  * follow-up wiring trivial.
  */
 
+/** @internal */
 export async function __detectProtectedElementsHandler(args: {
 	provider: RenovationAiProvider;
 	input: DetectProtectedElementsInput;
@@ -27,6 +28,7 @@ export async function __detectProtectedElementsHandler(args: {
 	return args.provider.detectProtectedElements(args.input);
 }
 
+/** @internal */
 export async function __createDesignBriefHandler(args: {
 	provider: RenovationAiProvider;
 	input: CreateDesignBriefInput;

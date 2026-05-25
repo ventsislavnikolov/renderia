@@ -7,7 +7,11 @@ import {
 	type GetProjectInput,
 	getProjectSchema,
 } from "../lib/renovation/schema";
-import { readBearerToken, requireAuthedSupabase } from "../lib/supabase/server";
+import {
+	readBearerToken,
+	requireAuthedSupabase,
+	wrapSupabaseError,
+} from "../lib/supabase/server";
 import type { Database } from "../lib/types/database";
 
 /**
@@ -23,6 +27,7 @@ import type { Database } from "../lib/types/database";
 
 type SupabaseScoped = SupabaseClient<Database>;
 
+/** @internal */
 export async function __listProjectsHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -33,10 +38,11 @@ export async function __listProjectsHandler(args: {
 		.eq("owner_id", args.userId)
 		.order("created_at", { ascending: false });
 
-	if (error) throw new Error(error.message);
+	if (error) throw wrapSupabaseError(error);
 	return data ?? [];
 }
 
+/** @internal */
 export async function __createProjectHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -52,10 +58,11 @@ export async function __createProjectHandler(args: {
 		.select()
 		.single();
 
-	if (error) throw new Error(error.message);
+	if (error) throw wrapSupabaseError(error);
 	return data;
 }
 
+/** @internal */
 export async function __getProjectHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -68,7 +75,7 @@ export async function __getProjectHandler(args: {
 		.eq("owner_id", args.userId)
 		.single();
 
-	if (error) throw new Error(error.message);
+	if (error) throw wrapSupabaseError(error);
 	return data;
 }
 

@@ -9,10 +9,18 @@ import {
 
 type Row = Record<string, unknown>;
 
+/**
+ * Build a PostgREST query stub keyed by table name.
+ *
+ * `projectsResult` controls what `.from("projects").select().eq().eq().maybeSingle()`
+ * returns — used by the parent-ownership pre-check in `__createTaskHandler`.
+ * Default is an owned project so existing happy-path tests keep working.
+ */
 function buildSupabaseStub(opts: {
 	listResult?: { data: Row[] | null; error: unknown };
 	photosResult?: { data: Row[] | null; error: unknown };
 	singleResult?: { data: Row | null; error: unknown };
+	projectsResult?: { data: Row | null; error: unknown };
 }) {
 	const fromMock = vi.fn();
 	const tasksChain: Record<string, (...args: unknown[]) => unknown> = {};
@@ -35,15 +43,27 @@ function buildSupabaseStub(opts: {
 		}),
 	);
 
-	fromMock.mockImplementation((table: string) =>
-		table === "photos" ? photosChain : tasksChain,
+	const projectsChain: Record<string, (...args: unknown[]) => unknown> = {};
+	projectsChain.select = vi.fn(() => projectsChain);
+	projectsChain.eq = vi.fn(() => projectsChain);
+	projectsChain.maybeSingle = vi.fn(() =>
+		Promise.resolve(
+			opts.projectsResult ?? { data: { id: "p1" }, error: null },
+		),
 	);
+
+	fromMock.mockImplementation((table: string) => {
+		if (table === "photos") return photosChain;
+		if (table === "projects") return projectsChain;
+		return tasksChain;
+	});
 	return {
 		supabase: { from: fromMock } as unknown as Parameters<
 			typeof __listProjectTasksHandler
 		>[0]["supabase"],
 		fromMock,
 		tasksChain,
+		projectsChain,
 	};
 }
 
@@ -82,6 +102,20 @@ describe("listProjectTasksHandler", () => {
 		expect(tasksChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
 		expect(tasksChain.eq).toHaveBeenCalledWith("project_id", "p1");
 	});
+
+	it("wraps supabase errors instead of leaking raw messages", async () => {
+		const { supabase } = buildSupabaseStub({
+			listResult: { data: null, error: { code: "42501", message: "policy" } },
+		});
+
+		await expect(
+			__listProjectTasksHandler({
+				userId: "user-1",
+				supabase,
+				input: { projectId: "p1" },
+			}),
+		).rejects.toThrow("Not authorized");
+	});
 });
 
 describe("createTaskHandler", () => {
@@ -119,6 +153,26 @@ describe("createTaskHandler", () => {
 			}),
 		);
 	});
+
+	it("rejects with 'Project not found' when parent project is not owned by user", async () => {
+		const { supabase, tasksChain } = buildSupabaseStub({
+			projectsResult: { data: null, error: null },
+		});
+
+		await expect(
+			__createTaskHandler({
+				userId: "user-1",
+				supabase,
+				input: {
+					projectId: "p1",
+					title: "ceiling",
+					category: "ceiling",
+				},
+			}),
+		).rejects.toThrow("Project not found");
+		// Insert was never reached — pre-check short-circuited.
+		expect(tasksChain.insert).not.toHaveBeenCalled();
+	});
 });
 
 describe("suggestTasksForProjectHandler", () => {
@@ -151,7 +205,7 @@ describe("suggestTasksForProjectHandler", () => {
 		});
 	});
 
-	it("propagates photo query errors before calling the provider", async () => {
+	it("wraps photo query errors before calling the provider", async () => {
 		const { supabase } = buildSupabaseStub({
 			photosResult: { data: null, error: { message: "no photos" } },
 		});
@@ -164,7 +218,7 @@ describe("suggestTasksForProjectHandler", () => {
 				provider,
 				input: { projectId: "p1", projectNotes: "" },
 			}),
-		).rejects.toThrow("no photos");
+		).rejects.toThrow("Database error");
 		expect(provider.suggestTasks).not.toHaveBeenCalled();
 	});
 });

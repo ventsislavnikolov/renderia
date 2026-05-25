@@ -30,11 +30,56 @@ describe("renovation schemas", () => {
 	it("requires a uuid for createPhoto.projectId", () => {
 		const ok = createPhotoSchema.safeParse({
 			projectId: "11111111-1111-4111-8111-111111111111",
-			storagePath: "user/photo.png",
+			storagePath: "11111111-1111-4111-8111-111111111111/photo.png",
 			originalName: "photo.png",
 			contentType: "image/png",
 		});
 		expect(ok.success).toBe(true);
+	});
+
+	it("rejects storagePath shapes that allow traversal", () => {
+		const inputs = [
+			"../etc/passwd",
+			"/leading-slash/file.png",
+			"11111111-1111-4111-8111-111111111111/../escape.png",
+			"BAD-USER-ID/file.png", // not hex
+		];
+		for (const storagePath of inputs) {
+			expect(
+				createPhotoSchema.safeParse({
+					projectId: "11111111-1111-4111-8111-111111111111",
+					storagePath,
+					originalName: "photo.png",
+					contentType: "image/png",
+				}).success,
+			).toBe(false);
+		}
+	});
+
+	it("restricts photo contentType to safe image mime types", () => {
+		const base = {
+			projectId: "11111111-1111-4111-8111-111111111111",
+			storagePath: "11111111-1111-4111-8111-111111111111/photo.png",
+			originalName: "photo.png",
+		};
+		expect(
+			createPhotoSchema.safeParse({ ...base, contentType: "image/jpeg" })
+				.success,
+		).toBe(true);
+		expect(
+			createPhotoSchema.safeParse({ ...base, contentType: "image/webp" })
+				.success,
+		).toBe(true);
+		expect(
+			createPhotoSchema.safeParse({
+				...base,
+				contentType: "application/octet-stream",
+			}).success,
+		).toBe(false);
+		expect(
+			createPhotoSchema.safeParse({ ...base, contentType: "image/gif" })
+				.success,
+		).toBe(false);
 	});
 
 	it("clamps protected element coordinates to 0..1", () => {

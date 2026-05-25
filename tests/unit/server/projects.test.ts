@@ -64,14 +64,14 @@ describe("listProjectsHandler", () => {
 		expect(fromMock).toHaveBeenCalledWith("projects");
 	});
 
-	it("propagates Supabase errors", async () => {
+	it("wraps Supabase errors instead of leaking raw messages", async () => {
 		const { supabase } = buildSupabaseStub({
 			listResult: { data: null, error: { message: "boom" } },
 		});
 
 		await expect(
 			__listProjectsHandler({ userId: "user-1", supabase }),
-		).rejects.toThrow("boom");
+		).rejects.toThrow("Database error");
 	});
 });
 
@@ -97,9 +97,9 @@ describe("createProjectHandler", () => {
 		expect(fromMock).toHaveBeenCalledWith("projects");
 	});
 
-	it("propagates insert errors", async () => {
+	it("wraps insert errors (e.g. 42501 maps to 'Not authorized')", async () => {
 		const { supabase } = buildSupabaseStub({
-			singleResult: { data: null, error: { message: "rls" } },
+			singleResult: { data: null, error: { code: "42501", message: "rls" } },
 		});
 
 		await expect(
@@ -108,7 +108,7 @@ describe("createProjectHandler", () => {
 				supabase,
 				input: { name: "x" },
 			}),
-		).rejects.toThrow("rls");
+		).rejects.toThrow("Not authorized");
 	});
 });
 
@@ -132,9 +132,12 @@ describe("getProjectHandler", () => {
 		expect(result).toEqual(row);
 	});
 
-	it("propagates lookup errors", async () => {
+	it("wraps lookup errors (PGRST116 maps to 'Not found')", async () => {
 		const { supabase } = buildSupabaseStub({
-			singleResult: { data: null, error: { message: "not found" } },
+			singleResult: {
+				data: null,
+				error: { code: "PGRST116", message: "0 rows" },
+			},
 		});
 
 		await expect(
@@ -143,6 +146,6 @@ describe("getProjectHandler", () => {
 				supabase,
 				input: { projectId: "proj-1" },
 			}),
-		).rejects.toThrow("not found");
+		).rejects.toThrow("Not found");
 	});
 });
