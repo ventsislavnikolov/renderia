@@ -25,7 +25,7 @@ const IMAGE_MODEL = "gpt-image-1.5";
  * `assert*` helpers and the JSON-fence stripping that used to live here.
  */
 const boundingBoxSchema = z.object({
-	label: z.string().min(1).max(120),
+	label: z.string().min(1).max(60),
 	kind: z.enum([
 		"window",
 		"door",
@@ -148,13 +148,27 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 
 	async detectProtectedElements(input) {
 		const promptText = [
-			"Identify protected visual elements in the attached photo that must be preserved exactly during renovation.",
-			"Return an object { elements: [{ label, kind, x, y, width, height, confidence }, ...] }.",
-			"Coordinates are normalized to the 0..1 range relative to the photo (x,y is the top-left corner; width/height are fractions of the photo).",
-			"Allowed kind values (pick the closest match): window, door, stairs, ceiling_line, wall_edge, structure, other. Use 'other' only when nothing else fits.",
-			`Task: ${sanitizePromptField(input.taskTitle)}`,
-			`Notes: ${sanitizePromptField(input.notes ?? "")}`,
-		].join("\n");
+			"You are helping plan a renovation. The user wants to preserve a small number of specific, distinctive architectural details exactly as they are; everything else can be changed.",
+			"",
+			"Identify 0-5 SPECIFIC protected elements: a single window frame, a single doorway, a distinctive beam, a fireplace, a staircase, a moulding, etc. Each element must be a DISCRETE feature, never a broad region.",
+			"",
+			"Rules for bounding boxes:",
+			"- Coordinates are normalized 0..1 relative to the photo (x,y = top-left corner; width,height = fractions of photo dimensions).",
+			"- Make each box as TIGHT as possible — snap to the element's actual edges. Do NOT include surrounding wall/ceiling/floor area.",
+			"- Any single box larger than 40% of the photo area is too broad — either tighten it to a sub-feature or skip it entirely.",
+			"- Boxes should not overlap by more than ~10%.",
+			"- Plain walls, plain ceilings, plain floors, generic clutter, and damaged/obscured surfaces are NOT protected elements. Skip them.",
+			"- If nothing distinctive stands out, return an empty array. Empty is the correct answer for a generic or chaotic interior.",
+			"",
+			"Label rules: under 60 characters, plain descriptive noun phrase. Do NOT include parenthetical explanations.",
+			"Allowed kind values (pick the closest match): window, door, stairs, ceiling_line, wall_edge, structure, other. Use 'other' sparingly — only for genuine architectural details that don't fit the named kinds.",
+			"Confidence: 0..1, how sure you are this is a renovation-worth-preserving feature.",
+			"",
+			`Task context: ${sanitizePromptField(input.taskTitle)}`,
+			input.notes ? `Notes: ${sanitizePromptField(input.notes)}` : "",
+		]
+			.filter((line) => line !== "")
+			.join("\n");
 
 		const startedAt = Date.now();
 		const result = await generateObject({
