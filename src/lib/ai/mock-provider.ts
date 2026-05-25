@@ -1,6 +1,10 @@
 import { buildDesignPrompt } from "./prompts";
 import type { RenovationAiProvider } from "./types";
 
+// 1x1 transparent PNG, used so mock outputs are renderable as data URLs during dev.
+const TRANSPARENT_PNG_BASE64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
 export const mockRenovationProvider: RenovationAiProvider = {
 	async suggestTasks() {
 		return [
@@ -52,7 +56,7 @@ export const mockRenovationProvider: RenovationAiProvider = {
 	},
 	async generateRenovationImages(input) {
 		return Array.from({ length: input.count }, () => ({
-			base64: "",
+			base64: TRANSPARENT_PNG_BASE64,
 			contentType: "image/png" as const,
 		}));
 	},
