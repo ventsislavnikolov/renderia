@@ -98,6 +98,7 @@ create table public.generation_jobs (
   completed_at timestamptz,
   unique (id, owner_id, task_id),
   foreign key (task_id, owner_id) references public.renovation_tasks (id, owner_id) on delete cascade,
+  -- Partial-column SET NULL requires PostgreSQL 15+ (Supabase default). Nulls only brief_id; owner_id/task_id remain NOT NULL.
   foreign key (brief_id, owner_id, task_id) references public.design_briefs (id, owner_id, task_id) on delete set null (brief_id)
 );
 
