@@ -11,20 +11,6 @@ export const Route = createFileRoute("/")({
 		const {
 			data: { session },
 		} = await supabaseBrowser.auth.getSession();
-		if (!session) {
-			throw redirect({ to: "/auth" });
-		}
+		throw redirect({ to: session ? "/projects" : "/auth" });
 	},
-	component: Home,
 });
-
-function Home() {
-	return (
-		<div className="p-8">
-			<h1 className="text-4xl font-bold">Renderia</h1>
-			<p className="mt-4 text-lg">
-				Workspace is being prepared. Project list arrives in the next task.
-			</p>
-		</div>
-	);
-}

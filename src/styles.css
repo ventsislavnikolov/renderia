@@ -13,5 +13,241 @@ body,
 
 body {
   margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #111827;
+  background: #f8fafc;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: .75rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.topbar .brand {
+  color: inherit;
+  text-decoration: none;
+  font-size: 1.125rem;
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  color: #6b7280;
+  font-size: .875rem;
+}
+
+.breadcrumbs a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.workspace-main {
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.workspace-section {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.workspace-section-header h1 {
+  margin: 0 0 .25rem;
+  font-size: 1.5rem;
+}
+
+.workspace-section-header p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.workspace-status {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.workspace-form {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: .75rem;
+}
+
+.workspace-form h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #374151;
+}
+
+.workspace-form label {
+  display: grid;
+  gap: .25rem;
+  font-size: .875rem;
+  color: #374151;
+}
+
+.workspace-form input,
+.workspace-form textarea {
+  padding: .5rem .625rem;
+  border: 1px solid #d1d5db;
+  border-radius: .375rem;
+  font: inherit;
+  color: inherit;
+  background: #fff;
+}
+
+.workspace-form textarea {
+  min-height: 4rem;
+  resize: vertical;
+}
+
+.workspace-form button[type="submit"] {
+  justify-self: start;
+  padding: .5rem 1rem;
+  border-radius: .375rem;
+  border: 1px solid #1d4ed8;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.workspace-form button[type="submit"]:disabled {
+  background: #93c5fd;
+  border-color: #93c5fd;
+  cursor: not-allowed;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.workspace-card {
+  display: block;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: .75rem;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease;
+}
+
+.workspace-card:hover {
+  border-color: #2563eb;
+}
+
+.workspace-card h2 {
+  margin: 0 0 .25rem;
+  font-size: 1.05rem;
+}
+
+.workspace-card p {
+  margin: 0;
+  color: #4b5563;
+  font-size: .875rem;
+}
+
+.workspace-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+  margin: .375rem 0 .5rem !important;
+}
+
+.badge {
+  display: inline-block;
+  padding: .125rem .5rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: .75rem;
+  font-weight: 500;
+}
+
+.badge-status {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.workspace-meta {
+  display: grid;
+  gap: .5rem;
+}
+
+.workspace-meta div {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: .5rem;
+}
+
+.workspace-meta dt {
+  color: #6b7280;
+  font-size: .875rem;
+}
+
+.workspace-meta dd {
+  margin: 0;
+  font-size: .875rem;
+}
+
+.auth-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.auth-card {
+  display: grid;
+  gap: .75rem;
+  width: 100%;
+  max-width: 360px;
+  padding: 1.5rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: .75rem;
+}
+
+.auth-card h1 {
+  margin: 0;
+}
+
+.auth-card label {
+  display: grid;
+  gap: .25rem;
+  font-size: .875rem;
+}
+
+.auth-card input {
+  padding: .5rem .625rem;
+  border: 1px solid #d1d5db;
+  border-radius: .375rem;
+  font: inherit;
+}
+
+.auth-card button {
+  padding: .5rem 1rem;
+  border-radius: .375rem;
+  border: 1px solid #1d4ed8;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
 }
 
