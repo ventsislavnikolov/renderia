@@ -8,17 +8,24 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
 	const [email, setEmail] = useState("");
-	const [message, setMessage] = useState("");
+	const [errorMessage, setErrorMessage] = useState("");
+	const [successMessage, setSuccessMessage] = useState("");
 
 	async function sendMagicLink(event: React.FormEvent) {
 		event.preventDefault();
+		setErrorMessage("");
+		setSuccessMessage("");
 		const { error } = await supabaseBrowser.auth.signInWithOtp({
 			email,
-			options: { emailRedirectTo: window.location.origin },
+			options: {
+				emailRedirectTo: `${window.location.origin}/auth/callback`,
+			},
 		});
-		setMessage(
-			error ? error.message : "Check your email for the sign-in link.",
-		);
+		if (error) {
+			setErrorMessage(error.message);
+		} else {
+			setSuccessMessage("Check your email for the sign-in link.");
+		}
 	}
 
 	return (
@@ -32,11 +39,14 @@ function AuthPage() {
 						value={email}
 						onChange={(event) => setEmail(event.target.value)}
 						type="email"
+						autoComplete="email"
+						inputMode="email"
 						required
 					/>
 				</label>
 				<button type="submit">Send magic link</button>
-				{message ? <output>{message}</output> : null}
+				{errorMessage ? <p role="alert">{errorMessage}</p> : null}
+				{successMessage ? <output>{successMessage}</output> : null}
 			</form>
 		</main>
 	);

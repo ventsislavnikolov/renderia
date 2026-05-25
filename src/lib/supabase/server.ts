@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { requireEnv } from "../env";
 import type { Database } from "../types/database";
 
 export function createSupabaseServerClient(accessToken?: string) {
 	return createClient<Database>(
-		process.env.VITE_SUPABASE_URL ?? "",
-		process.env.SUPABASE_SECRET_KEY ?? "",
+		requireEnv(process.env, "SUPABASE_URL"),
+		requireEnv(process.env, "SUPABASE_SECRET_KEY"),
 		{
 			global: accessToken
 				? { headers: { Authorization: `Bearer ${accessToken}` } }
