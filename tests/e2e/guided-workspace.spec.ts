@@ -219,8 +219,28 @@ function buildServerFnHashMap(): Map<string, string> {
 
 const SERVER_FN_BY_HASH = buildServerFnHashMap();
 
+/** Shape of a `protected_elements` row that the persistence server fns return. */
+type ProtectedElementMockRow = {
+	id: string;
+	task_id: string;
+	photo_id: string;
+	project_id: string;
+	label: string;
+	kind: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	confidence: number | null;
+	status: string;
+	created_at: string;
+};
+
 /** Track in-memory photos so the second list call sees the upload. */
-type PageState = { photos: typeof FAKE_PHOTO[] };
+type PageState = {
+	photos: typeof FAKE_PHOTO[];
+	protectedElements: ProtectedElementMockRow[];
+};
 
 /**
  * Register every network mock we need for the guided flow to operate without
@@ -345,6 +365,51 @@ async function installApiMocks(page: Page, state: PageState) {
 		if (fnId.includes("listProjectTasks")) {
 			return serializedResult([FAKE_TASK]);
 		}
+		if (fnId.includes("listProtectedElements")) {
+			return serializedResult(state.protectedElements);
+		}
+		if (fnId.includes("saveDetectedElements")) {
+			// Echo the inbound boxes back as fully-formed rows so the UI gets
+			// stable db ids for subsequent toggle calls.
+			const body = route.request().postDataJSON() as {
+				data?: { elements?: typeof FAKE_DETECTION };
+			} | null;
+			const elements = body?.data?.elements ?? FAKE_DETECTION;
+			const rows = elements.map((el, index) => ({
+				id: `el-${index}`,
+				task_id: TASK_ID,
+				photo_id: PHOTO_ID,
+				project_id: PROJECT_ID,
+				label: el.label,
+				kind: el.kind,
+				x: el.x,
+				y: el.y,
+				width: el.width,
+				height: el.height,
+				confidence: el.confidence ?? null,
+				status: "suggested",
+				created_at: "2026-01-01T00:00:00Z",
+			}));
+			state.protectedElements = rows;
+			return serializedResult(rows);
+		}
+		if (fnId.includes("updateProtectedElementStatus")) {
+			const body = route.request().postDataJSON() as {
+				data?: { elementId?: string; status?: string };
+			} | null;
+			const elementId = body?.data?.elementId ?? "el-0";
+			const status = body?.data?.status ?? "confirmed";
+			const existing = state.protectedElements.find(
+				(r) => r.id === elementId,
+			);
+			const updated = existing
+				? { ...existing, status }
+				: { ...state.protectedElements[0], id: elementId, status };
+			state.protectedElements = state.protectedElements.map((r) =>
+				r.id === elementId ? { ...r, status } : r,
+			);
+			return serializedResult(updated);
+		}
 		if (fnId.includes("detectProtectedElements")) {
 			return serializedResult(FAKE_DETECTION);
 		}
@@ -383,7 +448,7 @@ test.describe("guided renovation workspace", () => {
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [] };
+		const state: PageState = { photos: [], protectedElements: [] };
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
@@ -404,7 +469,7 @@ test.describe("guided renovation workspace", () => {
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [] };
+		const state: PageState = { photos: [], protectedElements: [] };
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
@@ -430,7 +495,7 @@ test.describe("guided renovation workspace", () => {
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [FAKE_PHOTO] };
+		const state: PageState = { photos: [FAKE_PHOTO], protectedElements: [] };
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
@@ -457,12 +522,55 @@ test.describe("guided renovation workspace", () => {
 		).toBeVisible();
 	});
 
+	test("persisted protected elements render on mount without a detect call", async ({
+		page,
+		context,
+	}) => {
+		await installFakeSession(context);
+		const state: PageState = {
+			photos: [FAKE_PHOTO],
+			// Pre-seed so `listProtectedElements` returns rows on mount.
+			protectedElements: FAKE_DETECTION.map((el, index) => ({
+				id: `seeded-${index}`,
+				task_id: TASK_ID,
+				photo_id: PHOTO_ID,
+				project_id: PROJECT_ID,
+				label: el.label,
+				kind: el.kind,
+				x: el.x,
+				y: el.y,
+				width: el.width,
+				height: el.height,
+				confidence: el.confidence ?? null,
+				status: "suggested",
+				created_at: "2026-01-01T00:00:00Z",
+			})),
+		};
+		await installApiMocks(page, state);
+
+		await page.goto(TASK_URL);
+		await page.getByRole("button", { name: /sample\.png/ }).click();
+
+		// Boxes render immediately — no detection click was needed.
+		await expect(
+			page.getByRole("button", { name: /Toggle main window protection/i }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: /Toggle ceiling beam protection/i }),
+		).toBeVisible();
+		// Detection button is in the "re-run" state because rows are already
+		// present.
+		await expect(
+			page.getByRole("button", { name: /Re-run detection/i }),
+		).toBeVisible();
+	});
+
 	test("brief step generates, edits, and continues to generation", async ({
 		page,
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [FAKE_PHOTO] };
+		const state: PageState = { photos: [FAKE_PHOTO], protectedElements: [] };
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
@@ -493,7 +601,7 @@ test.describe("guided renovation workspace", () => {
 
 	test("generation step toggles favorites", async ({ page, context }) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [FAKE_PHOTO] };
+		const state: PageState = { photos: [FAKE_PHOTO], protectedElements: [] };
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);

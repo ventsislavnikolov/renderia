@@ -27,6 +27,9 @@ const {
 	createSignedUrlMock,
 	storageFromMock,
 	detectProtectedElementsMock,
+	listProtectedElementsMock,
+	saveDetectedElementsMock,
+	updateProtectedElementStatusMock,
 	getAuthHeadersMock,
 } = vi.hoisted(() => {
 	const createSignedUrl = vi.fn();
@@ -34,6 +37,9 @@ const {
 		createSignedUrlMock: createSignedUrl,
 		storageFromMock: vi.fn(() => ({ createSignedUrl })),
 		detectProtectedElementsMock: vi.fn(),
+		listProtectedElementsMock: vi.fn(),
+		saveDetectedElementsMock: vi.fn(),
+		updateProtectedElementStatusMock: vi.fn(),
 		getAuthHeadersMock: vi.fn(),
 	};
 });
@@ -47,6 +53,12 @@ vi.mock("../../../../src/lib/supabase/browser", () => ({
 vi.mock("../../../../src/server/generation", () => ({
 	detectProtectedElements: (...args: unknown[]) =>
 		detectProtectedElementsMock(...args),
+	listProtectedElements: (...args: unknown[]) =>
+		listProtectedElementsMock(...args),
+	saveDetectedElements: (...args: unknown[]) =>
+		saveDetectedElementsMock(...args),
+	updateProtectedElementStatus: (...args: unknown[]) =>
+		updateProtectedElementStatusMock(...args),
 }));
 
 vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
@@ -55,6 +67,40 @@ vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
 }));
 
 import { OverlayConfirmStep } from "../../../../src/components/guided/overlay-confirm-step";
+
+/**
+ * Map a bare bounding-box array (as the existing tests pass into
+ * `detectProtectedElementsMock`) into the shape `saveDetectedElements`
+ * would return — a fully-formed `protected_elements` row with a stable
+ * DB id derived from the label so toggle assertions can predict ids.
+ */
+function rowsFromBoxes(
+	boxes: Array<{
+		label: string;
+		kind: string;
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		confidence?: number;
+	}>,
+) {
+	return boxes.map((box, index) => ({
+		id: `db-${index}`,
+		task_id: "t1",
+		photo_id: "ph-1",
+		project_id: "p1",
+		label: box.label,
+		kind: box.kind,
+		x: box.x,
+		y: box.y,
+		width: box.width,
+		height: box.height,
+		confidence: box.confidence ?? null,
+		status: "suggested",
+		created_at: "2026-01-01T00:00:00Z",
+	}));
+}
 
 const samplePhoto = {
 	id: "ph-1",
@@ -97,6 +143,38 @@ beforeEach(() => {
 	createSignedUrlMock.mockReset();
 	storageFromMock.mockClear();
 	detectProtectedElementsMock.mockReset();
+	// Default: no persisted rows — the existing tests assume the user has to
+	// run detection. The new "load on mount" test overrides this.
+	listProtectedElementsMock.mockReset().mockResolvedValue([]);
+	// Default `saveDetectedElements`: echo whatever the detection mock
+	// returned as fully-formed rows. Individual tests override when needed.
+	saveDetectedElementsMock.mockReset().mockImplementation(async (args) => {
+		const elements = (args as { data: { elements: unknown[] } }).data.elements;
+		return rowsFromBoxes(
+			elements as Parameters<typeof rowsFromBoxes>[0],
+		);
+	});
+	updateProtectedElementStatusMock
+		.mockReset()
+		.mockImplementation(async (args) => {
+			const input = (args as { data: { elementId: string; status: string } })
+				.data;
+			return {
+				id: input.elementId,
+				task_id: "t1",
+				photo_id: "ph-1",
+				project_id: "p1",
+				label: "x",
+				kind: "window",
+				x: 0,
+				y: 0,
+				width: 0.1,
+				height: 0.1,
+				confidence: null,
+				status: input.status,
+				created_at: "2026-01-01T00:00:00Z",
+			};
+		});
 	getAuthHeadersMock
 		.mockReset()
 		.mockResolvedValue({ Authorization: "Bearer test-token" });
@@ -124,6 +202,8 @@ describe("OverlayConfirmStep", () => {
 		});
 		render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
@@ -151,6 +231,8 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
@@ -186,6 +268,8 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
@@ -233,6 +317,8 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
@@ -260,6 +346,8 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
@@ -293,6 +381,8 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
@@ -310,6 +400,164 @@ describe("OverlayConfirmStep", () => {
 			/Debug — Detection AI request\/response \(gpt-5\.4-mini, 42ms\)/i,
 		);
 		expect(summary).toBeTruthy();
+	});
+
+	it("renders persisted protected elements on mount without calling detectProtectedElements", async () => {
+		createSignedUrlMock.mockResolvedValue({
+			data: { signedUrl: "https://signed/initial.png" },
+			error: null,
+		});
+		listProtectedElementsMock.mockResolvedValue([
+			{
+				id: "db-window",
+				task_id: "t1",
+				photo_id: "ph-1",
+				project_id: "p1",
+				label: "saved window",
+				kind: "window",
+				x: 0.1,
+				y: 0.1,
+				width: 0.2,
+				height: 0.3,
+				confidence: 0.9,
+				status: "suggested",
+				created_at: "2026-01-01T00:00:00Z",
+			},
+			{
+				id: "db-door",
+				task_id: "t1",
+				photo_id: "ph-1",
+				project_id: "p1",
+				label: "saved door",
+				kind: "door",
+				x: 0.5,
+				y: 0.3,
+				width: 0.15,
+				height: 0.4,
+				confidence: 0.8,
+				status: "rejected",
+				created_at: "2026-01-01T00:00:00Z",
+			},
+		]);
+
+		render(
+			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
+				photo={samplePhoto}
+				taskTitle="ceiling"
+				confirmedElements={[]}
+				onConfirm={vi.fn()}
+			/>,
+		);
+
+		const windowToggle = await screen.findByRole("button", {
+			name: /Toggle saved window protection/,
+		});
+		const doorToggle = await screen.findByRole("button", {
+			name: /Toggle saved door protection/,
+		});
+		// suggested → selected; rejected → unselected.
+		expect(windowToggle.getAttribute("aria-pressed")).toBe("true");
+		expect(doorToggle.getAttribute("aria-pressed")).toBe("false");
+		// CRITICAL: no detection call was made.
+		expect(detectProtectedElementsMock).not.toHaveBeenCalled();
+		// The detection button switches to "Re-run detection" once persisted
+		// rows are loaded.
+		expect(
+			screen.getByRole("button", { name: /re-run detection/i }),
+		).toBeTruthy();
+	});
+
+	it("persists toggle changes via updateProtectedElementStatus", async () => {
+		const user = userEvent.setup();
+		createSignedUrlMock.mockResolvedValue({
+			data: { signedUrl: "https://signed/a.png" },
+			error: null,
+		});
+		listProtectedElementsMock.mockResolvedValue([
+			{
+				id: "db-only",
+				task_id: "t1",
+				photo_id: "ph-1",
+				project_id: "p1",
+				label: "saved window",
+				kind: "window",
+				x: 0.1,
+				y: 0.1,
+				width: 0.2,
+				height: 0.3,
+				confidence: 0.9,
+				status: "suggested",
+				created_at: "2026-01-01T00:00:00Z",
+			},
+		]);
+
+		render(
+			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
+				photo={samplePhoto}
+				taskTitle="ceiling"
+				confirmedElements={[]}
+				onConfirm={vi.fn()}
+			/>,
+		);
+
+		const toggle = await screen.findByRole("button", {
+			name: /Toggle saved window protection/,
+		});
+		expect(toggle.getAttribute("aria-pressed")).toBe("true");
+		await user.click(toggle);
+		expect(toggle.getAttribute("aria-pressed")).toBe("false");
+
+		await waitFor(() =>
+			expect(updateProtectedElementStatusMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: { elementId: "db-only", status: "rejected" },
+				}),
+			),
+		);
+	});
+
+	it("calls saveDetectedElements on detect so a revisit doesn't re-run the AI", async () => {
+		const user = userEvent.setup();
+		createSignedUrlMock.mockResolvedValue({
+			data: { signedUrl: "https://signed/a.png" },
+			error: null,
+		});
+		detectProtectedElementsMock.mockResolvedValue(sampleBoxes);
+
+		render(
+			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
+				photo={samplePhoto}
+				taskTitle="ceiling"
+				confirmedElements={[]}
+				onConfirm={vi.fn()}
+			/>,
+		);
+
+		await screen.findByAltText("photo.png");
+		await user.click(
+			screen.getByRole("button", { name: /detect protected elements/i }),
+		);
+
+		await waitFor(() =>
+			expect(saveDetectedElementsMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						taskId: "t1",
+						photoId: "ph-1",
+						projectId: "p1",
+						elements: expect.arrayContaining([
+							expect.objectContaining({ label: "left window" }),
+						]),
+					}),
+				}),
+			),
+		);
 	});
 
 	it("does not call onConfirm with stale state after unmount", async () => {
@@ -330,6 +578,8 @@ describe("OverlayConfirmStep", () => {
 
 		const { unmount } = render(
 			<OverlayConfirmStep
+				projectId="p1"
+				taskId="t1"
 				photo={samplePhoto}
 				taskTitle="ceiling"
 				confirmedElements={[]}
