@@ -12,7 +12,7 @@ import {
 } from "../../../src/server/generation";
 
 const SAMPLE_DEBUG = {
-	model: "gpt-5.4-mini",
+	model: "gpt-5.5",
 	prompt: "test prompt",
 	rawResponse: '{"ok":true}',
 	durationMs: 12,
@@ -87,7 +87,7 @@ function buildGenerationSupabaseStub(opts: {
 	tasksChain.select = vi.fn(() => tasksChain);
 	tasksChain.eq = vi.fn(() => tasksChain);
 	tasksChain.maybeSingle = vi.fn(() =>
-		Promise.resolve(opts.taskResult ?? { data: { id: "t1" }, error: null }),
+		Promise.resolve(opts.taskResult ?? { data: { id: "t1" }, error: null })
 	);
 
 	// generation_jobs chain (insert + update).
@@ -95,8 +95,8 @@ function buildGenerationSupabaseStub(opts: {
 	jobsInsertChain.select = vi.fn(() => jobsInsertChain);
 	jobsInsertChain.single = vi.fn(() =>
 		Promise.resolve(
-			opts.jobInsertResult ?? { data: { id: "job-1" }, error: null },
-		),
+			opts.jobInsertResult ?? { data: { id: "job-1" }, error: null }
+		)
 	);
 
 	const jobsUpdateChain: Record<string, (...args: unknown[]) => unknown> = {};
@@ -160,14 +160,13 @@ function buildGenerationSupabaseStub(opts: {
 	});
 
 	// Storage chain.
-	const uploadMock = vi.fn(async () =>
-		opts.uploadResult ?? { error: null },
-	);
-	const createSignedUrlMock = vi.fn(async (path: string) =>
-		opts.signedUrlResult ?? {
-			data: { signedUrl: `https://signed/${path}` },
-			error: null,
-		},
+	const uploadMock = vi.fn(async () => opts.uploadResult ?? { error: null });
+	const createSignedUrlMock = vi.fn(
+		async (path: string) =>
+			opts.signedUrlResult ?? {
+				data: { signedUrl: `https://signed/${path}` },
+				error: null,
+			}
 	);
 	const storageFromMock = vi.fn(() => ({
 		upload: uploadMock,
@@ -178,7 +177,9 @@ function buildGenerationSupabaseStub(opts: {
 		supabase: {
 			from: fromMock,
 			storage: { from: storageFromMock },
-		} as unknown as Parameters<typeof __generateRenovationImagesHandler>[0]["supabase"],
+		} as unknown as Parameters<
+			typeof __generateRenovationImagesHandler
+		>[0]["supabase"],
 		fromMock,
 		tasksChain,
 		jobsChain,
@@ -201,7 +202,7 @@ function buildFavoriteSupabaseStub(opts: {
 	chain.eq = vi.fn(() => chain);
 	chain.select = vi.fn(() => chain);
 	chain.maybeSingle = vi.fn(() =>
-		Promise.resolve(opts.updateResult ?? { data: null, error: null }),
+		Promise.resolve(opts.updateResult ?? { data: null, error: null })
 	);
 	fromMock.mockImplementation(() => chain);
 	return {
@@ -291,7 +292,7 @@ describe("createDesignBriefHandler", () => {
 			expect.objectContaining({
 				taskTitle: "ceiling",
 				styleRules: "scandinavian",
-			}),
+			})
 		);
 	});
 });
@@ -326,11 +327,11 @@ describe("generateRenovationImagesHandler", () => {
 			1,
 			"user-1/job-1-0.png",
 			expect.any(Buffer),
-			expect.objectContaining({ contentType: "image/png" }),
+			expect.objectContaining({ contentType: "image/png" })
 		);
 		expect(stub.createSignedUrlMock).toHaveBeenCalledTimes(2);
 		expect(provider.generateRenovationImages).toHaveBeenCalledWith({
-			sourceImageUrl: "",
+			sourceImage: undefined,
 			prompt: "PRESERVE EXACTLY",
 			count: 2,
 		});
@@ -354,7 +355,7 @@ describe("generateRenovationImagesHandler", () => {
 					prompt: "PRESERVE EXACTLY",
 					count: 1,
 				},
-			}),
+			})
 		).rejects.toThrow("Task not found");
 		expect(provider.generateRenovationImages).not.toHaveBeenCalled();
 	});
@@ -377,12 +378,12 @@ describe("generateRenovationImagesHandler", () => {
 					prompt: "PRESERVE EXACTLY",
 					count: 1,
 				},
-			}),
+			})
 		).rejects.toThrow(/upload/i);
 
 		// The job update chain should have been invoked to record the failure.
 		expect(stub.jobsChain.update).toHaveBeenCalledWith(
-			expect.objectContaining({ status: "failed" }),
+			expect.objectContaining({ status: "failed" })
 		);
 	});
 
@@ -423,7 +424,7 @@ describe("generateRenovationImagesHandler", () => {
 		});
 
 		expect(provider.generateRenovationImages).toHaveBeenCalledWith(
-			expect.objectContaining({ count: 4 }),
+			expect.objectContaining({ count: 4 })
 		);
 	});
 
@@ -502,7 +503,7 @@ describe("setImageFavoriteHandler", () => {
 				userId: "user-1",
 				supabase: stub.supabase,
 				input: { imageId: "img-missing", isFavorite: true },
-			}),
+			})
 		).rejects.toThrow("Not found");
 	});
 
@@ -516,7 +517,7 @@ describe("setImageFavoriteHandler", () => {
 				userId: "user-1",
 				supabase: stub.supabase,
 				input: { imageId: "img-1", isFavorite: false },
-			}),
+			})
 		).rejects.toThrow("Not authorized");
 	});
 });
@@ -534,13 +535,15 @@ function buildListProtectedElementsStub(opts: {
 	chain.select = vi.fn(() => chain);
 	chain.eq = vi.fn(() => chain);
 	chain.order = vi.fn(() =>
-		Promise.resolve(opts.listResult ?? { data: [], error: null }),
+		Promise.resolve(opts.listResult ?? { data: [], error: null })
 	);
 	fromMock.mockImplementation(() => chain);
 	return {
 		supabase: {
 			from: fromMock,
-		} as unknown as Parameters<typeof __listProtectedElementsHandler>[0]["supabase"],
+		} as unknown as Parameters<
+			typeof __listProtectedElementsHandler
+		>[0]["supabase"],
 		fromMock,
 		chain,
 	};
@@ -570,7 +573,7 @@ function buildSaveDetectedElementsStub(opts: {
 
 	const insertChain: Record<string, (...args: unknown[]) => unknown> = {};
 	insertChain.select = vi.fn(() =>
-		Promise.resolve(opts.insertResult ?? { data: [], error: null }),
+		Promise.resolve(opts.insertResult ?? { data: [], error: null })
 	);
 
 	const chain: Record<string, (...args: unknown[]) => unknown> = {};
@@ -581,7 +584,9 @@ function buildSaveDetectedElementsStub(opts: {
 	return {
 		supabase: {
 			from: fromMock,
-		} as unknown as Parameters<typeof __saveDetectedElementsHandler>[0]["supabase"],
+		} as unknown as Parameters<
+			typeof __saveDetectedElementsHandler
+		>[0]["supabase"],
 		fromMock,
 		chain,
 		deleteChain,
@@ -598,13 +603,15 @@ function buildUpdateProtectedElementStatusStub(opts: {
 	chain.eq = vi.fn(() => chain);
 	chain.select = vi.fn(() => chain);
 	chain.maybeSingle = vi.fn(() =>
-		Promise.resolve(opts.updateResult ?? { data: null, error: null }),
+		Promise.resolve(opts.updateResult ?? { data: null, error: null })
 	);
 	fromMock.mockImplementation(() => chain);
 	return {
 		supabase: {
 			from: fromMock,
-		} as unknown as Parameters<typeof __updateProtectedElementStatusHandler>[0]["supabase"],
+		} as unknown as Parameters<
+			typeof __updateProtectedElementStatusHandler
+		>[0]["supabase"],
 		fromMock,
 		chain,
 	};
@@ -646,11 +653,11 @@ describe("listProtectedElementsHandler", () => {
 		expect(stub.fromMock).toHaveBeenCalledWith("protected_elements");
 		expect(stub.chain.eq).toHaveBeenCalledWith(
 			"task_id",
-			"11111111-1111-1111-1111-111111111111",
+			"11111111-1111-1111-1111-111111111111"
 		);
 		expect(stub.chain.eq).toHaveBeenCalledWith(
 			"photo_id",
-			"22222222-2222-2222-2222-222222222222",
+			"22222222-2222-2222-2222-222222222222"
 		);
 		expect(stub.chain.eq).toHaveBeenCalledWith("owner_id", "user-1");
 	});
@@ -685,7 +692,7 @@ describe("listProtectedElementsHandler", () => {
 					taskId: "11111111-1111-1111-1111-111111111111",
 					photoId: "22222222-2222-2222-2222-222222222222",
 				},
-			}),
+			})
 		).rejects.toThrow("Not authorized");
 	});
 });
@@ -722,7 +729,7 @@ describe("saveDetectedElementsHandler", () => {
 		expect(stub.chain.delete).toHaveBeenCalledTimes(1);
 		expect(stub.chain.insert).toHaveBeenCalledTimes(1);
 		const insertedRows = (stub.chain.insert as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[0] as Array<Record<string, unknown>>;
+			.calls[0]?.[0] as Record<string, unknown>[];
 		expect(insertedRows[0]).toMatchObject({
 			owner_id: "user-1",
 			task_id: "11111111-1111-1111-1111-111111111111",
@@ -777,7 +784,7 @@ describe("saveDetectedElementsHandler", () => {
 						},
 					],
 				},
-			}),
+			})
 		).rejects.toThrow("Not authorized");
 		expect(stub.chain.insert).not.toHaveBeenCalled();
 	});
@@ -807,7 +814,7 @@ describe("saveDetectedElementsHandler", () => {
 						},
 					],
 				},
-			}),
+			})
 		).rejects.toThrow("Not found");
 	});
 });
@@ -834,7 +841,7 @@ describe("updateProtectedElementStatusHandler", () => {
 		expect(stub.chain.update).toHaveBeenCalledWith({ status: "confirmed" });
 		expect(stub.chain.eq).toHaveBeenCalledWith(
 			"id",
-			"44444444-4444-4444-4444-444444444444",
+			"44444444-4444-4444-4444-444444444444"
 		);
 		expect(stub.chain.eq).toHaveBeenCalledWith("owner_id", "user-1");
 	});
@@ -852,7 +859,7 @@ describe("updateProtectedElementStatusHandler", () => {
 					elementId: "44444444-4444-4444-4444-444444444444",
 					status: "rejected",
 				},
-			}),
+			})
 		).rejects.toThrow("Not found");
 	});
 
@@ -872,7 +879,7 @@ describe("updateProtectedElementStatusHandler", () => {
 					elementId: "44444444-4444-4444-4444-444444444444",
 					status: "rejected",
 				},
-			}),
+			})
 		).rejects.toThrow("Not authorized");
 	});
 });

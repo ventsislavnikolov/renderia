@@ -64,8 +64,52 @@ export async function __detectProtectedElementsHandler(args: {
 	provider: RenovationAiProvider;
 	input: DetectProtectedElementsInput;
 }) {
-	const result = await args.provider.detectProtectedElements(args.input);
-	return attachDebugIfDev(result.value, result.debug);
+	try {
+		const result = await args.provider.detectProtectedElements(args.input);
+		return attachDebugIfDev(result.value, result.debug);
+	} catch (err) {
+		console.error("detectProtectedElements failed", err);
+		throw new Error(formatProviderError(err));
+	}
+}
+
+/**
+ * Unwrap the AI SDK's nested error types (RetryError → APICallError → cause)
+ * and produce a human-readable string. Without this, callers see useless
+ * messages like "Failed after 3 attempts. Last error: Error" because the
+ * Anthropic provider's APICallError ships its body on `.responseBody` /
+ * `.data` rather than in `.message`.
+ */
+function formatProviderError(err: unknown): string {
+	const parts: string[] = [];
+	let cursor: unknown = err;
+	const seen = new Set<unknown>();
+	while (cursor && typeof cursor === "object" && !seen.has(cursor)) {
+		seen.add(cursor);
+		const node = cursor as Record<string, unknown>;
+		const name = typeof node.name === "string" ? node.name : "";
+		const message =
+			typeof node.message === "string" && node.message.length > 0
+				? node.message
+				: "";
+		if (message && message !== "Error") {
+			parts.push(name ? `${name}: ${message}` : message);
+		} else if (name) {
+			parts.push(name);
+		}
+		const body =
+			(typeof node.responseBody === "string" && node.responseBody) ||
+			(typeof node.data === "string" && node.data) ||
+			"";
+		if (body) parts.push(body.slice(0, 800));
+		cursor = (node.lastError ?? node.cause) as unknown;
+	}
+	const joined = parts.join(" | ").trim();
+	return joined.length > 0
+		? joined
+		: err instanceof Error && err.message
+			? err.message
+			: "Detection failed";
 }
 
 /** @internal */
@@ -123,6 +167,17 @@ export async function __generateRenovationImagesHandler(args: {
 	if (taskLookup.error) throw wrapSupabaseError(taskLookup.error);
 	if (!taskLookup.data) throw new Error("Task not found");
 
+	// Load the source photo's bytes so the provider can run image-edit mode
+	// (preserves room geometry). If photoId is missing or the lookup fails we
+	// silently fall back to text-only generation — the provider handles both.
+	const sourceImage = args.input.photoId
+		? await loadSourcePhoto({
+				supabase: args.supabase,
+				userId: args.userId,
+				photoId: args.input.photoId,
+			})
+		: undefined;
+
 	const model = activeImageModel(args.providerName);
 	const jobInsert = await args.supabase
 		.from("generation_jobs")
@@ -142,7 +197,7 @@ export async function __generateRenovationImagesHandler(args: {
 
 	try {
 		const providerResult = await args.provider.generateRenovationImages({
-			sourceImageUrl: "",
+			sourceImage,
 			prompt: args.input.prompt,
 			count: clampedCount,
 		});
@@ -207,7 +262,7 @@ export async function __generateRenovationImagesHandler(args: {
 
 		return attachDebugIfDev(
 			{ jobId, images: uploaded },
-			providerResult.debug,
+			providerResult.debug
 		) as {
 			data: { jobId: string; images: GeneratedImagePayload[] };
 			debug?: ProviderDebug;
@@ -283,7 +338,7 @@ export async function __listProtectedElementsHandler(args: {
 	const { data, error } = await args.supabase
 		.from("protected_elements")
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
 		)
 		.eq("task_id", args.input.taskId)
 		.eq("photo_id", args.input.photoId)
@@ -332,7 +387,7 @@ export async function __saveDetectedElementsHandler(args: {
 		.from("protected_elements")
 		.insert(rows)
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
 		);
 	if (inserted.error) throw wrapSupabaseError(inserted.error);
 	return (inserted.data ?? []) as ProtectedElementRow[];
@@ -350,7 +405,7 @@ export async function __updateProtectedElementStatusHandler(args: {
 		.eq("id", args.input.elementId)
 		.eq("owner_id", args.userId)
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
 		)
 		.maybeSingle();
 	if (error) throw wrapSupabaseError(error);
@@ -362,23 +417,71 @@ function readAuthToken(): string | undefined {
 	return readBearerToken(getRequestHeader("authorization"));
 }
 
+const EDITABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+/**
+ * Download the source photo's bytes so we can feed them to gpt-image-2's
+ * edit endpoint. The bucket is private, so we go through the authenticated
+ * Supabase client (RLS scopes to the calling user) and read the object body
+ * directly — no signed-URL round-trip needed when we're already server-side.
+ *
+ * Returns `undefined` rather than throwing when the photo can't be loaded:
+ * generation should still succeed using text-only mode in that case so a
+ * stale photoId doesn't take the user's brief offline.
+ */
+async function loadSourcePhoto(args: {
+	supabase: SupabaseScoped;
+	userId: string;
+	photoId: string;
+}): Promise<
+	| {
+			base64: string;
+			contentType: "image/png" | "image/jpeg" | "image/webp";
+			filename: string;
+	  }
+	| undefined
+> {
+	const row = await args.supabase
+		.from("photos")
+		.select("storage_bucket, storage_path, content_type, original_name")
+		.eq("id", args.photoId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (row.error || !row.data) return;
+
+	const download = await args.supabase.storage
+		.from(row.data.storage_bucket)
+		.download(row.data.storage_path);
+	if (download.error || !download.data) return;
+
+	const contentType = EDITABLE_IMAGE_TYPES.has(row.data.content_type)
+		? (row.data.content_type as "image/png" | "image/jpeg" | "image/webp")
+		: "image/png";
+	const buffer = Buffer.from(await download.data.arrayBuffer());
+	return {
+		base64: buffer.toString("base64"),
+		contentType,
+		filename: row.data.original_name || "source.png",
+	};
+}
+
 export const detectProtectedElements = createServerFn({ method: "POST" })
 	.inputValidator(detectProtectedElementsSchema)
-	.handler(async ({ data }) => {
-		return __detectProtectedElementsHandler({
+	.handler(async ({ data }) =>
+		__detectProtectedElementsHandler({
 			provider: getRenovationAiProvider(),
 			input: data,
-		});
-	});
+		})
+	);
 
 export const createDesignBrief = createServerFn({ method: "POST" })
 	.inputValidator(createDesignBriefSchema)
-	.handler(async ({ data }) => {
-		return __createDesignBriefHandler({
+	.handler(async ({ data }) =>
+		__createDesignBriefHandler({
 			provider: getRenovationAiProvider(),
 			input: data,
-		});
-	});
+		})
+	);
 
 export const generateRenovationImages = createServerFn({ method: "POST" })
 	.inputValidator(generateRenovationImagesSchema)

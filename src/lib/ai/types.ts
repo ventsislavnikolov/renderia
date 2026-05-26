@@ -18,6 +18,7 @@ export type BoundingBox = {
 export type SuggestTasksInput = {
 	projectNotes: string;
 	photos: Array<{ id: string; signedUrl: string; notes?: string }>;
+	model?: ModelSelection;
 };
 
 export type SuggestedTask = {
@@ -26,20 +27,34 @@ export type SuggestedTask = {
 	rationale: string;
 };
 
+import type { ModelSelection } from "./models";
+
 export type DetectProtectedElementsInput = {
 	photoUrl: string;
 	taskTitle: string;
 	notes?: string;
+	/** Optional explicit model. Defaults applied in the provider when omitted. */
+	model?: ModelSelection;
 };
 
 export type CreateDesignBriefInput = {
 	taskTitle: string;
 	styleRules: string;
 	protectedElements: BoundingBox[];
+	model?: ModelSelection;
 };
 
 export type GenerateRenovationImagesInput = {
-	sourceImageUrl: string;
+	/**
+	 * Source photo bytes. When provided, the provider uses image-edit mode so
+	 * the output preserves the room's geometry. Omit to fall back to pure
+	 * text-to-image.
+	 */
+	sourceImage?: {
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+	};
 	prompt: string;
 	count: number;
 };
@@ -75,15 +90,15 @@ export type ProviderResult<T> = {
 
 export type RenovationAiProvider = {
 	suggestTasks(
-		input: SuggestTasksInput,
+		input: SuggestTasksInput
 	): Promise<ProviderResult<SuggestedTask[]>>;
 	detectProtectedElements(
-		input: DetectProtectedElementsInput,
+		input: DetectProtectedElementsInput
 	): Promise<ProviderResult<BoundingBox[]>>;
 	createDesignBrief(
-		input: CreateDesignBriefInput,
+		input: CreateDesignBriefInput
 	): Promise<ProviderResult<{ markdown: string; prompt: string }>>;
 	generateRenovationImages(
-		input: GenerateRenovationImagesInput,
+		input: GenerateRenovationImagesInput
 	): Promise<ProviderResult<GeneratedImageResult[]>>;
 };

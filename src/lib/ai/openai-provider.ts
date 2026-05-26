@@ -1,8 +1,15 @@
-import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI, openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { z } from "zod";
 import { requireEnv } from "../env";
+import {
+	DEFAULT_IMAGE_MODEL,
+	DEFAULT_TEXT_MODEL,
+	type ModelSelection,
+} from "./models";
 import { buildDesignPrompt, sanitizePromptField } from "./prompts";
 import type {
 	GeneratedImageResult,
@@ -12,12 +19,94 @@ import type {
 } from "./types";
 
 /**
- * Models picked per plan. Kept as constants so swaps land in one place and
- * tests can assert against the same identifiers without hardcoding strings.
+ * Image generation is OpenAI-only today — Gemini and Anthropic don't ship a
+ * photo-realistic interior renderer comparable to gpt-image-2. Exported so
+ * the server fn can reference the model id without re-deriving it.
  */
-const TEXT_MODEL = "gpt-5.4-mini";
-export const OPENAI_IMAGE_MODEL = "gpt-image-2";
+export const OPENAI_IMAGE_MODEL = DEFAULT_IMAGE_MODEL.model;
 const IMAGE_MODEL = OPENAI_IMAGE_MODEL;
+
+/**
+ * Lazy Google client. `@ai-sdk/google` reads `GOOGLE_GENERATIVE_AI_API_KEY`
+ * by default but we want the simpler `GEMINI_API_KEY` name on the env (it
+ * matches what Google AI Studio shows when you create the key). Cached so
+ * we don't re-instantiate the wrapper per call.
+ */
+let cachedGoogle: ReturnType<typeof createGoogleGenerativeAI> | undefined;
+function getGoogleClient() {
+	if (!cachedGoogle) {
+		cachedGoogle = createGoogleGenerativeAI({
+			apiKey: requireEnv(process.env, "GEMINI_API_KEY"),
+		});
+	}
+	return cachedGoogle;
+}
+
+/**
+ * Lazy Z.AI (Zhipu) client. Z.AI exposes an OpenAI-compatible API at
+ * `https://api.z.ai/api/paas/v4/`, so we just point `@ai-sdk/openai` at it
+ * with a custom base URL + the Z.AI key. `generateObject` works for GLM-4.5
+ * via Z.AI's structured-output mode; if a future model rejects schema mode,
+ * fall back to `generateText` + manual JSON parse for that model only.
+ */
+const ZAI_BASE_URL = "https://api.z.ai/api/paas/v4/";
+let cachedZai: ReturnType<typeof createOpenAI> | undefined;
+function getZaiClient() {
+	if (!cachedZai) {
+		cachedZai = createOpenAI({
+			baseURL: ZAI_BASE_URL,
+			apiKey: requireEnv(process.env, "ZAI_API_KEY"),
+		});
+	}
+	return cachedZai;
+}
+
+/**
+ * Lazy Moonshot client. Moonshot exposes an OpenAI-compatible API at
+ * `https://api.moonshot.ai/v1/` (international) — same multi-modal content
+ * shape as OpenAI, so we just point `createOpenAI` at it.
+ */
+const MOONSHOT_BASE_URL = "https://api.moonshot.ai/v1/";
+let cachedMoonshot: ReturnType<typeof createOpenAI> | undefined;
+function getMoonshotClient() {
+	if (!cachedMoonshot) {
+		cachedMoonshot = createOpenAI({
+			baseURL: MOONSHOT_BASE_URL,
+			apiKey: requireEnv(process.env, "MOONSHOT_API_KEY"),
+		});
+	}
+	return cachedMoonshot;
+}
+
+/**
+ * Resolve a `{ provider, model }` selection to a Vercel AI SDK model. All
+ * three providers expose the same `generateObject` + multimodal-messages
+ * surface so the call site stays provider-agnostic — only the SDK factory
+ * differs. Throws on `mock` because the mock provider has its own code path
+ * and should never reach the SDK dispatcher.
+ */
+function resolveTextModel(selection: ModelSelection) {
+	switch (selection.provider) {
+		case "openai":
+			return openai(selection.model);
+		case "google":
+			return getGoogleClient()(selection.model);
+		case "anthropic":
+			return anthropic(selection.model);
+		case "zai":
+			return getZaiClient()(selection.model);
+		case "moonshot":
+			return getMoonshotClient()(selection.model);
+		case "mock":
+			throw new Error(
+				"resolveTextModel called with provider=mock — wire mockRenovationProvider before dispatch."
+			);
+		default: {
+			const exhaustive: never = selection.provider;
+			throw new Error(`Unknown provider: ${exhaustive as string}`);
+		}
+	}
+}
 
 /**
  * Zod schemas mirror the BoundingBox + SuggestedTask types. We feed these
@@ -61,9 +150,10 @@ const tasksResponseSchema = z.object({
 });
 
 /**
- * Lazy OpenAI client. Constructed on first use so importing this module never
- * requires `OPENAI_API_KEY` to exist — tests can mock the SDK at module level
- * and the env check only fires when the openai provider is actually invoked.
+ * Lazy OpenAI client (used for image generation only — text calls go through
+ * the AI SDK and don't need this). Constructed on first use so importing this
+ * module never requires `OPENAI_API_KEY` to exist — tests can mock the SDK at
+ * module level and the env check only fires when image gen is invoked.
  */
 let cachedClient: OpenAI | undefined;
 function getOpenAiClient(): OpenAI {
@@ -85,12 +175,13 @@ export function __resetOpenAiClientForTestsInternal(): void {
 }
 
 function buildDebug(args: {
+	modelId: string;
 	prompt: string;
 	object: unknown;
 	durationMs: number;
 }): ProviderDebug {
 	return {
-		model: TEXT_MODEL,
+		model: args.modelId,
 		prompt: args.prompt,
 		rawResponse: JSON.stringify(args.object, null, 2),
 		durationMs: args.durationMs,
@@ -99,6 +190,7 @@ function buildDebug(args: {
 
 export const openAiRenovationProvider: RenovationAiProvider = {
 	async suggestTasks(input) {
+		const selection = input.model ?? DEFAULT_TEXT_MODEL;
 		const photoLines = input.photos.map((photo, index) => {
 			const header = `Photo ${index + 1} (id: ${sanitizePromptField(photo.id)})`;
 			if (photo.notes && photo.notes.length > 0) {
@@ -115,11 +207,6 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			...(photoLines.length > 0 ? ["Photos:", ...photoLines] : []),
 		].join("\n");
 
-		// Build a single user message that carries the text prompt plus every
-		// attached photo as an `image` content part. `gpt-5-mini` is multimodal
-		// — passing a URL inside text caused refusals because the model has no
-		// fetch capability. Attaching the image as a content part is the
-		// correct multimodal contract.
 		const userContent: Array<
 			{ type: "text"; text: string } | { type: "image"; image: URL }
 		> = [{ type: "text", text: promptText }];
@@ -131,7 +218,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 
 		const startedAt = Date.now();
 		const result = await generateObject({
-			model: openai(TEXT_MODEL),
+			model: resolveTextModel(selection),
 			schema: tasksResponseSchema,
 			messages: [{ role: "user", content: userContent }],
 		});
@@ -140,6 +227,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 		return {
 			value: result.object.tasks,
 			debug: buildDebug({
+				modelId: selection.model,
 				prompt: promptText,
 				object: result.object,
 				durationMs,
@@ -148,6 +236,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 	},
 
 	async detectProtectedElements(input) {
+		const selection = input.model ?? DEFAULT_TEXT_MODEL;
 		const promptText = [
 			"You are helping plan a renovation. The user wants to preserve a small number of specific, distinctive architectural details exactly as they are; everything else can be changed.",
 			"",
@@ -192,7 +281,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 
 		const startedAt = Date.now();
 		const result = await generateObject({
-			model: openai(TEXT_MODEL),
+			model: resolveTextModel(selection),
 			schema: detectionResponseSchema,
 			messages: [
 				{
@@ -212,6 +301,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 				return confidence == null ? rest : { ...rest, confidence };
 			}),
 			debug: buildDebug({
+				modelId: selection.model,
 				prompt: promptText,
 				object: result.object,
 				durationMs,
@@ -230,7 +320,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			"Preserved elements:",
 			...input.protectedElements.map(
 				(element) =>
-					`- ${sanitizePromptField(element.label)} (${sanitizePromptField(element.kind)})`,
+					`- ${sanitizePromptField(element.label)} (${sanitizePromptField(element.kind)})`
 			),
 		].join("\n");
 		return {
@@ -249,13 +339,32 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 	async generateRenovationImages(input) {
 		const client = getOpenAiClient();
 		const startedAt = Date.now();
-		const response = await client.images.generate({
-			model: IMAGE_MODEL,
-			prompt: input.prompt,
-			n: input.count,
-			size: "auto",
-			quality: "high",
-		});
+		// Image-edit mode preserves the source room's geometry, lighting, and
+		// the positions of doors/windows/beams. `input_fidelity: "high"` tells
+		// gpt-image-2 to stick close to the input image rather than treating
+		// it as loose inspiration. Without a source image we fall back to
+		// text-to-image — the mock provider hits this branch in tests.
+		const response = input.sourceImage
+			? await client.images.edit({
+					model: IMAGE_MODEL,
+					image: await toFile(
+						Buffer.from(input.sourceImage.base64, "base64"),
+						input.sourceImage.filename,
+						{ type: input.sourceImage.contentType }
+					),
+					prompt: input.prompt,
+					n: input.count,
+					size: "auto",
+					quality: "high",
+					input_fidelity: "high",
+				})
+			: await client.images.generate({
+					model: IMAGE_MODEL,
+					prompt: input.prompt,
+					n: input.count,
+					size: "auto",
+					quality: "high",
+				});
 		const durationMs = Date.now() - startedAt;
 		const data = response.data ?? [];
 		const images = data.map<GeneratedImageResult>((image) => ({
@@ -268,9 +377,12 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 				model: IMAGE_MODEL,
 				prompt: input.prompt,
 				rawResponse: JSON.stringify(
-					{ images: images.map((_, i) => ({ index: i })) },
+					{
+						mode: input.sourceImage ? "edit" : "generate",
+						images: images.map((_, i) => ({ index: i })),
+					},
 					null,
-					2,
+					2
 				),
 				durationMs,
 			},

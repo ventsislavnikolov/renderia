@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { BoundingBox } from "../../lib/ai/types";
-import type { Tables } from "../../lib/types/database";
+import type { BoundingBox } from "@/lib/ai/types";
+import type { Tables } from "@/lib/types/database";
+import { cn } from "@/lib/utils";
 import { BriefStep } from "./brief-step";
 import { GenerationStep } from "./generation-step";
 import { OverlayConfirmStep } from "./overlay-confirm-step";
@@ -26,13 +27,11 @@ const STEP_LABELS: Record<StepId, string> = {
  * Orchestrates the 4-step guided renovation workspace.
  *
  * State is kept entirely in this component — no router search params, no
- * server persistence — because the plan documents persistence as a follow-up
- * task. Each child step is autonomous: it owns its own data lifecycle and
- * only calls `setStep` to advance the parent.
+ * server persistence. Each child step is autonomous: it owns its own data
+ * lifecycle and only calls `setStep` to advance the parent.
  *
  * The stepper exposes manual navigation but disables steps whose prerequisite
- * data isn't ready (e.g. overlay step needs a photo, brief step needs
- * confirmed elements) so the user can't render a half-wired child.
+ * data isn't ready so the user can't render a half-wired child.
  */
 export function GuidedFlow(props: {
 	projectId: string;
@@ -75,24 +74,60 @@ export function GuidedFlow(props: {
 	}
 
 	return (
-		<section className="guided-flow" aria-label="Guided renovation flow">
-			<nav className="stepper" aria-label="Guided renovation steps">
+		<section aria-label="Guided renovation flow" className="grid gap-10">
+			<nav
+				aria-label="Guided renovation steps"
+				className="flex flex-nowrap overflow-x-auto overflow-y-hidden border-border border-y max-md:flex-wrap max-md:overflow-x-visible"
+			>
 				{STEPS.map((id, index) => {
 					const isCurrent = id === step;
 					const isReachable = reached[id];
 					return (
 						<button
-							key={id}
-							type="button"
-							className={`stepper-item${isCurrent ? " active" : ""}`}
-							onClick={() => goTo(id)}
-							disabled={!isReachable}
 							aria-current={isCurrent ? "step" : undefined}
+							className={cn(
+								"relative inline-flex flex-1 items-baseline gap-2 border-border border-r px-5 py-4 text-left transition-colors",
+								"font-body text-ink-muted",
+								"hover:not-disabled:text-foreground",
+								"disabled:cursor-not-allowed disabled:opacity-40",
+								"last:border-r-0",
+								"max-md:min-w-[50%] max-md:basis-1/2 max-md:border-border max-md:border-b",
+								"max-md:nth-2n:border-r-0",
+								isCurrent && [
+									"text-foreground",
+									"after:absolute after:right-5 after:bottom-[-1px] after:left-5 after:h-0.5 after:bg-foreground after:content-['']",
+								]
+							)}
+							disabled={!isReachable}
+							key={id}
+							onClick={() => goTo(id)}
+							type="button"
 						>
-							<span className="step-number">
+							<span
+								className={cn(
+									"font-display font-medium text-[0.8125rem] tracking-[0.02em] [font-feature-settings:'tnum'] [font-variation-settings:'opsz'_9]",
+									isCurrent ? "text-foreground" : "text-ink-subtle"
+								)}
+							>
 								{String(index + 1).padStart(2, "0")}
 							</span>
-							<span className="step-label">{STEP_LABELS[id]}</span>
+							<span
+								aria-hidden="true"
+								className={cn(
+									"font-display text-[0.8125rem]",
+									isCurrent ? "text-foreground" : "text-ink-subtle opacity-60"
+								)}
+							>
+								/
+							</span>
+							<span
+								className={cn(
+									"font-body text-[0.9375rem] tracking-tight",
+									isCurrent ? "font-semibold" : "font-medium"
+								)}
+							>
+								{STEP_LABELS[id]}
+							</span>
 						</button>
 					);
 				})}
@@ -100,41 +135,42 @@ export function GuidedFlow(props: {
 
 			{step === "photo" ? (
 				<PhotoUploadStep
+					onPhotoSelected={handlePhotoSelected}
 					projectId={props.projectId}
 					selectedPhotoId={photo?.id ?? null}
-					onPhotoSelected={handlePhotoSelected}
 				/>
 			) : null}
 
 			{step === "overlay" && photo ? (
 				<OverlayConfirmStep
-					projectId={props.projectId}
-					taskId={props.taskId}
-					photo={photo}
-					taskTitle={props.taskTitle}
 					confirmedElements={protectedElements}
 					onConfirm={handleElementsConfirmed}
+					photo={photo}
+					projectId={props.projectId}
+					taskId={props.taskId}
+					taskTitle={props.taskTitle}
 				/>
 			) : null}
 
 			{step === "brief" && photo ? (
 				<BriefStep
-					taskTitle={props.taskTitle}
-					protectedElements={protectedElements}
 					brief={brief}
-					prompt={prompt}
 					onBriefChange={setBrief}
-					onPromptChange={setPrompt}
 					onNext={() => setStep("generate")}
+					onPromptChange={setPrompt}
+					prompt={prompt}
+					protectedElements={protectedElements}
+					taskTitle={props.taskTitle}
 				/>
 			) : null}
 
 			{step === "generate" ? (
 				<GenerationStep
-					taskId={props.taskId}
-					briefId={null}
 					brief={brief}
+					briefId={null}
+					photoId={photo?.id ?? null}
 					prompt={prompt}
+					taskId={props.taskId}
 				/>
 			) : null}
 		</section>

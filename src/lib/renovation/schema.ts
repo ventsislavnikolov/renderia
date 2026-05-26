@@ -19,6 +19,19 @@ export const createProjectSchema = z.object({
 });
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
+/**
+ * Inputs for the chat-prompt entry point. The user types a single free-form
+ * renovation description (e.g. "renovate the attic into a Scandinavian
+ * studio"); the handler derives a project name from the first sentence and
+ * stores the full prompt as both the project description and the task title.
+ */
+export const createProjectFromPromptSchema = z.object({
+	prompt: z.string().min(1).max(2000),
+});
+export type CreateProjectFromPromptInput = z.infer<
+	typeof createProjectFromPromptSchema
+>;
+
 export const getProjectSchema = z.object({
 	projectId: z.string().uuid(),
 });
@@ -82,9 +95,31 @@ export const listPhotosSchema = z.object({
 });
 export type ListPhotosInput = z.infer<typeof listPhotosSchema>;
 
+/**
+ * Optional per-call AI model selection. When omitted, the provider falls
+ * back to its built-in default (currently Gemini 2.5 Flash for text — see
+ * `DEFAULT_TEXT_MODEL` in `src/lib/ai/models.ts`). The schema is
+ * intentionally permissive on the `model` string so we can add new SDK
+ * model ids without a wire-level schema bump; the catalog in
+ * `src/lib/ai/models.ts` is the human-facing source of truth.
+ */
+export const modelSelectionSchema = z.object({
+	provider: z.enum([
+		"openai",
+		"google",
+		"anthropic",
+		"zai",
+		"moonshot",
+		"mock",
+	]),
+	model: z.string().min(1).max(120),
+});
+export type ModelSelectionInput = z.infer<typeof modelSelectionSchema>;
+
 export const suggestTasksSchema = z.object({
 	projectId: z.string().uuid(),
 	projectNotes: z.string().max(4000).default(""),
+	model: modelSelectionSchema.optional(),
 });
 export type SuggestTasksInput = z.infer<typeof suggestTasksSchema>;
 
@@ -92,6 +127,7 @@ export const detectProtectedElementsSchema = z.object({
 	photoUrl: z.string().url(),
 	taskTitle: z.string().min(1).max(200),
 	notes: z.string().max(4000).optional(),
+	model: modelSelectionSchema.optional(),
 });
 export type DetectProtectedElementsInput = z.infer<
 	typeof detectProtectedElementsSchema
@@ -101,6 +137,7 @@ export const createDesignBriefSchema = z.object({
 	taskTitle: z.string().min(1).max(200),
 	styleRules: z.string().min(1).max(4000),
 	protectedElements: z.array(protectedElementSchema),
+	model: modelSelectionSchema.optional(),
 });
 export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
 
@@ -118,6 +155,11 @@ export const generateRenovationImagesSchema = z.object({
 	briefId: z.string().uuid().nullable(),
 	prompt: z.string().min(1).max(8000),
 	count: z.number().int().min(1).max(4).default(4),
+	/**
+	 * When set, the server loads the photo bytes from storage and the provider
+	 * uses image-edit mode so the renovation preserves the source room.
+	 */
+	photoId: z.string().uuid().nullable().optional(),
 });
 export type GenerateRenovationImagesInput = z.infer<
 	typeof generateRenovationImagesSchema

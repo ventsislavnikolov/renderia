@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
+import { Button } from "@/components/ui/button";
+import { DEFAULT_TEXT_MODEL, type ModelSelection } from "@/lib/ai/models";
+import type { BoundingBox, ProviderDebug } from "@/lib/ai/types";
+import { cn } from "@/lib/utils";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -13,6 +16,7 @@ import {
 	saveDetectedElements,
 	updateProtectedElementStatus,
 } from "../../server/generation";
+import { ModelPicker } from "../ui/model-picker";
 import { DebugPanel } from "./debug-panel";
 
 type PhotoRow = Tables<"photos">;
@@ -96,6 +100,7 @@ export function OverlayConfirmStep(props: {
 	const [detecting, setDetecting] = useState(false);
 	const [loadingPersisted, setLoadingPersisted] = useState(true);
 	const [debug, setDebug] = useState<ProviderDebug | null>(null);
+	const [model, setModel] = useState<ModelSelection>(DEFAULT_TEXT_MODEL);
 	const cancelledRef = useRef(false);
 
 	const mintUrl = useCallback(async () => {
@@ -111,7 +116,7 @@ export function OverlayConfirmStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			setLoadError(
-				error instanceof Error ? error.message : "Failed to load photo",
+				error instanceof Error ? error.message : "Failed to load photo"
 			);
 		}
 	}, [props.photo]);
@@ -135,8 +140,8 @@ export function OverlayConfirmStep(props: {
 					new Set(
 						keyed
 							.filter(({ row }) => row?.status !== "rejected")
-							.map(({ id }) => id),
-					),
+							.map(({ id }) => id)
+					)
 				);
 			}
 		} catch (error) {
@@ -190,6 +195,7 @@ export function OverlayConfirmStep(props: {
 				data: {
 					photoUrl: data.signedUrl,
 					taskTitle: props.taskTitle,
+					model,
 				},
 				headers,
 			})) as BoundingBox[] | { data: BoundingBox[]; debug?: ProviderDebug };
@@ -247,7 +253,7 @@ export function OverlayConfirmStep(props: {
 				return;
 			}
 			setDetectError(
-				error instanceof Error ? error.message : "Detection failed",
+				error instanceof Error ? error.message : "Detection failed"
 			);
 		} finally {
 			if (!cancelledRef.current) setDetecting(false);
@@ -281,8 +287,8 @@ export function OverlayConfirmStep(props: {
 			setElements(
 				(prev) =>
 					prev?.map((item) =>
-						item.id === id ? { ...item, row: updated } : item,
-					) ?? prev,
+						item.id === id ? { ...item, row: updated } : item
+					) ?? prev
 			);
 		} catch (error) {
 			if (cancelledRef.current) return;
@@ -298,7 +304,7 @@ export function OverlayConfirmStep(props: {
 				return;
 			}
 			setDetectError(
-				error instanceof Error ? error.message : "Failed to update selection",
+				error instanceof Error ? error.message : "Failed to update selection"
 			);
 		}
 	}
@@ -308,7 +314,7 @@ export function OverlayConfirmStep(props: {
 			props.onConfirm(
 				elements
 					.filter((entry) => selected.has(entry.id))
-					.map((entry) => entry.box),
+					.map((entry) => entry.box)
 			);
 		} else {
 			props.onConfirm(props.confirmedElements);
@@ -327,74 +333,116 @@ export function OverlayConfirmStep(props: {
 		}));
 
 	return (
-		<div className="guided-step" aria-busy={detecting || loadingPersisted}>
-			<header className="guided-step-header">
-				<h2>2. Confirm protected elements</h2>
-				<p>
+		<div
+			aria-busy={detecting || loadingPersisted}
+			className="grid gap-6 border border-border bg-surface p-10 max-md:p-6"
+		>
+			<header className="grid gap-2">
+				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
+					2. Confirm protected elements
+				</h2>
+				<p className="m-0 max-w-[60ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
 					Detected elements will be preserved exactly in the generation prompt.
 					Uncheck any that you want to allow to change.
 				</p>
 			</header>
 
-			<div className="overlay-grid">
-				<div className="photo-canvas">
+			<div className="grid items-start gap-8 md:grid-cols-[minmax(0,1fr)_360px]">
+				<div className="relative min-h-[320px] border border-border bg-background">
 					{signedUrl ? (
 						<img
-							src={signedUrl}
 							alt={props.photo.original_name}
-							className="photo-canvas-img"
+							className="block h-auto w-full"
+							src={signedUrl}
 						/>
 					) : null}
 					{visibleElements.map(({ id, box }) => {
 						const isSelected = selected.has(id) || elements === null;
 						return (
 							<button
+								aria-label={`Toggle ${box.label} protection`}
+								aria-pressed={isSelected}
+								className={cn(
+									"absolute z-10 cursor-pointer border-2 bg-[rgba(200,38,48,0.08)] p-0",
+									"hover:bg-[rgba(200,38,48,0.18)] focus-visible:outline-none",
+									isSelected
+										? "border-[rgb(200,38,48)]"
+										: "border-[rgba(120,120,120,0.6)] border-dashed bg-[rgba(120,120,120,0.06)]"
+								)}
 								key={id}
-								type="button"
-								className={`overlay-box${isSelected ? " selected" : ""}`}
+								onClick={() => {
+									void toggleSelection(id);
+								}}
 								style={{
 									left: `${box.x * 100}%`,
 									top: `${box.y * 100}%`,
 									width: `${box.width * 100}%`,
 									height: `${box.height * 100}%`,
 								}}
-								aria-pressed={isSelected}
-								aria-label={`Toggle ${box.label} protection`}
-								onClick={() => {
-									void toggleSelection(id);
-								}}
+								title={box.label}
+								type="button"
 							>
-								{box.label}
+								<span
+									className={cn(
+										"pointer-events-none absolute bottom-full left-[-2px] inline-block max-w-[16rem] whitespace-nowrap px-1.5 py-1 font-semibold text-[0.7rem] text-white leading-tight tracking-[0.02em]",
+										isSelected
+											? "bg-[rgb(200,38,48)]"
+											: "bg-[rgba(120,120,120,0.85)]"
+									)}
+								>
+									{box.label}
+								</span>
 							</button>
 						);
 					})}
 				</div>
-				<aside className="overlay-side">
-					<button
-						type="button"
-						onClick={runDetection}
-						disabled={detecting || signedUrl === null}
-					>
-						{detecting
-							? "Detecting…"
-							: elements
-								? "Re-run detection"
-								: "Detect protected elements"}
-					</button>
-					{detectError ? <p role="alert">{detectError}</p> : null}
-					{loadError ? <p role="alert">{loadError}</p> : null}
+				<aside className="grid content-start gap-4">
+					<div className="flex flex-col items-stretch gap-2">
+						<Button
+							disabled={detecting || signedUrl === null}
+							onClick={runDetection}
+							type="button"
+						>
+							{detecting
+								? "Detecting…"
+								: elements
+									? "Re-run detection"
+									: "Detect protected elements"}
+						</Button>
+						<ModelPicker
+							capability="detection"
+							kind="text-vision"
+							onChange={setModel}
+						/>
+					</div>
+					{detectError ? (
+						<p
+							className="m-0 font-medium text-[0.9375rem] text-warning"
+							role="alert"
+						>
+							{detectError}
+						</p>
+					) : null}
+					{loadError ? (
+						<p
+							className="m-0 font-medium text-[0.9375rem] text-warning"
+							role="alert"
+						>
+							{loadError}
+						</p>
+					) : null}
 					{elements ? (
 						<>
-							<p className="workspace-status">
+							<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 								Detected {elements.length} element
 								{elements.length === 1 ? "" : "s"}. {selected.size} selected.
 							</p>
-							<button type="button" onClick={handleConfirm}>
+							<Button onClick={handleConfirm} type="button">
 								Confirm selection and continue
-							</button>
+							</Button>
 						</>
 					) : (
-						<p className="workspace-status">
+						<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 							Run detection to see suggested bounding boxes.
 						</p>
 					)}
