@@ -89,7 +89,10 @@ export function GuidedFlow(props: {
 							disabled={!isReachable}
 							aria-current={isCurrent ? "step" : undefined}
 						>
-							{index + 1}. {STEP_LABELS[id]}
+							<span className="step-number">
+								{String(index + 1).padStart(2, "0")}
+							</span>
+							<span className="step-label">{STEP_LABELS[id]}</span>
 						</button>
 					);
 				})}
