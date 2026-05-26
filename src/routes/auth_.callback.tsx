@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "../lib/supabase/browser";
 
-export const Route = createFileRoute("/auth/callback")({
+export const Route = createFileRoute("/auth_/callback")({
 	ssr: false,
 	component: AuthCallback,
 });

@@ -13,7 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as ProjectsProjectIdTasksTaskIdRouteImport } from './routes/projects.$projectId.tasks.$taskId'
 
 const AuthRoute = AuthRouteImport.update({
@@ -37,9 +37,9 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/callback',
-  path: '/callback',
-  getParentRoute: () => AuthRoute,
+  id: '/auth_/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsProjectIdTasksTaskIdRoute =
   ProjectsProjectIdTasksTaskIdRouteImport.update({
@@ -50,7 +50,7 @@ const ProjectsProjectIdTasksTaskIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
@@ -58,7 +58,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects': typeof ProjectsIndexRoute
@@ -67,8 +67,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
-  '/auth/callback': typeof AuthCallbackRoute
+  '/auth': typeof AuthRoute
+  '/auth_/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$projectId/tasks/$taskId': typeof ProjectsProjectIdTasksTaskIdRoute
@@ -94,7 +94,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
-    | '/auth/callback'
+    | '/auth_/callback'
     | '/projects/$projectId'
     | '/projects/'
     | '/projects/$projectId/tasks/$taskId'
@@ -102,7 +102,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
   ProjectsIndexRoute: typeof ProjectsIndexRoute
 }
@@ -137,12 +138,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/callback'
+    '/auth_/callback': {
+      id: '/auth_/callback'
+      path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof rootRouteImport
     }
     '/projects/$projectId/tasks/$taskId': {
       id: '/projects/$projectId/tasks/$taskId'
@@ -153,16 +154,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-
-interface AuthRouteChildren {
-  AuthCallbackRoute: typeof AuthCallbackRoute
-}
-
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthCallbackRoute: AuthCallbackRoute,
-}
-
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdTasksTaskIdRoute: typeof ProjectsProjectIdTasksTaskIdRoute
@@ -177,7 +168,8 @@ const ProjectsProjectIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRouteWithChildren,
+  AuthRoute: AuthRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
   ProjectsIndexRoute: ProjectsIndexRoute,
 }
