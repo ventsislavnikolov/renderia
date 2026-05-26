@@ -28,6 +28,7 @@ const {
 	getSessionMock,
 	uploadMock,
 	removeMock,
+	createSignedUrlMock,
 	fromMock,
 	listProjectPhotosMock,
 	createPhotoRecordMock,
@@ -35,11 +36,13 @@ const {
 } = vi.hoisted(() => {
 	const upload = vi.fn();
 	const remove = vi.fn();
+	const createSignedUrl = vi.fn();
 	return {
 		getSessionMock: vi.fn(),
 		uploadMock: upload,
 		removeMock: remove,
-		fromMock: vi.fn(() => ({ upload, remove })),
+		createSignedUrlMock: createSignedUrl,
+		fromMock: vi.fn(() => ({ upload, remove, createSignedUrl })),
 		listProjectPhotosMock: vi.fn(),
 		createPhotoRecordMock: vi.fn(),
 		getAuthHeadersMock: vi.fn(),
@@ -87,6 +90,10 @@ beforeEach(() => {
 	getSessionMock.mockReset();
 	uploadMock.mockReset();
 	removeMock.mockReset().mockResolvedValue({ data: [], error: null });
+	createSignedUrlMock.mockReset().mockResolvedValue({
+		data: { signedUrl: "https://signed/preview.png" },
+		error: null,
+	});
 	fromMock.mockClear();
 	listProjectPhotosMock.mockReset();
 	createPhotoRecordMock.mockReset();

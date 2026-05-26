@@ -199,9 +199,11 @@ export function GenerationStep(props: {
 							<img
 								src={image.signedUrl}
 								alt={`Variation ${image.variationIndex + 1}`}
-								className="generation-preview"
 							/>
 							<div className="generation-card-actions">
+								<span className="generation-card-label">
+									{`Variation ${String(image.variationIndex + 1).padStart(2, "0")}`}
+								</span>
 								<button
 									type="button"
 									onClick={() => void toggleFavorite(image)}

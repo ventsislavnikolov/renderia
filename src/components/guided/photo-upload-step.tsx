@@ -50,12 +50,18 @@ function sanitizeFilename(name: string): string {
  * (refresh after upload, cancellation on unmount) so the parent stays a thin
  * orchestrator.
  */
+/** TTL for tile-preview signed URLs. 10 minutes covers a normal review pass. */
+const TILE_URL_TTL_SECONDS = 600;
+
 export function PhotoUploadStep(props: {
 	projectId: string;
 	selectedPhotoId: string | null;
 	onPhotoSelected: (photo: PhotoRow) => void;
 }) {
 	const [photos, setPhotos] = useState<PhotoRow[] | null>(null);
+	const [signedUrls, setSignedUrls] = useState<Map<string, string>>(
+		() => new Map(),
+	);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [uploadError, setUploadError] = useState<string | null>(null);
 	const [uploading, setUploading] = useState(false);
@@ -98,6 +104,39 @@ export function PhotoUploadStep(props: {
 		const timer = window.setTimeout(() => setAnnouncement(null), 3000);
 		return () => window.clearTimeout(timer);
 	}, [announcement]);
+
+	// Mint short-lived signed URLs for each photo in parallel so tiles can show
+	// the actual image. We avoid re-minting URLs we already have — `photos`
+	// usually grows by one row at a time (after upload) so the existing entries
+	// are reused.
+	useEffect(() => {
+		if (!photos || photos.length === 0) return;
+		const cancelled = { current: false };
+		const toFetch = photos.filter((photo) => !signedUrls.has(photo.id));
+		if (toFetch.length === 0) return;
+		void (async () => {
+			const results = await Promise.all(
+				toFetch.map(async (photo) => {
+					const { data, error } = await supabaseBrowser.storage
+						.from(photo.storage_bucket)
+						.createSignedUrl(photo.storage_path, TILE_URL_TTL_SECONDS);
+					if (error || !data) return null;
+					return [photo.id, data.signedUrl] as const;
+				}),
+			);
+			if (cancelled.current || cancelledRef.current) return;
+			setSignedUrls((prev) => {
+				const next = new Map(prev);
+				for (const entry of results) {
+					if (entry) next.set(entry[0], entry[1]);
+				}
+				return next;
+			});
+		})();
+		return () => {
+			cancelled.current = true;
+		};
+	}, [photos, signedUrls]);
 
 	async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
 		const file = event.target.files?.[0];
@@ -246,6 +285,7 @@ export function PhotoUploadStep(props: {
 				<ul className="photo-grid" aria-label="Existing project photos">
 					{photos.map((photo) => {
 						const isSelected = photo.id === props.selectedPhotoId;
+						const url = signedUrls.get(photo.id);
 						return (
 							<li key={photo.id}>
 								<button
@@ -254,8 +294,23 @@ export function PhotoUploadStep(props: {
 									aria-pressed={isSelected}
 									onClick={() => props.onPhotoSelected(photo)}
 								>
-									<span className="photo-tile-name">{photo.original_name}</span>
-									<span className="photo-tile-meta">{photo.content_type}</span>
+									{url ? (
+										<img
+											src={url}
+											alt={photo.original_name}
+											className="photo-tile-img"
+										/>
+									) : (
+										<div className="photo-tile-img" aria-hidden="true" />
+									)}
+									<span className="photo-tile-meta-block">
+										<span className="photo-tile-name">
+											{photo.original_name}
+										</span>
+										<span className="photo-tile-meta">
+											{photo.content_type}
+										</span>
+									</span>
 								</button>
 							</li>
 						);
