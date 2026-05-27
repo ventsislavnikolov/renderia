@@ -13,14 +13,23 @@ vi.mock("@ai-sdk/openai", () => ({
 }));
 
 const imagesGenerateMock = vi.fn();
+const imagesEditMock = vi.fn();
 const openAiConstructorMock = vi.fn();
+const toFileMock = vi.fn(
+	async (buffer: Buffer, filename: string, options: unknown) => ({
+		buffer,
+		filename,
+		options,
+	})
+);
 vi.mock("openai", () => ({
 	default: class MockOpenAI {
-		images = { generate: imagesGenerateMock };
+		images = { edit: imagesEditMock, generate: imagesGenerateMock };
 		constructor(options: { apiKey: string }) {
 			openAiConstructorMock(options);
 		}
 	},
+	toFile: (...args: Parameters<typeof toFileMock>) => toFileMock(...args),
 }));
 
 import { openAiRenovationProvider } from "../../../src/lib/ai/openai-provider";
@@ -63,9 +72,11 @@ function callImages(callIndex: number): URL[] {
 describe("openAiRenovationProvider", () => {
 	beforeEach(() => {
 		generateObjectMock.mockReset();
+		imagesEditMock.mockReset();
 		openaiModelMock.mockClear();
 		imagesGenerateMock.mockReset();
 		openAiConstructorMock.mockReset();
+		toFileMock.mockClear();
 		resetOpenAiClientForTests();
 	});
 
@@ -241,6 +252,7 @@ describe("openAiRenovationProvider", () => {
 			expect(result.value.prompt).toContain("Scandinavian renovation style");
 			// Brief generation must never hit the network.
 			expect(generateObjectMock).not.toHaveBeenCalled();
+			expect(imagesEditMock).not.toHaveBeenCalled();
 			expect(imagesGenerateMock).not.toHaveBeenCalled();
 		});
 
@@ -290,6 +302,44 @@ describe("openAiRenovationProvider", () => {
 				quality: "high",
 			});
 			expect(result.debug?.model).toBe("gpt-image-2");
+		});
+
+		it("uses image edit mode for source photos without unsupported fidelity parameters", async () => {
+			vi.stubEnv("OPENAI_API_KEY", "sk-test");
+			imagesEditMock.mockResolvedValueOnce({
+				data: [{ b64_json: "EDITED" }],
+			});
+
+			const result = await openAiRenovationProvider.generateRenovationImages({
+				sourceImage: {
+					base64: Buffer.from("source").toString("base64"),
+					contentType: "image/png",
+					filename: "source.png",
+				},
+				prompt: "preserve the room",
+				count: 1,
+			});
+
+			expect(result.value).toEqual([
+				{ base64: "EDITED", contentType: "image/png" },
+			]);
+			expect(toFileMock).toHaveBeenCalledWith(
+				expect.any(Buffer),
+				"source.png",
+				{ type: "image/png" }
+			);
+			expect(imagesEditMock).toHaveBeenCalledWith({
+				model: "gpt-image-2",
+				image: expect.objectContaining({ filename: "source.png" }),
+				prompt: "preserve the room",
+				n: 1,
+				size: "auto",
+				quality: "high",
+			});
+			expect(imagesEditMock.mock.calls[0]?.[0]).not.toHaveProperty(
+				"input_fidelity"
+			);
+			expect(imagesGenerateMock).not.toHaveBeenCalled();
 		});
 
 		it("returns an empty array when the SDK omits the data field", async () => {

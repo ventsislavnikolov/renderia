@@ -150,7 +150,7 @@ describe("createProjectFromPromptHandler", () => {
 		};
 		const supabase = {
 			from: vi.fn((table: string) =>
-				table === "projects" ? projectChain : taskChain,
+				table === "projects" ? projectChain : taskChain
 			),
 		} as unknown as Parameters<
 			typeof __createProjectFromPromptHandler

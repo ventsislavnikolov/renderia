@@ -47,11 +47,11 @@ describe("GenerationStep", () => {
 
 		render(
 			<GenerationStep
-				taskId={TASK_ID}
-				briefId={null}
 				brief="# Test"
+				briefId={null}
 				prompt="PRESERVE EXACTLY"
-			/>,
+				taskId={TASK_ID}
+			/>
 		);
 
 		await waitFor(() => {
@@ -64,7 +64,7 @@ describe("GenerationStep", () => {
 					prompt: "PRESERVE EXACTLY",
 					count: 4,
 				}),
-			}),
+			})
 		);
 
 		// All four variation cards render with signed URLs.
@@ -72,7 +72,7 @@ describe("GenerationStep", () => {
 		expect(imgs).toHaveLength(4);
 		expect(imgs[0]?.getAttribute("src")).toContain("job-1-0.png");
 		expect(
-			screen.getByText(/Generated outputs are visual concepts/i),
+			screen.getByText(/Generated outputs are visual concepts/i)
 		).toBeDefined();
 	});
 
@@ -90,11 +90,11 @@ describe("GenerationStep", () => {
 
 		render(
 			<GenerationStep
-				taskId={TASK_ID}
-				briefId={null}
 				brief="# Test"
+				briefId={null}
 				prompt="PRESERVE EXACTLY"
-			/>,
+				taskId={TASK_ID}
+			/>
 		);
 
 		const favBtn = await screen.findByRole("button", {
@@ -106,7 +106,7 @@ describe("GenerationStep", () => {
 			expect(setFavoriteMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: { imageId: "img-0", isFavorite: true },
-				}),
+				})
 			);
 		});
 		expect(favBtn.getAttribute("aria-pressed")).toBe("true");
@@ -119,11 +119,11 @@ describe("GenerationStep", () => {
 		});
 		render(
 			<GenerationStep
-				taskId={TASK_ID}
-				briefId={null}
 				brief="# Brief"
+				briefId={null}
 				prompt="PRESERVE EXACTLY abc"
-			/>,
+				taskId={TASK_ID}
+			/>
 		);
 		expect(screen.getByText(/PRESERVE EXACTLY abc/)).toBeDefined();
 		expect(screen.getByText(/Show prompt sent to provider/i)).toBeDefined();
@@ -131,15 +131,10 @@ describe("GenerationStep", () => {
 
 	it("warns and skips the network call when no prompt is supplied", () => {
 		render(
-			<GenerationStep
-				taskId={TASK_ID}
-				briefId={null}
-				brief=""
-				prompt=""
-			/>,
+			<GenerationStep brief="" briefId={null} prompt="" taskId={TASK_ID} />
 		);
 		expect(
-			screen.getByText(/No brief yet — go back to the brief step/i),
+			screen.getByText(/No brief yet — go back to the brief step/i)
 		).toBeDefined();
 		expect(generateMock).not.toHaveBeenCalled();
 	});
@@ -148,16 +143,14 @@ describe("GenerationStep", () => {
 		generateMock.mockRejectedValueOnce(new Error("provider exploded"));
 		render(
 			<GenerationStep
-				taskId={TASK_ID}
-				briefId={null}
 				brief="# Brief"
+				briefId={null}
 				prompt="PRESERVE EXACTLY"
-			/>,
+				taskId={TASK_ID}
+			/>
 		);
 		const alert = await screen.findByRole("alert");
 		expect(alert.textContent).toMatch(/provider exploded/);
-		expect(
-			screen.getByRole("button", { name: /Try again/i }),
-		).toBeDefined();
+		expect(screen.getByRole("button", { name: /Try again/i })).toBeDefined();
 	});
 });

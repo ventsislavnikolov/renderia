@@ -172,8 +172,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       ultracite:
-        specifier: ^7.7.0
-        version: 7.7.0
+        specifier: ^7.8.0
+        version: 7.8.0
       vite:
         specifier: ^8.0.14
         version: 8.0.14(@types/node@25.9.1)(jiti@2.7.0)(yaml@2.9.0)
@@ -4651,8 +4651,8 @@ packages:
     engines: {node: '>=0.8.0'}
     hasBin: true
 
-  ultracite@7.7.0:
-    resolution: {integrity: sha512-ygdKJwOloPuBXccmpgAOzyNBf+XPqFxDeIP59GF4idZ+YS7Lr1lp5favgtkPtenKUV8bc+nkoOJBy0bb/+7IxA==}
+  ultracite@7.8.0:
+    resolution: {integrity: sha512-wAIdn7YTBjygSdpz3ubMCAqja0odk2SCn/YqrM6k17D7ASouo0qaODJa76Xo3tp13yPWnNnLvcduNlmLBAtzYg==}
     hasBin: true
     peerDependencies:
       oxfmt: '>=0.1.0'
@@ -9874,7 +9874,7 @@ snapshots:
   uglify-js@3.19.3:
     optional: true
 
-  ultracite@7.7.0:
+  ultracite@7.8.0:
     dependencies:
       '@clack/prompts': 1.4.0
       commander: 14.0.3

@@ -241,6 +241,7 @@ export type Database = {
 					id: string;
 					owner_id: string;
 					task_id: string;
+					style_rules: string;
 					markdown: string;
 					prompt: string;
 					version: number;
@@ -250,6 +251,7 @@ export type Database = {
 					id?: string;
 					owner_id: string;
 					task_id: string;
+					style_rules?: string;
 					markdown: string;
 					prompt: string;
 					version?: number;
@@ -259,6 +261,7 @@ export type Database = {
 					id?: string;
 					owner_id?: string;
 					task_id?: string;
+					style_rules?: string;
 					markdown?: string;
 					prompt?: string;
 					version?: number;

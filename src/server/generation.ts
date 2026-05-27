@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { OPENAI_IMAGE_MODEL } from "../lib/ai/openai-provider";
+import { buildDesignPrompt } from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
@@ -13,8 +14,10 @@ import {
 	generateRenovationImagesSchema,
 	type ListProtectedElementsInput,
 	listProtectedElementsSchema,
+	type SaveDesignBriefInput,
 	type SaveDetectedElementsInput,
 	type SetImageFavoriteInput,
+	saveDesignBriefSchema,
 	saveDetectedElementsSchema,
 	setImageFavoriteSchema,
 	type UpdateProtectedElementStatusInput,
@@ -160,6 +163,7 @@ export async function __createDesignBriefHandler(args: {
 		.insert({
 			owner_id: args.userId,
 			task_id: args.input.taskId,
+			style_rules: args.input.styleRules,
 			markdown: result.value.markdown,
 			prompt: result.value.prompt,
 		})
@@ -174,8 +178,41 @@ export async function __createDesignBriefHandler(args: {
 			prompt: String(data.prompt),
 			version: Number(data.version),
 		},
-		result.debug,
+		result.debug
 	);
+}
+
+/** @internal */
+export async function __saveDesignBriefHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: SaveDesignBriefInput;
+}) {
+	const prompt = buildDesignPrompt({
+		taskTitle: args.input.taskTitle,
+		styleRules: args.input.styleRules,
+		briefMarkdown: args.input.markdown,
+		protectedElements: args.input.protectedElements,
+	});
+	const { data, error } = await args.supabase
+		.from("design_briefs")
+		.insert({
+			owner_id: args.userId,
+			task_id: args.input.taskId,
+			style_rules: args.input.styleRules,
+			markdown: args.input.markdown,
+			prompt,
+		})
+		.select("id, markdown, prompt, version")
+		.single();
+	if (error) throw wrapSupabaseError(error);
+
+	return {
+		id: String(data.id),
+		markdown: String(data.markdown),
+		prompt: String(data.prompt),
+		version: Number(data.version),
+	};
 }
 
 export type GeneratedImagePayload = {
@@ -323,7 +360,7 @@ export async function __generateRenovationImagesHandler(args: {
 
 		return attachDebugIfDev(
 			{ jobId, images: uploaded },
-			providerResult.debug,
+			providerResult.debug
 		) as {
 			data: { jobId: string; images: GeneratedImagePayload[] };
 			debug?: ProviderDebug;
@@ -399,7 +436,7 @@ export async function __listProtectedElementsHandler(args: {
 	const { data, error } = await args.supabase
 		.from("protected_elements")
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
 		)
 		.eq("task_id", args.input.taskId)
 		.eq("photo_id", args.input.photoId)
@@ -436,7 +473,7 @@ export async function __updateProtectedElementStatusHandler(args: {
 		.eq("id", args.input.elementId)
 		.eq("owner_id", args.userId)
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
 		)
 		.maybeSingle();
 	if (error) throw wrapSupabaseError(error);
@@ -516,6 +553,17 @@ export const createDesignBrief = createServerFn({ method: "POST" })
 			userId,
 			supabase,
 			provider: getRenovationAiProvider(),
+			input: data,
+		});
+	});
+
+export const saveDesignBrief = createServerFn({ method: "POST" })
+	.inputValidator(saveDesignBriefSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __saveDesignBriefHandler({
+			userId,
+			supabase,
 			input: data,
 		});
 	});

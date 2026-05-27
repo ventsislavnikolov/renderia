@@ -6,6 +6,7 @@ import {
 	__detectProtectedElementsHandler,
 	__generateRenovationImagesHandler,
 	__listProtectedElementsHandler,
+	__saveDesignBriefHandler,
 	__saveDetectedElementsHandler,
 	__setImageFavoriteHandler,
 	__updateProtectedElementStatusHandler,
@@ -222,9 +223,9 @@ function buildGenerationSupabaseStub(opts: {
 	};
 }
 
-	function buildFavoriteSupabaseStub(opts: {
-		updateResult?: { data: Row | null; error: unknown };
-	}) {
+function buildFavoriteSupabaseStub(opts: {
+	updateResult?: { data: Row | null; error: unknown };
+}) {
 	const fromMock = vi.fn();
 	const chain: Record<string, (...args: unknown[]) => unknown> = {};
 	chain.update = vi.fn(() => chain);
@@ -240,45 +241,46 @@ function buildGenerationSupabaseStub(opts: {
 		} as unknown as Parameters<typeof __setImageFavoriteHandler>[0]["supabase"],
 		fromMock,
 		chain,
-		};
-	}
+	};
+}
 
-	function buildDesignBriefSupabaseStub(opts: {
-		insertResult?: { data: Row | null; error: unknown };
-	}) {
-		const fromMock = vi.fn();
-		const chain: Record<string, (...args: unknown[]) => unknown> = {};
-		chain.insert = vi.fn(() => chain);
-		chain.select = vi.fn(() => chain);
-		chain.single = vi.fn(() =>
-			Promise.resolve(
-				opts.insertResult ?? {
-					data: {
-						id: "brief-1",
-						owner_id: "user-1",
-						task_id: "task-1",
-						markdown: "# brief",
-						prompt: "PRESERVE EXACTLY",
-						version: 1,
-						created_at: "2026-01-01T00:00:00Z",
-					},
-					error: null,
-				}
-			)
-		);
-		fromMock.mockImplementation(() => chain);
-		return {
-			supabase: {
-				from: fromMock,
-			} as unknown as Parameters<
-				typeof __createDesignBriefHandler
-			>[0]["supabase"],
-			fromMock,
-			chain,
-		};
-	}
+function buildDesignBriefSupabaseStub(opts: {
+	insertResult?: { data: Row | null; error: unknown };
+}) {
+	const fromMock = vi.fn();
+	const chain: Record<string, (...args: unknown[]) => unknown> = {};
+	chain.insert = vi.fn(() => chain);
+	chain.select = vi.fn(() => chain);
+	chain.single = vi.fn(() =>
+		Promise.resolve(
+			opts.insertResult ?? {
+				data: {
+					id: "brief-1",
+					owner_id: "user-1",
+					task_id: "task-1",
+					style_rules: "scandinavian",
+					markdown: "# brief",
+					prompt: "PRESERVE EXACTLY",
+					version: 1,
+					created_at: "2026-01-01T00:00:00Z",
+				},
+				error: null,
+			}
+		)
+	);
+	fromMock.mockImplementation(() => chain);
+	return {
+		supabase: {
+			from: fromMock,
+		} as unknown as Parameters<
+			typeof __createDesignBriefHandler
+		>[0]["supabase"],
+		fromMock,
+		chain,
+	};
+}
 
-	const originalNodeEnv = process.env.NODE_ENV;
+const originalNodeEnv = process.env.NODE_ENV;
 
 beforeEach(() => {
 	// Default to 'test' (non-production) so debug payloads are forwarded.
@@ -290,10 +292,12 @@ afterEach(() => {
 });
 
 describe("detectProtectedElementsHandler", () => {
-	function buildDetectionSupabaseStub(opts: {
-		taskResult?: { data: Row | null; error: unknown };
-		photoResult?: { data: Row | null; error: unknown };
-	} = {}) {
+	function buildDetectionSupabaseStub(
+		opts: {
+			taskResult?: { data: Row | null; error: unknown };
+			photoResult?: { data: Row | null; error: unknown };
+		} = {}
+	) {
 		const fromMock = vi.fn();
 		const taskMaybeSingle = vi.fn().mockResolvedValue({
 			data: { id: "task-1", project_id: "project-1" },
@@ -318,7 +322,7 @@ describe("detectProtectedElementsHandler", () => {
 		photoChain.eq = vi.fn(() => photoChain);
 		photoChain.maybeSingle = photoMaybeSingle;
 		fromMock.mockImplementation((table: string) =>
-			table === "renovation_tasks" ? taskChain : photoChain,
+			table === "renovation_tasks" ? taskChain : photoChain
 		);
 		const createSignedUrl = vi.fn().mockResolvedValue({
 			data: { signedUrl: "https://signed/source.png" },
@@ -409,7 +413,7 @@ describe("detectProtectedElementsHandler", () => {
 					taskId: "task-1",
 					taskTitle: "ceiling",
 				},
-			}),
+			})
 		).rejects.toThrow("Photo not found");
 		expect(createSignedUrl).not.toHaveBeenCalled();
 		expect(provider.detectProtectedElements).not.toHaveBeenCalled();
@@ -453,6 +457,7 @@ describe("createDesignBriefHandler", () => {
 		expect(stub.chain.insert).toHaveBeenCalledWith({
 			owner_id: "user-1",
 			task_id: "task-1",
+			style_rules: "scandinavian",
 			markdown: "# brief",
 			prompt: "PRESERVE EXACTLY",
 		});
@@ -480,6 +485,73 @@ describe("createDesignBriefHandler", () => {
 					taskId: "task-1",
 					taskTitle: "ceiling",
 					styleRules: "scandinavian",
+					protectedElements: [],
+				},
+			})
+		).rejects.toThrow("Database error");
+	});
+});
+
+describe("saveDesignBriefHandler", () => {
+	it("persists the current edited markdown and rebuilt prompt", async () => {
+		const stub = buildDesignBriefSupabaseStub({});
+
+		const result = await __saveDesignBriefHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: {
+				taskId: "task-1",
+				taskTitle: "ceiling",
+				styleRules: "warm neutral palette",
+				markdown: "# edited brief",
+				protectedElements: [
+					{
+						label: "left window",
+						kind: "window",
+						x: 0,
+						y: 0,
+						width: 0.1,
+						height: 0.1,
+					},
+				],
+			},
+		});
+
+		expect(result).toEqual({
+			id: "brief-1",
+			markdown: "# brief",
+			prompt: "PRESERVE EXACTLY",
+			version: 1,
+		});
+		expect(stub.fromMock).toHaveBeenCalledWith("design_briefs");
+		expect(stub.chain.insert).toHaveBeenCalledWith({
+			owner_id: "user-1",
+			task_id: "task-1",
+			style_rules: "warm neutral palette",
+			markdown: "# edited brief",
+			prompt: expect.stringContaining("DESIGN BRIEF:"),
+		});
+		expect(stub.chain.insert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("# edited brief"),
+			})
+		);
+	});
+
+	it("throws when persisting the current brief fails", async () => {
+		const stub = buildDesignBriefSupabaseStub({
+			insertResult: { data: null, error: { message: "rls denied" } },
+		});
+
+		await expect(
+			__saveDesignBriefHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				input: {
+					taskId: "task-1",
+					taskTitle: "ceiling",
+					styleRules: "warm neutral palette",
+					markdown: "# edited brief",
 					protectedElements: [],
 				},
 			})
@@ -768,7 +840,7 @@ function buildSaveDetectedElementsStub(opts: {
 	rpcResult?: { data: Row[] | null; error: unknown };
 }) {
 	const rpc = vi.fn(() =>
-		Promise.resolve(opts.rpcResult ?? { data: [], error: null }),
+		Promise.resolve(opts.rpcResult ?? { data: [], error: null })
 	);
 	return {
 		supabase: {
