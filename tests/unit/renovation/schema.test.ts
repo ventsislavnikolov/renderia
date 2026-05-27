@@ -184,7 +184,7 @@ describe("renovation schemas", () => {
 				taskTitle: "t",
 				styleRules: "Scandinavian",
 				protectedElements: [],
-			}).success,
+			}).success
 		).toBe(false);
 	});
 });

@@ -93,7 +93,7 @@ describe("buildDesignPrompt", () => {
 		expect(prompt).toContain("Use the supplied source photo as the geometry");
 		expect(prompt).toContain("Keep the same camera viewpoint");
 		expect(prompt).toContain(
-			"arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%",
+			"arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%"
 		);
 		expect(prompt).toContain("Do not move, remove, resize, crop, cover");
 		expect(prompt).toContain("Do not add new windows, doors, stairs");

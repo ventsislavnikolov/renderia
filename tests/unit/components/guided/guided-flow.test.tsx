@@ -45,7 +45,6 @@ vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
 				{props.selectedPhotoId ?? "none"}
 			</span>
 			<button
-				type="button"
 				onClick={() =>
 					props.onPhotoSelected({
 						id: "ph-1",
@@ -61,11 +60,11 @@ vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
 						created_at: "2026-01-01T00:00:00Z",
 					})
 				}
+				type="button"
 			>
 				select-photo
 			</button>
 			<button
-				type="button"
 				onClick={() =>
 					props.onPhotoSelected({
 						id: "ph-2",
@@ -81,6 +80,7 @@ vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
 						created_at: "2026-01-02T00:00:00Z",
 					})
 				}
+				type="button"
 			>
 				select-other-photo
 			</button>
@@ -113,7 +113,7 @@ vi.mock("../../../../src/components/guided/overlay-confirm-step", () => ({
 				y: number;
 				width: number;
 				height: number;
-			}>,
+			}>
 		) => void;
 	}) => (
 		<div data-testid="overlay-step">
@@ -121,7 +121,6 @@ vi.mock("../../../../src/components/guided/overlay-confirm-step", () => ({
 				{props.confirmedElements.length}
 			</span>
 			<button
-				type="button"
 				onClick={() =>
 					props.onConfirm([
 						{
@@ -134,6 +133,7 @@ vi.mock("../../../../src/components/guided/overlay-confirm-step", () => ({
 						},
 					])
 				}
+				type="button"
 			>
 				confirm-elements
 			</button>
@@ -154,16 +154,16 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 			<span data-testid="brief-value">{props.brief}</span>
 			<span data-testid="prompt-value">{props.prompt}</span>
 			<button
-				type="button"
 				onClick={() => {
 					props.onBriefChange("# brief");
 					props.onBriefIdChange("brief-1");
 					props.onPromptChange("PRESERVE EXACTLY");
 				}}
+				type="button"
 			>
 				generate-brief
 			</button>
-			<button type="button" onClick={props.onNext}>
+			<button onClick={props.onNext} type="button">
 				continue-to-generate
 			</button>
 		</div>
@@ -179,9 +179,7 @@ vi.mock("../../../../src/components/guided/generation-step", () => ({
 	}) => (
 		<div data-testid="generation-step">
 			<span data-testid="generation-task-id">{props.taskId}</span>
-			<span data-testid="generation-brief-id">
-				{props.briefId ?? "null"}
-			</span>
+			<span data-testid="generation-brief-id">{props.briefId ?? "null"}</span>
 			<span data-testid="generation-brief">{props.brief}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
 		</div>
@@ -243,15 +241,15 @@ describe("GuidedFlow orchestrator", () => {
 		expect(screen.getByTestId("brief-value").textContent).toBe("# brief");
 		await user.click(screen.getByText("continue-to-generate"));
 		const generation = screen.getByTestId("generation-step");
-			expect(
-				within(generation).getByTestId("generation-brief").textContent,
-			).toBe("# brief");
-			expect(
-				within(generation).getByTestId("generation-brief-id").textContent,
-			).toBe("brief-1");
-			expect(
-				within(generation).getByTestId("generation-prompt").textContent,
-			).toBe("PRESERVE EXACTLY");
+		expect(within(generation).getByTestId("generation-brief").textContent).toBe(
+			"# brief"
+		);
+		expect(
+			within(generation).getByTestId("generation-brief-id").textContent
+		).toBe("brief-1");
+		expect(
+			within(generation).getByTestId("generation-prompt").textContent
+		).toBe("PRESERVE EXACTLY");
 	});
 
 	it("resets downstream state when a different photo is selected", async () => {

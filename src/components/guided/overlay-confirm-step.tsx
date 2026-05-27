@@ -116,7 +116,7 @@ export function OverlayConfirmStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			setLoadError(
-				error instanceof Error ? error.message : "Failed to load photo",
+				error instanceof Error ? error.message : "Failed to load photo"
 			);
 		}
 	}, [props.photo]);
@@ -140,8 +140,8 @@ export function OverlayConfirmStep(props: {
 					new Set(
 						keyed
 							.filter(({ row }) => row?.status !== "rejected")
-							.map(({ id }) => id),
-					),
+							.map(({ id }) => id)
+					)
 				);
 			}
 		} catch (error) {
@@ -244,7 +244,7 @@ export function OverlayConfirmStep(props: {
 				return;
 			}
 			setDetectError(
-				error instanceof Error ? error.message : "Detection failed",
+				error instanceof Error ? error.message : "Detection failed"
 			);
 		} finally {
 			if (!cancelledRef.current) setDetecting(false);
@@ -278,8 +278,8 @@ export function OverlayConfirmStep(props: {
 			setElements(
 				(prev) =>
 					prev?.map((item) =>
-						item.id === id ? { ...item, row: updated } : item,
-					) ?? prev,
+						item.id === id ? { ...item, row: updated } : item
+					) ?? prev
 			);
 		} catch (error) {
 			if (cancelledRef.current) return;
@@ -295,7 +295,7 @@ export function OverlayConfirmStep(props: {
 				return;
 			}
 			setDetectError(
-				error instanceof Error ? error.message : "Failed to update selection",
+				error instanceof Error ? error.message : "Failed to update selection"
 			);
 		}
 	}
@@ -305,7 +305,7 @@ export function OverlayConfirmStep(props: {
 			props.onConfirm(
 				elements
 					.filter((entry) => selected.has(entry.id))
-					.map((entry) => entry.box),
+					.map((entry) => entry.box)
 			);
 		} else {
 			props.onConfirm(props.confirmedElements);
@@ -358,7 +358,7 @@ export function OverlayConfirmStep(props: {
 									"hover:bg-[rgba(200,38,48,0.18)] focus-visible:outline-none",
 									isSelected
 										? "border-[rgb(200,38,48)]"
-										: "border-[rgba(120,120,120,0.6)] border-dashed bg-[rgba(120,120,120,0.06)]",
+										: "border-[rgba(120,120,120,0.6)] border-dashed bg-[rgba(120,120,120,0.06)]"
 								)}
 								key={id}
 								onClick={() => {
@@ -378,7 +378,7 @@ export function OverlayConfirmStep(props: {
 										"pointer-events-none absolute bottom-full left-[-2px] inline-block max-w-[16rem] whitespace-nowrap px-1.5 py-1 font-semibold text-[0.7rem] text-white leading-tight tracking-[0.02em]",
 										isSelected
 											? "bg-[rgb(200,38,48)]"
-											: "bg-[rgba(120,120,120,0.85)]",
+											: "bg-[rgba(120,120,120,0.85)]"
 									)}
 								>
 									{box.label}

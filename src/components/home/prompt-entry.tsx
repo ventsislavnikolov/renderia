@@ -50,7 +50,7 @@ export function PromptEntry() {
 				return;
 			}
 			setError(
-				caught instanceof Error ? caught.message : "Failed to create project",
+				caught instanceof Error ? caught.message : "Failed to create project"
 			);
 			setSubmitting(false);
 		}
