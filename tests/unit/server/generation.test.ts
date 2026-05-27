@@ -594,9 +594,13 @@ describe("generateRenovationImagesHandler", () => {
 		expect(stub.createSignedUrlMock).toHaveBeenCalledTimes(2);
 		expect(provider.generateRenovationImages).toHaveBeenCalledWith({
 			sourceImage: undefined,
-			prompt: "PRESERVE EXACTLY",
-			count: 2,
+			prompts: expect.arrayContaining([
+				expect.stringContaining("PRESERVE EXACTLY"),
+			]),
 		});
+		expect(
+			provider.generateRenovationImages.mock.calls[0]?.[0]?.prompts
+		).toHaveLength(2);
 	});
 
 	it("rejects with 'Task not found' when the task is not owned by the caller", async () => {
@@ -710,9 +714,9 @@ describe("generateRenovationImagesHandler", () => {
 			},
 		});
 
-		expect(provider.generateRenovationImages).toHaveBeenCalledWith(
-			expect.objectContaining({ count: 4 })
-		);
+		expect(
+			provider.generateRenovationImages.mock.calls[0]?.[0]?.prompts
+		).toHaveLength(4);
 	});
 
 	it("strips the debug payload in production", async () => {

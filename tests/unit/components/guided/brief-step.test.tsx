@@ -98,8 +98,10 @@ describe("BriefStep", () => {
 				onBriefIdChange={vi.fn()}
 				onNext={vi.fn()}
 				onPromptChange={vi.fn()}
+				onStyleRulesChange={vi.fn()}
 				prompt=""
 				protectedElements={sampleElements}
+				styleRules="Scandinavian style"
 				taskId="task-1"
 				taskTitle="ceiling"
 			/>
@@ -125,8 +127,10 @@ describe("BriefStep", () => {
 				onBriefIdChange={vi.fn()}
 				onNext={vi.fn()}
 				onPromptChange={vi.fn()}
+				onStyleRulesChange={vi.fn()}
 				prompt=""
 				protectedElements={sampleElements}
+				styleRules="Scandinavian style"
 				taskId="task-1"
 				taskTitle="ceiling"
 			/>
@@ -156,8 +160,10 @@ describe("BriefStep", () => {
 				onBriefIdChange={onBriefIdChange}
 				onNext={vi.fn()}
 				onPromptChange={onPromptChange}
+				onStyleRulesChange={vi.fn()}
 				prompt=""
 				protectedElements={sampleElements}
+				styleRules="Scandinavian style"
 				taskId="task-1"
 				taskTitle="ceiling"
 			/>
@@ -197,8 +203,10 @@ describe("BriefStep", () => {
 					onBriefIdChange={vi.fn()}
 					onNext={vi.fn()}
 					onPromptChange={vi.fn()}
+					onStyleRulesChange={vi.fn()}
 					prompt=""
 					protectedElements={sampleElements}
+					styleRules="Scandinavian style"
 					taskId="task-1"
 					taskTitle="ceiling"
 				/>
@@ -235,8 +243,10 @@ describe("BriefStep", () => {
 				onBriefIdChange={onBriefIdChange}
 				onNext={onNext}
 				onPromptChange={onPromptChange}
+				onStyleRulesChange={vi.fn()}
 				prompt=""
 				protectedElements={sampleElements}
+				styleRules="Scandinavian style"
 				taskId="task-1"
 				taskTitle="ceiling"
 			/>
@@ -250,8 +260,7 @@ describe("BriefStep", () => {
 			expect.objectContaining({
 				data: expect.objectContaining({
 					markdown: "# brief",
-					styleRules:
-						"Scandinavian renovation style with warm neutral palette.",
+					styleRules: "Scandinavian style",
 					protectedElements: sampleElements,
 				}),
 			})
@@ -273,8 +282,10 @@ describe("BriefStep", () => {
 				onBriefIdChange={vi.fn()}
 				onNext={vi.fn()}
 				onPromptChange={vi.fn()}
+				onStyleRulesChange={vi.fn()}
 				prompt=""
 				protectedElements={sampleElements}
+				styleRules="Scandinavian style"
 				taskId="task-1"
 				taskTitle="ceiling"
 			/>
@@ -295,8 +306,10 @@ describe("BriefStep", () => {
 				onBriefIdChange={vi.fn()}
 				onNext={vi.fn()}
 				onPromptChange={vi.fn()}
+				onStyleRulesChange={vi.fn()}
 				prompt=""
 				protectedElements={sampleElements}
+				styleRules="Scandinavian style"
 				taskId="task-1"
 				taskTitle="ceiling"
 			/>

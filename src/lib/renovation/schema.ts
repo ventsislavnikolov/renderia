@@ -147,6 +147,13 @@ export const createDesignBriefSchema = z.object({
 });
 export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
 
+export const loadLatestDesignBriefSchema = z.object({
+	taskId: z.string().uuid(),
+});
+export type LoadLatestDesignBriefInput = z.infer<
+	typeof loadLatestDesignBriefSchema
+>;
+
 export const saveDesignBriefSchema = z.object({
 	taskId: z.string().uuid(),
 	taskTitle: z.string().min(1).max(200),
@@ -176,6 +183,18 @@ export const generateRenovationImagesSchema = z.object({
 });
 export type GenerateRenovationImagesInput = z.infer<
 	typeof generateRenovationImagesSchema
+>;
+
+/**
+ * Inputs for `listGeneratedImages`. Returns the most recent batch of
+ * `generated_images` for a task (newest job, by `created_at`). Used to
+ * rehydrate the generation step on reopen instead of burning a new run.
+ */
+export const listGeneratedImagesSchema = z.object({
+	taskId: z.string().uuid(),
+});
+export type ListGeneratedImagesInput = z.infer<
+	typeof listGeneratedImagesSchema
 >;
 
 /**

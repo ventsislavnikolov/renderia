@@ -1,11 +1,19 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BoundingBox } from "@/lib/ai/types";
 import type { Tables } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+import {
+	getAuthHeaders,
+	UNAUTHENTICATED_ERROR,
+} from "../../lib/server-client/auth-headers";
+import { loadLatestDesignBrief } from "../../server/generation";
 import { BriefStep } from "./brief-step";
 import { GenerationStep } from "./generation-step";
 import { OverlayConfirmStep } from "./overlay-confirm-step";
 import { PhotoUploadStep } from "./photo-upload-step";
+
+const DEFAULT_STYLE_RULES =
+	"Scandinavian renovation style with warm neutral palette.";
 
 type PhotoRow = Tables<"photos">;
 
@@ -45,6 +53,43 @@ export function GuidedFlow(props: {
 	const [brief, setBrief] = useState("");
 	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
+	const [styleRules, setStyleRules] = useState(DEFAULT_STYLE_RULES);
+	const cancelledRef = useRef(false);
+
+	// Rehydrate the latest persisted brief for this task so the user doesn't
+	// lose their edited markdown when they reopen the workspace. Photo and
+	// overlay state aren't restored — they're cheap to re-confirm and gating
+	// the brief textarea behind a re-upload is safer than trusting stale
+	// detections against a possibly-changed source image.
+	useEffect(() => {
+		cancelledRef.current = false;
+		(async () => {
+			try {
+				const headers = await getAuthHeaders();
+				const loaded = await loadLatestDesignBrief({
+					data: { taskId: props.taskId },
+					headers,
+				});
+				if (cancelledRef.current || !loaded) return;
+				setBrief(loaded.markdown);
+				setBriefId(loaded.id);
+				setPrompt(loaded.prompt);
+				if (loaded.styleRules) setStyleRules(loaded.styleRules);
+			} catch (caught) {
+				if (cancelledRef.current) return;
+				if (
+					caught instanceof Error &&
+					caught.message === UNAUTHENTICATED_ERROR
+				) {
+					window.location.assign("/auth");
+				}
+				// Silent on other errors — the user can still generate a fresh brief.
+			}
+		})();
+		return () => {
+			cancelledRef.current = true;
+		};
+	}, [props.taskId]);
 
 	const reached: Record<StepId, boolean> = {
 		photo: true,
@@ -59,15 +104,16 @@ export function GuidedFlow(props: {
 	}
 
 	function handlePhotoSelected(row: PhotoRow) {
-		setPhoto(row);
-		// Reset downstream state when the source photo changes so stale
-		// detections never leak into a new run.
-		if (photo?.id !== row.id) {
+		// Only wipe downstream state when actually switching photos. Without
+		// this guard the first photo selection (when `photo` is null) would
+		// clobber any brief rehydrated from the DB on mount.
+		if (photo !== null && photo.id !== row.id) {
 			setProtectedElements([]);
 			setBrief("");
 			setBriefId(null);
 			setPrompt("");
 		}
+		setPhoto(row);
 		setStep("overlay");
 	}
 
@@ -167,8 +213,10 @@ export function GuidedFlow(props: {
 					onBriefIdChange={setBriefId}
 					onNext={() => setStep("generate")}
 					onPromptChange={setPrompt}
+					onStyleRulesChange={setStyleRules}
 					prompt={prompt}
 					protectedElements={protectedElements}
+					styleRules={styleRules}
 					taskId={props.taskId}
 					taskTitle={props.taskTitle}
 				/>

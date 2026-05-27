@@ -55,8 +55,14 @@ export type GenerateRenovationImagesInput = {
 		contentType: "image/png" | "image/jpeg" | "image/webp";
 		filename: string;
 	};
-	prompt: string;
-	count: number;
+	/**
+	 * One prompt per variation. The provider produces exactly
+	 * `prompts.length` images, one per entry. Callers expand a single base
+	 * prompt into N concept-specific prompts via
+	 * `buildConceptVariationPrompts` so each variation can be a different
+	 * room concept while sharing the same architectural rules.
+	 */
+	prompts: string[];
 };
 
 export type GeneratedImageResult = {

@@ -33,14 +33,14 @@ export function BriefStep(props: {
 	protectedElements: BoundingBox[];
 	brief: string;
 	prompt: string;
+	styleRules: string;
 	onBriefChange: (brief: string) => void;
 	onBriefIdChange: (briefId: string | null) => void;
 	onPromptChange: (prompt: string) => void;
+	onStyleRulesChange: (styleRules: string) => void;
 	onNext: () => void;
 }) {
-	const [styleRules, setStyleRules] = useState(
-		"Scandinavian renovation style with warm neutral palette."
-	);
+	const styleRules = props.styleRules;
 	const [generating, setGenerating] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -187,7 +187,7 @@ export function BriefStep(props: {
 					className="min-h-24 resize-y bg-background font-body font-normal leading-relaxed"
 					id="brief-style-rules"
 					maxLength={STYLE_RULES_MAX}
-					onChange={(event) => setStyleRules(event.target.value)}
+					onChange={(event) => props.onStyleRulesChange(event.target.value)}
 					rows={3}
 					value={styleRules}
 				/>

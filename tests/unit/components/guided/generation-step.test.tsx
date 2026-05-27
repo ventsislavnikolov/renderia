@@ -11,9 +11,11 @@ vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
 
 const generateMock = vi.fn();
 const setFavoriteMock = vi.fn();
+const listImagesMock = vi.fn();
 
 vi.mock("../../../../src/server/generation", () => ({
 	generateRenovationImages: (...args: unknown[]) => generateMock(...args),
+	listGeneratedImages: (...args: unknown[]) => listImagesMock(...args),
 	setImageFavorite: (...args: unknown[]) => setFavoriteMock(...args),
 }));
 
@@ -35,6 +37,10 @@ describe("GenerationStep", () => {
 	beforeEach(() => {
 		generateMock.mockReset();
 		setFavoriteMock.mockReset();
+		// Default: no prior batch — preserves the existing "auto-generate on
+		// mount" assertions. Tests that exercise the rehydrate path override
+		// this with a non-empty resolved value.
+		listImagesMock.mockReset().mockResolvedValue({ jobId: null, images: [] });
 	});
 
 	it("calls generateRenovationImages on mount and renders the returned variations", async () => {
@@ -129,14 +135,40 @@ describe("GenerationStep", () => {
 		expect(screen.getByText(/Show prompt sent to provider/i)).toBeDefined();
 	});
 
-	it("warns and skips the network call when no prompt is supplied", () => {
+	it("warns and skips the network call when no prompt is supplied", async () => {
 		render(
 			<GenerationStep brief="" briefId={null} prompt="" taskId={TASK_ID} />
 		);
+		// Wait for the on-mount listGeneratedImages to settle (empty), at which
+		// point the missing-brief warning replaces the loading state.
 		expect(
-			screen.getByText(/No brief yet — go back to the brief step/i)
+			await screen.findByText(/No brief yet — go back to the brief step/i)
 		).toBeDefined();
 		expect(generateMock).not.toHaveBeenCalled();
+	});
+
+	it("rehydrates the latest saved batch instead of regenerating", async () => {
+		listImagesMock.mockReset().mockResolvedValueOnce({
+			jobId: "job-prev",
+			images: [makeImage(0, true), makeImage(1), makeImage(2), makeImage(3)],
+		});
+		render(
+			<GenerationStep
+				brief="# Brief"
+				briefId={null}
+				prompt="PRESERVE EXACTLY"
+				taskId={TASK_ID}
+			/>
+		);
+		const imgs = await screen.findAllByRole("img");
+		expect(imgs).toHaveLength(4);
+		expect(generateMock).not.toHaveBeenCalled();
+		// First card already starred from the persisted row.
+		expect(
+			screen
+				.getAllByRole("button", { name: /Favorite/i })[0]
+				?.getAttribute("aria-pressed")
+		).toBe("true");
 	});
 
 	it("renders an alert with a Try again button when generation fails", async () => {

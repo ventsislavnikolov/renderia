@@ -66,7 +66,7 @@ export const mockRenovationProvider: RenovationAiProvider = {
 	},
 	async generateRenovationImages(input) {
 		return {
-			value: Array.from({ length: input.count }, () => ({
+			value: input.prompts.map(() => ({
 				base64: TRANSPARENT_PNG_BASE64,
 				contentType: "image/png" as const,
 			})),

@@ -44,7 +44,7 @@ describe("buildDesignPrompt", () => {
 			protectedElements: [],
 		});
 
-		expect(prompt).toContain("- No protected elements confirmed.");
+		expect(prompt).toContain("- No additional protected elements confirmed.");
 	});
 
 	it("neutralizes injected section-header lines in user fields", () => {
@@ -96,7 +96,9 @@ describe("buildDesignPrompt", () => {
 			"arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%"
 		);
 		expect(prompt).toContain("Do not move, remove, resize, crop, cover");
-		expect(prompt).toContain("Do not add new windows, doors, stairs");
+		expect(prompt).toContain(
+			"Do not invent extra windows, door openings, walls"
+		);
 	});
 
 	it("keeps the full image-generation prompt contract stable", () => {
@@ -118,33 +120,68 @@ describe("buildDesignPrompt", () => {
 
 		expect(prompt).toMatchInlineSnapshot(`
 			"RENOVATION OBJECTIVE:
-			Create a realistic visual renovation concept for attic studio.
+			Using the source photo as reference, create a realistic Scandinavian renovation render for attic studio. The output must look like the same real room after renovation, not a different room.
 
 			SOURCE PHOTO FIDELITY:
 			- Use the supplied source photo as the geometry, camera, and composition reference.
 			- Keep the same camera viewpoint, room proportions, wall/floor/ceiling planes, opening positions, and major structural edges.
-			- Preserve lighting direction and perspective unless the style rules explicitly request a small mood change.
+			- Preserve lighting direction and perspective.
+
+			STRICT ARCHITECTURAL RULES:
+			- Keep all windows in exactly the same position, size, and wall.
+			- Keep all door openings in exactly the same position, size, and wall.
+			- Keep all radiators in exactly the same position.
+			- Keep the real room shape, proportions, ceiling height, corners, niches, beams, columns, stairs, and slopes.
+			- Do not invent extra windows, door openings, walls, or architectural changes.
+			- Do not make the room larger or smaller than it really is.
 
 			PRESERVE EXACTLY:
 			- arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%
 			- Do not move, remove, resize, crop, cover, or replace any protected element.
-			- Do not add new windows, doors, stairs, skylights, columns, beams, or structural openings.
 
-			ALLOWED CHANGES:
-			- Finishes, colors, plaster, paint, cladding, flooring, trim, lighting fixtures, furniture, decor, and surface materials.
-			- Clean up visual noise and construction mess while keeping the architecture legible.
+			DOOR RENOVATION RULE:
+			- Door openings stay in place. Door panels may be replaced with new Scandinavian interior doors.
+			- Prefer simple white, off-white, light wood, or pale oak finishes. JYSK / IKEA aesthetic.
 
-			STYLE AND MATERIAL DIRECTION:
+			WINDOW TREATMENT RULE:
+			- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.
+			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.
+
+			FLOORING / LAMINATE RULE:
+			- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.
+
+			WALL / CEILING RULE:
+			- White walls as the main color. White or very-light ceiling. Small Scandinavian accent details allowed.
+			- No dark wall colors or heavy decorative wall treatments.
+
+			FURNITURE REQUIREMENTS:
+			- Fully furnish the room. Empty rooms are not acceptable.
+			- Use only furniture that looks like real IKEA or JYSK products: affordable, ready-made, clean-lined Scandinavian pieces.
+			- Light oak, pale wood, beige, grey, black metal accents, woven baskets, simple lamps, rugs, cushions, curtains, practical storage.
+			- No luxury custom-made or dramatic non-Scandinavian furniture.
+
+			STYLE AND MATERIAL DIRECTION (user override layer):
 			warm oak, lime plaster, integrated linear lighting
 
 			DESIGN BRIEF:
 			## Goal
 			Create a calm work studio.
 
+			VISUAL STYLE:
+			Photorealistic architectural renovation render. Realistic daylight, realistic proportions, cozy and budget-friendly Scandinavian interior, practical and buildable.
+
+			NEGATIVE INSTRUCTIONS:
+			- Do not change the position of windows, doors, or radiators.
+			- Do not invent extra openings, walls, or architectural features.
+			- Do not redesign the room into a different shape or size.
+			- Do not block windows, doors, or radiators with furniture.
+			- Do not use blinds, dark heavy flooring, or non-Scandinavian style.
+			- Do not use luxury furniture or pieces that do not look like JYSK / IKEA.
+			- Do not leave the room empty or unfurnished.
+
 			OUTPUT REQUIREMENTS:
 			- Photorealistic renovation concept, not a technical drawing.
-			- Preserve the source photo's layout first; apply style second.
-			- Avoid impossible geometry, extra openings, warped edges, duplicated windows, or hidden doors."
+			- Preserve the source photo's layout first; apply the Scandinavian playbook second."
 		`);
 	});
 
@@ -167,8 +204,9 @@ describe("buildDesignPrompt", () => {
 		expect(markdown).toContain("## Goal");
 		expect(markdown).toContain("## Must preserve");
 		expect(markdown).toContain("left window (window)");
-		expect(markdown).toContain("## Allowed changes");
+		expect(markdown).toContain("## Renovation rules");
 		expect(markdown).toContain("## Style direction");
+		expect(markdown).toContain("## Variation concepts");
 		expect(markdown).toContain("## Generation guidance");
 		expect(markdown).toContain("Keep the same camera viewpoint");
 	});
@@ -201,25 +239,39 @@ describe("buildDesignPrompt", () => {
 			"# 2nd floor - ceiling
 
 			## Goal
-			Create a realistic visual renovation concept for 2nd floor - ceiling while preserving the room or facade geometry from the source photo.
+			Create 4 realistic, fully furnished Scandinavian renovation concepts for 2nd floor - ceiling that look like the same real room after renovation — not a different room.
 
 			## Must preserve
 			- left window (window) bbox left=10%, top=20%, width=20%, height=30%
 			- ceiling beam (ceiling_line) bbox left=40%, top=8%, width=50%, height=5%
+			- Window positions, sizes, and walls (do not move, resize, or invent).
+			- Door openings (positions, sizes, walls). Door panels may be replaced with Scandinavian-style interior doors.
+			- Radiator positions.
+			- Room shape, proportions, ceiling height, corners, niches, beams, columns, stairs, slopes.
+			- Camera angle and perspective matching the source photo.
 
-			## Allowed changes
-			- Update finishes, paint, plaster, flooring, trim, lighting, fixtures, furniture, decor, and surface materials.
-			- Improve cleanliness, mood, and visual polish without changing the architectural layout.
-			- Keep changes plausible for the photographed space; avoid fantasy architecture or impossible structural changes.
+			## Renovation rules
+			- **Doors**: replace panels with simple Scandinavian doors in white, off-white, light wood, or pale oak. Keep openings in place.
+			- **Windows**: remove any blinds. Always use realistic Scandinavian curtains. Mix two light-curtain concepts with two darker-curtain concepts.
+			- **Flooring**: replace existing laminate with new Scandinavian laminate — whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood.
+			- **Walls / ceiling**: white walls and white-or-very-light ceiling. Small accent details allowed.
+			- **Furniture**: only IKEA / JYSK-style affordable Scandinavian pieces — clean lines, light oak, pale wood, beige, grey, simple lamps, woven baskets, rugs, cushions.
+			- **Lighting and decor**: photorealistic daylight, soft task lighting, indoor plants, simple wall art.
 
-			## Style direction
+			## Style direction (override layer)
 			Scandinavian renovation style with warm neutral palette.
 
+			## Variation concepts
+			1. **Cozy Scandinavian living room** — Cozy Scandinavian living room. Comfortable sofa, soft area rug, a low coffee table, a side armchair, simple wall art, indoor plants, and warm task lighting. Light linen or off-white curtains. Keep circulation clear of doors, windows, and radiators.
+			2. **Warm Scandinavian bedroom / guest bedroom** — Warm Scandinavian bedroom or guest bedroom. Low platform or simple-framed bed with neutral linen bedding, a bedside table with a soft lamp, a small wardrobe or storage unit, a textured throw, and a small rug. White or off-white curtains. Keep the bed away from radiators and from blocking door swings.
+			3. **Practical home office / hobby room** — Practical home office or hobby room. A simple desk facing or beside the window, an ergonomic but plain chair, an open shelving unit, a pinboard or small art piece, a desk lamp, and a soft floor rug. Use taupe or warm grey curtains. Keep the workspace lit by daylight without blocking the window.
+			4. **Multifunctional room with storage, guest sleeping option, and cozy seating** — Multifunctional room. A daybed or sofa-bed for guests, modular storage units along one wall, a small folding table or compact desk, baskets for soft storage, and a cozy reading corner with a floor lamp. Use charcoal or muted earthy curtains. Layout must accommodate both seating and overnight sleeping.
+
 			## Generation guidance
-			- Use the supplied source photo as the geometry and composition reference.
+			- Use the source photo as the geometry and composition reference.
 			- Keep the same camera viewpoint, lens feel, room proportions, wall openings, ceiling lines, stair positions, and major edges.
-			- Do not move, remove, resize, crop, cover, or invent protected elements.
-			- Do not add new windows, doors, stairs, skylights, columns, beams, or structural openings unless explicitly requested in the style direction."
+			- Do not block windows, doors, or radiators with furniture.
+			- Avoid luxury custom-made furniture and dramatic non-Scandinavian design."
 		`);
 	});
 });

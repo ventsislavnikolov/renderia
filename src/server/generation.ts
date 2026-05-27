@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { OPENAI_IMAGE_MODEL } from "../lib/ai/openai-provider";
-import { buildDesignPrompt } from "../lib/ai/prompts";
+import {
+	buildConceptVariationPrompts,
+	buildDesignPrompt,
+} from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
@@ -12,8 +15,12 @@ import {
 	detectProtectedElementsSchema,
 	type GenerateRenovationImagesInput,
 	generateRenovationImagesSchema,
+	type ListGeneratedImagesInput,
 	type ListProtectedElementsInput,
+	type LoadLatestDesignBriefInput,
+	listGeneratedImagesSchema,
 	listProtectedElementsSchema,
+	loadLatestDesignBriefSchema,
 	type SaveDesignBriefInput,
 	type SaveDetectedElementsInput,
 	type SetImageFavoriteInput,
@@ -182,6 +189,40 @@ export async function __createDesignBriefHandler(args: {
 	);
 }
 
+export type LoadedDesignBrief = {
+	id: string;
+	markdown: string;
+	prompt: string;
+	styleRules: string;
+	version: number;
+};
+
+/** @internal */
+export async function __loadLatestDesignBriefHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: LoadLatestDesignBriefInput;
+}): Promise<LoadedDesignBrief | null> {
+	const { data, error } = await args.supabase
+		.from("design_briefs")
+		.select("id, markdown, prompt, style_rules, version")
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.order("version", { ascending: false })
+		.order("created_at", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (error) throw wrapSupabaseError(error);
+	if (!data) return null;
+	return {
+		id: String(data.id),
+		markdown: String(data.markdown),
+		prompt: String(data.prompt),
+		styleRules: String(data.style_rules ?? ""),
+		version: Number(data.version),
+	};
+}
+
 /** @internal */
 export async function __saveDesignBriefHandler(args: {
 	userId: string;
@@ -294,10 +335,13 @@ export async function __generateRenovationImagesHandler(args: {
 	const jobId = jobInsert.data.id;
 
 	try {
+		const prompts = buildConceptVariationPrompts(
+			args.input.prompt,
+			clampedCount
+		);
 		const providerResult = await args.provider.generateRenovationImages({
 			sourceImage,
-			prompt: args.input.prompt,
-			count: clampedCount,
+			prompts,
 		});
 
 		const uploaded: GeneratedImagePayload[] = [];
@@ -385,6 +429,57 @@ export async function __generateRenovationImagesHandler(args: {
 		}
 		throw err instanceof Error ? err : new Error(message);
 	}
+}
+
+/**
+ * Return the most recent batch of generated images for a task. "Most recent
+ * batch" means all images sharing the `job_id` of the newest succeeded
+ * generation job — so reopening the workspace shows the same grid the user
+ * last saw instead of re-running the provider on every visit.
+ */
+/** @internal */
+export async function __listGeneratedImagesHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: ListGeneratedImagesInput;
+}): Promise<{ jobId: string | null; images: GeneratedImagePayload[] }> {
+	const latestJob = await args.supabase
+		.from("generation_jobs")
+		.select("id")
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.eq("status", "succeeded")
+		.order("completed_at", { ascending: false })
+		.order("created_at", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (latestJob.error) throw wrapSupabaseError(latestJob.error);
+	if (!latestJob.data) return { jobId: null, images: [] };
+
+	const rows = await args.supabase
+		.from("generated_images")
+		.select("id, storage_bucket, storage_path, variation_index, is_favorite")
+		.eq("job_id", latestJob.data.id)
+		.eq("owner_id", args.userId)
+		.order("variation_index", { ascending: true });
+	if (rows.error) throw wrapSupabaseError(rows.error);
+
+	const images: GeneratedImagePayload[] = [];
+	for (const row of rows.data ?? []) {
+		const signed = await args.supabase.storage
+			.from(String(row.storage_bucket))
+			.createSignedUrl(String(row.storage_path), SIGNED_URL_TTL_SECONDS);
+		if (signed.error || !signed.data?.signedUrl) continue;
+		images.push({
+			id: String(row.id),
+			storagePath: String(row.storage_path),
+			signedUrl: signed.data.signedUrl,
+			variationIndex: Number(row.variation_index),
+			isFavorite: Boolean(row.is_favorite),
+		});
+	}
+
+	return { jobId: String(latestJob.data.id), images };
 }
 
 /** @internal */
@@ -557,6 +652,13 @@ export const createDesignBrief = createServerFn({ method: "POST" })
 		});
 	});
 
+export const loadLatestDesignBrief = createServerFn({ method: "POST" })
+	.inputValidator(loadLatestDesignBriefSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __loadLatestDesignBriefHandler({ userId, supabase, input: data });
+	});
+
 export const saveDesignBrief = createServerFn({ method: "POST" })
 	.inputValidator(saveDesignBriefSchema)
 	.handler(async ({ data }) => {
@@ -579,6 +681,13 @@ export const generateRenovationImages = createServerFn({ method: "POST" })
 			providerName: activeProviderName(),
 			input: data,
 		});
+	});
+
+export const listGeneratedImages = createServerFn({ method: "POST" })
+	.inputValidator(listGeneratedImagesSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __listGeneratedImagesHandler({ userId, supabase, input: data });
 	});
 
 export const setImageFavorite = createServerFn({ method: "POST" })

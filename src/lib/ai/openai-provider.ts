@@ -337,43 +337,55 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 	async generateRenovationImages(input) {
 		const client = getOpenAiClient();
 		const startedAt = Date.now();
-		// Image-edit mode preserves the source room's geometry, lighting, and
-		// the positions of doors/windows/beams. Without a source image we fall
-		// back to text-to-image — the mock provider hits this branch in tests.
-		const response = input.sourceImage
-			? await client.images.edit({
-					model: IMAGE_MODEL,
-					image: await toFile(
-						Buffer.from(input.sourceImage.base64, "base64"),
-						input.sourceImage.filename,
-						{ type: input.sourceImage.contentType }
-					),
-					prompt: input.prompt,
-					n: input.count,
-					size: "auto",
-					quality: "high",
-				})
-			: await client.images.generate({
-					model: IMAGE_MODEL,
-					prompt: input.prompt,
-					n: input.count,
-					size: "auto",
-					quality: "high",
-				});
+		// One provider call per variation so each image gets its own concept
+		// prompt while sharing the same source photo. `n: 1` per call keeps
+		// the request shape simple and avoids the n>1-per-prompt limit on
+		// image-edit mode. Fired in parallel — gpt-image-2 handles concurrent
+		// requests fine and the user-perceived latency drops from N×T to ~T.
+		const sourceImage = input.sourceImage;
+		const sourceFile = sourceImage
+			? await toFile(
+					Buffer.from(sourceImage.base64, "base64"),
+					sourceImage.filename,
+					{ type: sourceImage.contentType }
+				)
+			: null;
+		const responses = await Promise.all(
+			input.prompts.map((prompt) =>
+				sourceFile
+					? client.images.edit({
+							model: IMAGE_MODEL,
+							image: sourceFile,
+							prompt,
+							n: 1,
+							size: "auto",
+							quality: "high",
+						})
+					: client.images.generate({
+							model: IMAGE_MODEL,
+							prompt,
+							n: 1,
+							size: "auto",
+							quality: "high",
+						})
+			)
+		);
 		const durationMs = Date.now() - startedAt;
-		const data = response.data ?? [];
-		const images = data.map<GeneratedImageResult>((image) => ({
-			base64: image.b64_json ?? "",
-			contentType: "image/png" as const,
-		}));
+		const images = responses.flatMap<GeneratedImageResult>((response) =>
+			(response.data ?? []).map((image) => ({
+				base64: image.b64_json ?? "",
+				contentType: "image/png" as const,
+			}))
+		);
 		const result: ProviderResult<GeneratedImageResult[]> = {
 			value: images,
 			debug: {
 				model: IMAGE_MODEL,
-				prompt: input.prompt,
+				prompt: input.prompts.join("\n\n---\n\n"),
 				rawResponse: JSON.stringify(
 					{
-						mode: input.sourceImage ? "edit" : "generate",
+						mode: sourceImage ? "edit" : "generate",
+						variations: input.prompts.length,
 						images: images.map((_, i) => ({ index: i })),
 					},
 					null,

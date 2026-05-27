@@ -278,15 +278,14 @@ describe("openAiRenovationProvider", () => {
 	});
 
 	describe("generateRenovationImages", () => {
-		it("calls the OpenAI image model and maps base64 results", async () => {
+		it("calls the OpenAI image model once per variation prompt and maps base64 results", async () => {
 			vi.stubEnv("OPENAI_API_KEY", "sk-test");
-			imagesGenerateMock.mockResolvedValueOnce({
-				data: [{ b64_json: "AAA" }, { b64_json: "BBB" }],
-			});
+			imagesGenerateMock
+				.mockResolvedValueOnce({ data: [{ b64_json: "AAA" }] })
+				.mockResolvedValueOnce({ data: [{ b64_json: "BBB" }] });
 
 			const result = await openAiRenovationProvider.generateRenovationImages({
-				prompt: "render the room",
-				count: 2,
+				prompts: ["render the living room", "render the bedroom"],
 			});
 
 			expect(result.value).toEqual([
@@ -294,10 +293,18 @@ describe("openAiRenovationProvider", () => {
 				{ base64: "BBB", contentType: "image/png" },
 			]);
 			expect(openAiConstructorMock).toHaveBeenCalledWith({ apiKey: "sk-test" });
-			expect(imagesGenerateMock).toHaveBeenCalledWith({
+			expect(imagesGenerateMock).toHaveBeenCalledTimes(2);
+			expect(imagesGenerateMock).toHaveBeenNthCalledWith(1, {
 				model: "gpt-image-2",
-				prompt: "render the room",
-				n: 2,
+				prompt: "render the living room",
+				n: 1,
+				size: "auto",
+				quality: "high",
+			});
+			expect(imagesGenerateMock).toHaveBeenNthCalledWith(2, {
+				model: "gpt-image-2",
+				prompt: "render the bedroom",
+				n: 1,
 				size: "auto",
 				quality: "high",
 			});
@@ -316,8 +323,7 @@ describe("openAiRenovationProvider", () => {
 					contentType: "image/png",
 					filename: "source.png",
 				},
-				prompt: "preserve the room",
-				count: 1,
+				prompts: ["preserve the room"],
 			});
 
 			expect(result.value).toEqual([
@@ -347,8 +353,7 @@ describe("openAiRenovationProvider", () => {
 			imagesGenerateMock.mockResolvedValueOnce({});
 
 			const result = await openAiRenovationProvider.generateRenovationImages({
-				prompt: "render the room",
-				count: 1,
+				prompts: ["render the room"],
 			});
 
 			expect(result.value).toEqual([]);
@@ -359,8 +364,7 @@ describe("openAiRenovationProvider", () => {
 
 			await expect(
 				openAiRenovationProvider.generateRenovationImages({
-					prompt: "render the room",
-					count: 1,
+					prompts: ["render the room"],
 				})
 			).rejects.toThrow("Missing required env var: OPENAI_API_KEY");
 			expect(imagesGenerateMock).not.toHaveBeenCalled();

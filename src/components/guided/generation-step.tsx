@@ -9,6 +9,7 @@ import {
 } from "../../lib/server-client/auth-headers";
 import {
 	generateRenovationImages,
+	listGeneratedImages,
 	setImageFavorite,
 } from "../../server/generation";
 import { DebugPanel } from "./debug-panel";
@@ -31,15 +32,12 @@ const VARIATION_COUNT = 4;
 /**
  * Step 4 of the guided flow: kick off generation and render the variations.
  *
- * On mount we call `generateRenovationImages` once with the current prompt;
- * the user can re-run via "Generate variations". Each card carries a
- * favorite toggle backed by the `setImageFavorite` server fn so the
- * preference is persisted, but local state is mirrored optimistically so the
- * UI doesn't wait on the round-trip before flipping the star.
- *
- * The component intentionally does NOT load previously-persisted images on
- * mount — once we have a `listGeneratedImages` server fn we can switch the
- * effect from "always generate" to "load then optionally regenerate".
+ * On mount we attempt to rehydrate the most recent succeeded batch via
+ * `listGeneratedImages`; only if none exists do we kick off a fresh
+ * generation. Re-runs are user-driven via "Re-generate variations" so a
+ * silent provider call never costs the user credits on revisit. Each card
+ * carries a favorite toggle backed by the `setImageFavorite` server fn,
+ * mirrored optimistically so the UI doesn't wait on the round-trip.
  */
 export function GenerationStep(props: {
 	taskId: string;
@@ -51,6 +49,7 @@ export function GenerationStep(props: {
 	const [images, setImages] = useState<GeneratedImage[] | null>(null);
 	const [debug, setDebug] = useState<ProviderDebug | null>(null);
 	const [generating, setGenerating] = useState(false);
+	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
 
@@ -100,17 +99,48 @@ export function GenerationStep(props: {
 		}
 	}
 
-	// Kick off the first generation as soon as we have a prompt. Re-runs are
-	// driven by the explicit button below — we don't auto-regenerate when the
-	// prompt changes so the user doesn't burn API credits on every keystroke
-	// upstream.
+	// On first mount, try to load the most recent saved batch. If the task
+	// has never been generated, fall through to a single fresh run. Either
+	// way, subsequent runs are user-driven via the button so revisits don't
+	// burn API credits.
 	const initialRunRef = useRef(false);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional one-shot mount effect; re-runs are user-driven via the button.
 	useEffect(() => {
 		if (initialRunRef.current) return;
-		if (props.prompt.trim().length === 0) return;
 		initialRunRef.current = true;
-		void runGeneration();
+		(async () => {
+			try {
+				const headers = await getAuthHeaders();
+				const existing = await listGeneratedImages({
+					data: { taskId: props.taskId },
+					headers,
+				});
+				if (cancelledRef.current) return;
+				if (existing.images.length > 0) {
+					setImages(existing.images);
+					return;
+				}
+				if (props.prompt.trim().length > 0) {
+					await runGeneration();
+				}
+			} catch (caught) {
+				if (cancelledRef.current) return;
+				if (
+					caught instanceof Error &&
+					caught.message === UNAUTHENTICATED_ERROR
+				) {
+					window.location.assign("/auth");
+					return;
+				}
+				setError(
+					caught instanceof Error
+						? caught.message
+						: "Failed to load previous variations"
+				);
+			} finally {
+				if (!cancelledRef.current) setLoading(false);
+			}
+		})();
 	}, []);
 
 	async function toggleFavorite(image: GeneratedImage) {
@@ -150,7 +180,7 @@ export function GenerationStep(props: {
 	}
 
 	const showBriefMissing =
-		props.brief.length === 0 && images === null && !generating;
+		props.brief.length === 0 && images === null && !generating && !loading;
 
 	return (
 		<div
@@ -207,6 +237,12 @@ export function GenerationStep(props: {
 					</p>
 				) : null}
 			</div>
+
+			{loading && !generating ? (
+				<output className="block text-[0.9375rem] text-ink-muted italic">
+					Loading previous variations…
+				</output>
+			) : null}
 
 			{generating ? (
 				<output className="block text-[0.9375rem] text-ink-muted italic">
