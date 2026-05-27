@@ -78,6 +78,7 @@ create table public.design_briefs (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
   task_id uuid not null,
+  style_rules text not null default '',
   markdown text not null,
   prompt text not null,
   version integer not null default 1 check (version > 0),

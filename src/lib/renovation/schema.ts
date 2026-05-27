@@ -147,6 +147,15 @@ export const createDesignBriefSchema = z.object({
 });
 export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
 
+export const saveDesignBriefSchema = z.object({
+	taskId: z.string().uuid(),
+	taskTitle: z.string().min(1).max(200),
+	styleRules: z.string().min(1).max(4000),
+	markdown: z.string().min(1).max(8000),
+	protectedElements: z.array(protectedElementSchema),
+});
+export type SaveDesignBriefInput = z.infer<typeof saveDesignBriefSchema>;
+
 /**
  * Inputs for `generateRenovationImages` server fn.
  *

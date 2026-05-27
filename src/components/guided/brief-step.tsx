@@ -1,11 +1,13 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
 } from "../../lib/server-client/auth-headers";
-import { createDesignBrief } from "../../server/generation";
+import { createDesignBrief, saveDesignBrief } from "../../server/generation";
 import { DebugPanel } from "./debug-panel";
 
 /**
@@ -37,9 +39,10 @@ export function BriefStep(props: {
 	onNext: () => void;
 }) {
 	const [styleRules, setStyleRules] = useState(
-		"Scandinavian renovation style with warm neutral palette.",
+		"Scandinavian renovation style with warm neutral palette."
 	);
 	const [generating, setGenerating] = useState(false);
+	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [debug, setDebug] = useState<ProviderDebug | null>(null);
 	const cancelledRef = useRef(false);
@@ -100,10 +103,52 @@ export function BriefStep(props: {
 				return;
 			}
 			setError(
-				caught instanceof Error ? caught.message : "Failed to generate brief",
+				caught instanceof Error ? caught.message : "Failed to generate brief"
 			);
 		} finally {
 			if (!cancelledRef.current) setGenerating(false);
+		}
+	}
+
+	async function continueToGeneration() {
+		const markdown = briefValue.trim();
+		if (markdown.length === 0) return;
+
+		setError(null);
+		setSaving(true);
+		try {
+			const headers = await getAuthHeaders();
+			const payload = (await saveDesignBrief({
+				data: {
+					taskId: props.taskId,
+					taskTitle: props.taskTitle,
+					styleRules: styleRules.slice(0, STYLE_RULES_MAX),
+					markdown: markdown.slice(0, BRIEF_MAX),
+					protectedElements: props.protectedElements,
+				},
+				headers,
+			})) as {
+				id?: string;
+				markdown: string;
+				prompt: string;
+				version?: number;
+			};
+			if (cancelledRef.current) return;
+			props.onBriefChange(payload.markdown);
+			props.onBriefIdChange(payload.id ?? null);
+			props.onPromptChange(payload.prompt);
+			props.onNext();
+		} catch (caught) {
+			if (cancelledRef.current) return;
+			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/auth");
+				return;
+			}
+			setError(
+				caught instanceof Error ? caught.message : "Failed to save brief"
+			);
+		} finally {
+			if (!cancelledRef.current) setSaving(false);
 		}
 	}
 
@@ -119,68 +164,88 @@ export function BriefStep(props: {
 	const deferredBrief = useDeferredValue(briefValue);
 
 	return (
-		<div className="guided-step" aria-busy={generating}>
-			<header className="guided-step-header">
-				<h2>3. Review the design brief</h2>
-				<p>
+		<div
+			aria-busy={generating}
+			className="grid gap-6 border border-border bg-surface p-10 max-md:p-6"
+		>
+			<header className="grid gap-2">
+				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
+					3. Review the design brief
+				</h2>
+				<p className="m-0 max-w-[68ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
 					Edit the brief to capture the renovation you want. The preview shows
 					exactly what the AI provider will see.
 				</p>
 			</header>
 
-			<label htmlFor="brief-style-rules" className="guided-field">
-				Style rules
-				<textarea
+			<label
+				className="grid max-w-3xl gap-2 font-body font-medium text-foreground text-sm"
+				htmlFor="brief-style-rules"
+			>
+				<span>Style rules</span>
+				<Textarea
+					className="min-h-24 resize-y bg-background font-body font-normal leading-relaxed"
 					id="brief-style-rules"
-					value={styleRules}
-					onChange={(event) => setStyleRules(event.target.value)}
 					maxLength={STYLE_RULES_MAX}
+					onChange={(event) => setStyleRules(event.target.value)}
 					rows={3}
+					value={styleRules}
 				/>
 			</label>
 
-			<div className="guided-actions">
-				<button
-					type="button"
+			<div className="flex flex-wrap items-center gap-3">
+				<Button
+					disabled={generating || saving || styleRules.trim().length === 0}
 					onClick={generateBrief}
-					disabled={generating || styleRules.trim().length === 0}
+					type="button"
 				>
 					{generating
 						? "Generating…"
 						: props.brief
 							? "Re-generate brief"
 							: "Generate brief"}
-				</button>
-				{error ? <p role="alert">{error}</p> : null}
+				</Button>
+				{error ? (
+					<p className="m-0 text-sm text-warning" role="alert">
+						{error}
+					</p>
+				) : null}
 			</div>
 
-			<div className="brief-grid">
-				<label htmlFor="brief-markdown" className="guided-field">
+			<div className="grid grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)] gap-6 max-lg:grid-cols-1">
+				<label
+					className="grid min-w-0 gap-2 font-body font-medium text-foreground text-sm"
+					htmlFor="brief-markdown"
+				>
 					<span>Brief markdown</span>
-					<textarea
+					<Textarea
+						className="min-h-[22rem] resize-y bg-background font-mono font-normal text-sm leading-relaxed"
 						id="brief-markdown"
-						value={briefValue}
+						maxLength={BRIEF_MAX}
 						onChange={(event) => {
 							props.onBriefChange(event.target.value.slice(0, BRIEF_MAX));
 							props.onBriefIdChange(null);
 						}}
-						maxLength={BRIEF_MAX}
 						rows={14}
+						value={briefValue}
 					/>
 				</label>
-				<section className="brief-preview" aria-label="Brief preview">
+				<section
+					aria-label="Brief preview"
+					className="prose prose-neutral min-w-0 max-w-none border border-border bg-background p-5 prose-headings:font-display prose-headings:font-medium prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground text-foreground"
+				>
 					<Streamdown>{deferredBrief}</Streamdown>
 				</section>
 			</div>
 
-			<div className="guided-actions">
-				<button
+			<div className="flex flex-wrap items-center gap-3">
+				<Button
+					disabled={saving || generating || briefValue.trim().length === 0}
+					onClick={continueToGeneration}
 					type="button"
-					onClick={props.onNext}
-					disabled={briefValue.trim().length === 0}
 				>
-					Continue to generation
-				</button>
+					{saving ? "Saving…" : "Continue to generation"}
+				</Button>
 			</div>
 
 			<DebugPanel debug={debug} label="Design brief" />

@@ -103,7 +103,7 @@ function resolveTextModel(selection: ModelSelection) {
 			return getMoonshotClient()(selection.model);
 		case "mock":
 			throw new Error(
-				"resolveTextModel called with provider=mock — wire mockRenovationProvider before dispatch.",
+				"resolveTextModel called with provider=mock — wire mockRenovationProvider before dispatch."
 			);
 		default: {
 			const exhaustive: never = selection.provider;
@@ -338,23 +338,20 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 		const client = getOpenAiClient();
 		const startedAt = Date.now();
 		// Image-edit mode preserves the source room's geometry, lighting, and
-		// the positions of doors/windows/beams. `input_fidelity: "high"` tells
-		// gpt-image-2 to stick close to the input image rather than treating
-		// it as loose inspiration. Without a source image we fall back to
-		// text-to-image — the mock provider hits this branch in tests.
+		// the positions of doors/windows/beams. Without a source image we fall
+		// back to text-to-image — the mock provider hits this branch in tests.
 		const response = input.sourceImage
 			? await client.images.edit({
 					model: IMAGE_MODEL,
 					image: await toFile(
 						Buffer.from(input.sourceImage.base64, "base64"),
 						input.sourceImage.filename,
-						{ type: input.sourceImage.contentType },
+						{ type: input.sourceImage.contentType }
 					),
 					prompt: input.prompt,
 					n: input.count,
 					size: "auto",
 					quality: "high",
-					input_fidelity: "high",
 				})
 			: await client.images.generate({
 					model: IMAGE_MODEL,
@@ -380,7 +377,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 						images: images.map((_, i) => ({ index: i })),
 					},
 					null,
-					2,
+					2
 				),
 				durationMs,
 			},
