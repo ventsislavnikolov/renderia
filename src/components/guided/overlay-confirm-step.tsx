@@ -116,7 +116,7 @@ export function OverlayConfirmStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			setLoadError(
-				error instanceof Error ? error.message : "Failed to load photo"
+				error instanceof Error ? error.message : "Failed to load photo",
 			);
 		}
 	}, [props.photo]);
@@ -140,8 +140,8 @@ export function OverlayConfirmStep(props: {
 					new Set(
 						keyed
 							.filter(({ row }) => row?.status !== "rejected")
-							.map(({ id }) => id)
-					)
+							.map(({ id }) => id),
+					),
 				);
 			}
 		} catch (error) {
@@ -178,22 +178,14 @@ export function OverlayConfirmStep(props: {
 		setDetectError(null);
 		setDetecting(true);
 		try {
-			// Always mint a fresh URL right before the detection call. The URL
-			// stored in component state may be older than the 10-minute TTL if
-			// the user revisited this step, which would cause the provider to
-			// fail to fetch the image. The on-screen `<img>` keeps using the
-			// state URL — it loaded successfully when first minted.
-			const { data, error: signError } = await supabaseBrowser.storage
-				.from(photoBucketFor(props.photo))
-				.createSignedUrl(props.photo.storage_path, SIGNED_URL_TTL_SECONDS);
-			if (signError) throw signError;
 			const headers = await getAuthHeaders();
 			// Server fns now return `{ data, debug? }`. The legacy bare-array
 			// shape is also accepted so older snapshots in tests still work
 			// (and so a future plain endpoint can opt out of the wrapper).
 			const response = (await detectProtectedElements({
 				data: {
-					photoUrl: data.signedUrl,
+					photoId: props.photo.id,
+					taskId: props.taskId,
 					taskTitle: props.taskTitle,
 					model,
 				},
@@ -214,7 +206,6 @@ export function OverlayConfirmStep(props: {
 				data: {
 					taskId: props.taskId,
 					photoId: props.photo.id,
-					projectId: props.projectId,
 					elements: detectedBoxes.map((box) => ({
 						label: box.label,
 						kind: box.kind,
@@ -253,7 +244,7 @@ export function OverlayConfirmStep(props: {
 				return;
 			}
 			setDetectError(
-				error instanceof Error ? error.message : "Detection failed"
+				error instanceof Error ? error.message : "Detection failed",
 			);
 		} finally {
 			if (!cancelledRef.current) setDetecting(false);
@@ -287,8 +278,8 @@ export function OverlayConfirmStep(props: {
 			setElements(
 				(prev) =>
 					prev?.map((item) =>
-						item.id === id ? { ...item, row: updated } : item
-					) ?? prev
+						item.id === id ? { ...item, row: updated } : item,
+					) ?? prev,
 			);
 		} catch (error) {
 			if (cancelledRef.current) return;
@@ -304,7 +295,7 @@ export function OverlayConfirmStep(props: {
 				return;
 			}
 			setDetectError(
-				error instanceof Error ? error.message : "Failed to update selection"
+				error instanceof Error ? error.message : "Failed to update selection",
 			);
 		}
 	}
@@ -314,7 +305,7 @@ export function OverlayConfirmStep(props: {
 			props.onConfirm(
 				elements
 					.filter((entry) => selected.has(entry.id))
-					.map((entry) => entry.box)
+					.map((entry) => entry.box),
 			);
 		} else {
 			props.onConfirm(props.confirmedElements);
@@ -367,7 +358,7 @@ export function OverlayConfirmStep(props: {
 									"hover:bg-[rgba(200,38,48,0.18)] focus-visible:outline-none",
 									isSelected
 										? "border-[rgb(200,38,48)]"
-										: "border-[rgba(120,120,120,0.6)] border-dashed bg-[rgba(120,120,120,0.06)]"
+										: "border-[rgba(120,120,120,0.6)] border-dashed bg-[rgba(120,120,120,0.06)]",
 								)}
 								key={id}
 								onClick={() => {
@@ -387,7 +378,7 @@ export function OverlayConfirmStep(props: {
 										"pointer-events-none absolute bottom-full left-[-2px] inline-block max-w-[16rem] whitespace-nowrap px-1.5 py-1 font-semibold text-[0.7rem] text-white leading-tight tracking-[0.02em]",
 										isSelected
 											? "bg-[rgb(200,38,48)]"
-											: "bg-[rgba(120,120,120,0.85)]"
+											: "bg-[rgba(120,120,120,0.85)]",
 									)}
 								>
 									{box.label}

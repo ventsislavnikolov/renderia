@@ -7,7 +7,15 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../../../src/components/layout/sidebar", () => ({
+	Sidebar: () => (
+		<aside aria-label="Workspace">
+			<a href="/">Renderia</a>
+		</aside>
+	),
+}));
 
 import { AppShell } from "../../../src/components/layout/app-shell";
 

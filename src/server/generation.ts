@@ -30,9 +30,9 @@ import type { Database } from "../lib/types/database";
 /**
  * Server functions for detection, brief, and image generation.
  *
- * Detection + brief are stateless provider passthroughs — they don't touch
- * the database. Image generation is the only persistent fn here: it inserts
- * a `generation_jobs` row, writes the provider output to the
+ * Detection is a stateless provider passthrough. Brief generation persists a
+ * `design_briefs` row, and image generation inserts a `generation_jobs` row,
+ * writes the provider output to the
  * `generated-outputs` storage bucket, and emits one `generated_images` row
  * per variation so the UI can render and favorite them.
  *
@@ -61,11 +61,46 @@ function attachDebugIfDev<T>(value: T, debug: ProviderDebug | undefined) {
 
 /** @internal */
 export async function __detectProtectedElementsHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
 	provider: RenovationAiProvider;
 	input: DetectProtectedElementsInput;
 }) {
 	try {
-		const result = await args.provider.detectProtectedElements(args.input);
+		const taskLookup = await args.supabase
+			.from("renovation_tasks")
+			.select("id, project_id")
+			.eq("id", args.input.taskId)
+			.eq("owner_id", args.userId)
+			.maybeSingle();
+		if (taskLookup.error) throw wrapSupabaseError(taskLookup.error);
+		if (!taskLookup.data) throw new Error("Task not found");
+
+		const photoLookup = await args.supabase
+			.from("photos")
+			.select("storage_bucket, storage_path, project_id")
+			.eq("id", args.input.photoId)
+			.eq("owner_id", args.userId)
+			.maybeSingle();
+		if (photoLookup.error) throw wrapSupabaseError(photoLookup.error);
+		if (!photoLookup.data) throw new Error("Photo not found");
+		if (photoLookup.data.project_id !== taskLookup.data.project_id) {
+			throw new Error("Photo not found");
+		}
+
+		const signed = await args.supabase.storage
+			.from(photoLookup.data.storage_bucket)
+			.createSignedUrl(photoLookup.data.storage_path, SIGNED_URL_TTL_SECONDS);
+		if (signed.error || !signed.data?.signedUrl) {
+			throw new Error("Failed to mint signed URL for source photo");
+		}
+
+		const result = await args.provider.detectProtectedElements({
+			photoUrl: signed.data.signedUrl,
+			taskTitle: args.input.taskTitle,
+			notes: args.input.notes,
+			model: args.input.model,
+		});
 		return attachDebugIfDev(result.value, result.debug);
 	} catch (err) {
 		console.error("detectProtectedElements failed", err);
@@ -114,11 +149,33 @@ function formatProviderError(err: unknown): string {
 
 /** @internal */
 export async function __createDesignBriefHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
 	provider: RenovationAiProvider;
 	input: CreateDesignBriefInput;
 }) {
 	const result = await args.provider.createDesignBrief(args.input);
-	return attachDebugIfDev(result.value, result.debug);
+	const { data, error } = await args.supabase
+		.from("design_briefs")
+		.insert({
+			owner_id: args.userId,
+			task_id: args.input.taskId,
+			markdown: result.value.markdown,
+			prompt: result.value.prompt,
+		})
+		.select("id, markdown, prompt, version")
+		.single();
+	if (error) throw wrapSupabaseError(error);
+
+	return attachDebugIfDev(
+		{
+			id: String(data.id),
+			markdown: String(data.markdown),
+			prompt: String(data.prompt),
+			version: Number(data.version),
+		},
+		result.debug,
+	);
 }
 
 export type GeneratedImagePayload = {
@@ -168,8 +225,9 @@ export async function __generateRenovationImagesHandler(args: {
 	if (!taskLookup.data) throw new Error("Task not found");
 
 	// Load the source photo's bytes so the provider can run image-edit mode
-	// (preserves room geometry). If photoId is missing or the lookup fails we
-	// silently fall back to text-only generation — the provider handles both.
+	// (preserves room geometry). Missing photoId is an intentional text-only
+	// request; a provided photoId must load successfully or the generation
+	// would look successful while losing the user's chosen source geometry.
 	const sourceImage = args.input.photoId
 		? await loadSourcePhoto({
 				supabase: args.supabase,
@@ -177,6 +235,9 @@ export async function __generateRenovationImagesHandler(args: {
 				photoId: args.input.photoId,
 			})
 		: undefined;
+	if (args.input.photoId && !sourceImage) {
+		throw new Error("Source photo not found or unavailable");
+	}
 
 	const model = activeImageModel(args.providerName);
 	const jobInsert = await args.supabase
@@ -262,7 +323,7 @@ export async function __generateRenovationImagesHandler(args: {
 
 		return attachDebugIfDev(
 			{ jobId, images: uploaded },
-			providerResult.debug
+			providerResult.debug,
 		) as {
 			data: { jobId: string; images: GeneratedImagePayload[] };
 			debug?: ProviderDebug;
@@ -338,7 +399,7 @@ export async function __listProtectedElementsHandler(args: {
 	const { data, error } = await args.supabase
 		.from("protected_elements")
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
 		)
 		.eq("task_id", args.input.taskId)
 		.eq("photo_id", args.input.photoId)
@@ -354,43 +415,13 @@ export async function __saveDetectedElementsHandler(args: {
 	supabase: SupabaseScoped;
 	input: SaveDetectedElementsInput;
 }): Promise<ProtectedElementRow[]> {
-	// Replace strategy: delete all existing rows for (task, photo, owner)
-	// then insert the new set. Not transactional — if the insert fails the
-	// user is left with zero persisted elements and can re-run detection.
-	// This is acceptable because the alternative (an RPC + transaction)
-	// adds infrastructure for a recoverable case.
-	const deletion = await args.supabase
-		.from("protected_elements")
-		.delete()
-		.eq("task_id", args.input.taskId)
-		.eq("photo_id", args.input.photoId)
-		.eq("owner_id", args.userId);
-	if (deletion.error) throw wrapSupabaseError(deletion.error);
-
-	if (args.input.elements.length === 0) return [];
-
-	const rows = args.input.elements.map((element) => ({
-		owner_id: args.userId,
-		task_id: args.input.taskId,
-		photo_id: args.input.photoId,
-		project_id: args.input.projectId,
-		label: element.label,
-		kind: element.kind,
-		x: element.x,
-		y: element.y,
-		width: element.width,
-		height: element.height,
-		confidence: element.confidence,
-		status: "suggested" as const,
-	}));
-	const inserted = await args.supabase
-		.from("protected_elements")
-		.insert(rows)
-		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
-		);
-	if (inserted.error) throw wrapSupabaseError(inserted.error);
-	return (inserted.data ?? []) as ProtectedElementRow[];
+	const replaced = await args.supabase.rpc("replace_protected_elements", {
+		p_task_id: args.input.taskId,
+		p_photo_id: args.input.photoId,
+		p_elements: args.input.elements,
+	});
+	if (replaced.error) throw wrapSupabaseError(replaced.error);
+	return (replaced.data ?? []) as ProtectedElementRow[];
 }
 
 /** @internal */
@@ -405,7 +436,7 @@ export async function __updateProtectedElementStatusHandler(args: {
 		.eq("id", args.input.elementId)
 		.eq("owner_id", args.userId)
 		.select(
-			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at"
+			"id, task_id, photo_id, project_id, label, kind, x, y, width, height, confidence, status, created_at",
 		)
 		.maybeSingle();
 	if (error) throw wrapSupabaseError(error);
@@ -467,21 +498,27 @@ async function loadSourcePhoto(args: {
 
 export const detectProtectedElements = createServerFn({ method: "POST" })
 	.inputValidator(detectProtectedElementsSchema)
-	.handler(async ({ data }) =>
-		__detectProtectedElementsHandler({
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __detectProtectedElementsHandler({
+			userId,
+			supabase,
 			provider: getRenovationAiProvider(),
 			input: data,
-		})
-	);
+		});
+	});
 
 export const createDesignBrief = createServerFn({ method: "POST" })
 	.inputValidator(createDesignBriefSchema)
-	.handler(async ({ data }) =>
-		__createDesignBriefHandler({
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __createDesignBriefHandler({
+			userId,
+			supabase,
 			provider: getRenovationAiProvider(),
 			input: data,
-		})
-	);
+		});
+	});
 
 export const generateRenovationImages = createServerFn({ method: "POST" })
 	.inputValidator(generateRenovationImagesSchema)

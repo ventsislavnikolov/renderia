@@ -61,10 +61,12 @@ create table public.protected_elements (
   photo_id uuid not null,
   label text not null,
   kind text not null,
-  x numeric not null check (x >= 0),
-  y numeric not null check (y >= 0),
-  width numeric not null check (width > 0),
-  height numeric not null check (height > 0),
+  x numeric not null check (x >= 0 and x <= 1),
+  y numeric not null check (y >= 0 and y <= 1),
+  width numeric not null check (width > 0 and width <= 1),
+  height numeric not null check (height > 0 and height <= 1),
+  check (x + width <= 1),
+  check (y + height <= 1),
   confidence numeric check (confidence is null or (confidence >= 0 and confidence <= 1)),
   status text not null default 'suggested' check (status in ('suggested', 'confirmed', 'rejected')),
   created_at timestamptz not null default now(),
@@ -350,3 +352,85 @@ create policy "generated outputs owner delete"
     and owner_id = auth.uid()::text
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+create or replace function public.replace_protected_elements(
+  p_task_id uuid,
+  p_photo_id uuid,
+  p_elements jsonb
+)
+returns setof public.protected_elements
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_owner_id uuid := auth.uid();
+  v_project_id uuid;
+begin
+  if v_owner_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select t.project_id
+    into v_project_id
+  from public.renovation_tasks t
+  join public.photos p
+    on p.id = p_photo_id
+   and p.owner_id = v_owner_id
+   and p.project_id = t.project_id
+  where t.id = p_task_id
+    and t.owner_id = v_owner_id;
+
+  if v_project_id is null then
+    raise exception 'Task/photo pair not found' using errcode = 'P0002';
+  end if;
+
+  delete from public.protected_elements
+  where owner_id = v_owner_id
+    and task_id = p_task_id
+    and photo_id = p_photo_id;
+
+  if jsonb_array_length(p_elements) = 0 then
+    return;
+  end if;
+
+  return query
+  insert into public.protected_elements (
+    owner_id,
+    project_id,
+    task_id,
+    photo_id,
+    label,
+    kind,
+    x,
+    y,
+    width,
+    height,
+    confidence,
+    status
+  )
+  select
+    v_owner_id,
+    v_project_id,
+    p_task_id,
+    p_photo_id,
+    element.label,
+    element.kind,
+    element.x,
+    element.y,
+    element.width,
+    element.height,
+    element.confidence,
+    'suggested'
+  from jsonb_to_recordset(p_elements) as element(
+    label text,
+    kind text,
+    x numeric,
+    y numeric,
+    width numeric,
+    height numeric,
+    confidence numeric
+  )
+  returning *;
+end;
+$$;

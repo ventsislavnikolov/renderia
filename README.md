@@ -1,218 +1,114 @@
-Welcome to your new TanStack Start app! 
+# Renderia
 
-# Getting Started
+Renderia is a guided renovation workspace for generating visual redesign concepts while preserving fixed room elements such as windows, doors, ceiling lines, and structural edges.
 
-To run this application:
+The app is built with TanStack Start, React, Tailwind CSS, Supabase Auth/Postgres/Storage, and a pluggable AI provider layer. The guided task flow is:
+
+1. Create or open a renovation project.
+2. Upload or select a source photo.
+3. Detect protected elements and confirm the overlay boxes.
+4. Generate and edit a design brief.
+5. Generate image variations and mark favorites.
+
+## Local Setup
+
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Create local env:
+
+```bash
+cp .env.example .env
+```
+
+Fill the Supabase values in `.env`. For local UI work without live AI calls, keep:
+
+```bash
+AI_PROVIDER=mock
+```
+
+Run the app:
+
+```bash
 npm run dev
 ```
 
-# Building For Production
+The dev server runs on `http://localhost:3000`.
 
-To build this application for production:
+## Environment
+
+Required for app startup:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
+- `AI_PROVIDER`, usually `mock` for local deterministic runs or `openai` for real provider calls
+
+Required only when `AI_PROVIDER=openai` reaches real provider calls:
+
+- `OPENAI_API_KEY` for OpenAI text/image generation
+
+Optional text-model provider keys used by model selection:
+
+- `GEMINI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `ZAI_API_KEY`
+- `MOONSHOT_API_KEY`
+
+## Scripts
+
+```bash
+npm run dev       # start Vite/TanStack Start dev server
+npm run build     # production build into .output/
+npm run preview   # preview the production build
+npm run check     # Biome lint/format check
+npm run test      # Vitest unit tests
+npm run test:e2e  # Playwright e2e tests
+```
+
+`npm run test:e2e` builds and previews the production app with mocked Supabase/server-function responses, so it does not require a live Supabase project or AI credentials. If Playwright browsers are missing, run:
+
+```bash
+npx playwright install chromium
+```
+
+## Build And Deploy
+
+Build:
 
 ```bash
 npm run build
 ```
 
-## Testing
-
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+Preview locally:
 
 ```bash
-npm run test
+npm run preview
 ```
 
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `npm install @tailwindcss/vite tailwindcss -D`
-
-## Linting & Formatting
-
-This project uses [Biome](https://biomejs.dev/) for linting and formatting. The following scripts are available:
-
+The production output is written to `.output/`. Nitro can run it as a Node server:
 
 ```bash
-npm run lint
-npm run format
-npm run check
+node .output/server/index.mjs
 ```
 
+Make sure production runtime env vars are available to the server process.
 
-## Deploy with Nitro
+## Database
 
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+The initial Supabase schema and RLS policies live in:
 
-```bash
-npm run build
-node dist/server/index.mjs
+```text
+supabase/migrations/0001_initial_schema.sql
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+The schema includes private storage buckets for source photos and generated outputs, user-scoped RLS policies, and the `replace_protected_elements` RPC used to atomically replace detection results for a task/photo pair.
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
+## Notes
 
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+Generated images are visual concepts, not construction plans. The app keeps source photo, protected elements, design brief, prompt, provider, model, and favorite metadata attached so outputs remain traceable for later human review.

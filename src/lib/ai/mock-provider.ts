@@ -1,4 +1,4 @@
-import { buildDesignPrompt } from "./prompts";
+import { buildDesignBriefMarkdown, buildDesignPrompt } from "./prompts";
 import type { RenovationAiProvider } from "./types";
 
 // 1x1 transparent PNG, used so mock outputs are renderable as data URLs during dev.
@@ -47,7 +47,11 @@ export const mockRenovationProvider: RenovationAiProvider = {
 		};
 	},
 	async createDesignBrief(input) {
-		const markdown = `# ${input.taskTitle}\n\nPreserve confirmed fixed elements and apply ${input.styleRules}.`;
+		const markdown = buildDesignBriefMarkdown({
+			taskTitle: input.taskTitle,
+			styleRules: input.styleRules,
+			protectedElements: input.protectedElements,
+		});
 		return {
 			value: {
 				markdown,

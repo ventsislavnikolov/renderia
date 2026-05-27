@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+	__createProjectFromPromptHandler,
 	__createProjectHandler,
 	__getProjectHandler,
 	__listProjectsHandler,
@@ -109,6 +110,72 @@ describe("createProjectHandler", () => {
 				input: { name: "x" },
 			}),
 		).rejects.toThrow("Not authorized");
+	});
+});
+
+describe("createProjectFromPromptHandler", () => {
+	it("creates a project and an initial active task from the prompt", async () => {
+		const projectInsert = vi.fn();
+		const taskInsert = vi.fn();
+		const projectSingle = vi.fn().mockResolvedValue({
+			data: {
+				id: "proj-1",
+				owner_id: "user-1",
+				name: "Renovate the attic into a warm studio",
+				description: "Renovate the attic into a warm studio.",
+			},
+			error: null,
+		});
+		const taskSingle = vi.fn().mockResolvedValue({
+			data: {
+				id: "task-1",
+				owner_id: "user-1",
+				project_id: "proj-1",
+				title: "Renovate the attic into a warm studio.",
+				category: "general",
+				status: "active",
+			},
+			error: null,
+		});
+
+		const projectChain = {
+			insert: projectInsert.mockReturnThis(),
+			select: vi.fn().mockReturnThis(),
+			single: projectSingle,
+		};
+		const taskChain = {
+			insert: taskInsert.mockReturnThis(),
+			select: vi.fn().mockReturnThis(),
+			single: taskSingle,
+		};
+		const supabase = {
+			from: vi.fn((table: string) =>
+				table === "projects" ? projectChain : taskChain,
+			),
+		} as unknown as Parameters<
+			typeof __createProjectFromPromptHandler
+		>[0]["supabase"];
+
+		const result = await __createProjectFromPromptHandler({
+			userId: "user-1",
+			supabase,
+			input: { prompt: "Renovate the attic into a warm studio." },
+		});
+
+		expect(result).toEqual({ projectId: "proj-1", taskId: "task-1" });
+		expect(projectInsert).toHaveBeenCalledWith({
+			owner_id: "user-1",
+			name: "Renovate the attic into a warm studio",
+			description: "Renovate the attic into a warm studio.",
+		});
+		expect(taskInsert).toHaveBeenCalledWith({
+			owner_id: "user-1",
+			project_id: "proj-1",
+			title: "Renovate the attic into a warm studio.",
+			category: "general",
+			notes: "Renovate the attic into a warm studio.",
+			status: "active",
+		});
 	});
 });
 

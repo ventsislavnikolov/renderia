@@ -71,6 +71,8 @@ type Row = Record<string, unknown>;
  */
 function buildGenerationSupabaseStub(opts: {
 	taskResult?: { data: Row | null; error: unknown };
+	sourcePhotoResult?: { data: Row | null; error: unknown };
+	sourcePhotoDownloadResult?: { data: Blob | null; error: unknown };
 	jobInsertResult?: { data: Row | null; error: unknown };
 	imageInsertResults?: Array<{ data: Row | null; error: unknown }>;
 	signedUrlResult?: {
@@ -154,6 +156,25 @@ function buildGenerationSupabaseStub(opts: {
 
 	fromMock.mockImplementation((table: string) => {
 		if (table === "renovation_tasks") return tasksChain;
+		if (table === "photos") {
+			const photosChain: Record<string, (...args: unknown[]) => unknown> = {};
+			photosChain.select = vi.fn(() => photosChain);
+			photosChain.eq = vi.fn(() => photosChain);
+			photosChain.maybeSingle = vi.fn(() =>
+				Promise.resolve(
+					opts.sourcePhotoResult ?? {
+						data: {
+							storage_bucket: "source-photos",
+							storage_path: "user-1/source.png",
+							content_type: "image/png",
+							original_name: "source.png",
+						},
+						error: null,
+					}
+				)
+			);
+			return photosChain;
+		}
 		if (table === "generation_jobs") return jobsChain;
 		if (table === "generated_images") return imagesChain;
 		return tasksChain;
@@ -171,6 +192,14 @@ function buildGenerationSupabaseStub(opts: {
 	const storageFromMock = vi.fn(() => ({
 		upload: uploadMock,
 		createSignedUrl: createSignedUrlMock,
+		download: vi.fn(async () =>
+			opts.sourcePhotoDownloadResult === undefined
+				? {
+						data: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
+						error: null,
+					}
+				: opts.sourcePhotoDownloadResult
+		),
 	}));
 
 	return {
@@ -193,9 +222,9 @@ function buildGenerationSupabaseStub(opts: {
 	};
 }
 
-function buildFavoriteSupabaseStub(opts: {
-	updateResult?: { data: Row | null; error: unknown };
-}) {
+	function buildFavoriteSupabaseStub(opts: {
+		updateResult?: { data: Row | null; error: unknown };
+	}) {
 	const fromMock = vi.fn();
 	const chain: Record<string, (...args: unknown[]) => unknown> = {};
 	chain.update = vi.fn(() => chain);
@@ -211,10 +240,45 @@ function buildFavoriteSupabaseStub(opts: {
 		} as unknown as Parameters<typeof __setImageFavoriteHandler>[0]["supabase"],
 		fromMock,
 		chain,
-	};
-}
+		};
+	}
 
-const originalNodeEnv = process.env.NODE_ENV;
+	function buildDesignBriefSupabaseStub(opts: {
+		insertResult?: { data: Row | null; error: unknown };
+	}) {
+		const fromMock = vi.fn();
+		const chain: Record<string, (...args: unknown[]) => unknown> = {};
+		chain.insert = vi.fn(() => chain);
+		chain.select = vi.fn(() => chain);
+		chain.single = vi.fn(() =>
+			Promise.resolve(
+				opts.insertResult ?? {
+					data: {
+						id: "brief-1",
+						owner_id: "user-1",
+						task_id: "task-1",
+						markdown: "# brief",
+						prompt: "PRESERVE EXACTLY",
+						version: 1,
+						created_at: "2026-01-01T00:00:00Z",
+					},
+					error: null,
+				}
+			)
+		);
+		fromMock.mockImplementation(() => chain);
+		return {
+			supabase: {
+				from: fromMock,
+			} as unknown as Parameters<
+				typeof __createDesignBriefHandler
+			>[0]["supabase"],
+			fromMock,
+			chain,
+		};
+	}
+
+	const originalNodeEnv = process.env.NODE_ENV;
 
 beforeEach(() => {
 	// Default to 'test' (non-production) so debug payloads are forwarded.
@@ -226,13 +290,66 @@ afterEach(() => {
 });
 
 describe("detectProtectedElementsHandler", () => {
+	function buildDetectionSupabaseStub(opts: {
+		taskResult?: { data: Row | null; error: unknown };
+		photoResult?: { data: Row | null; error: unknown };
+	} = {}) {
+		const fromMock = vi.fn();
+		const taskMaybeSingle = vi.fn().mockResolvedValue({
+			data: { id: "task-1", project_id: "project-1" },
+			error: null,
+			...opts.taskResult,
+		});
+		const photoMaybeSingle = vi.fn().mockResolvedValue({
+			data: {
+				storage_bucket: "source-photos",
+				storage_path: "user-1/photo.png",
+				project_id: "project-1",
+			},
+			error: null,
+			...opts.photoResult,
+		});
+		const taskChain: Record<string, (...args: unknown[]) => unknown> = {};
+		taskChain.select = vi.fn(() => taskChain);
+		taskChain.eq = vi.fn(() => taskChain);
+		taskChain.maybeSingle = taskMaybeSingle;
+		const photoChain: Record<string, (...args: unknown[]) => unknown> = {};
+		photoChain.select = vi.fn(() => photoChain);
+		photoChain.eq = vi.fn(() => photoChain);
+		photoChain.maybeSingle = photoMaybeSingle;
+		fromMock.mockImplementation((table: string) =>
+			table === "renovation_tasks" ? taskChain : photoChain,
+		);
+		const createSignedUrl = vi.fn().mockResolvedValue({
+			data: { signedUrl: "https://signed/source.png" },
+			error: null,
+		});
+		const storageFrom = vi.fn(() => ({ createSignedUrl }));
+		return {
+			supabase: {
+				from: fromMock,
+				storage: { from: storageFrom },
+			} as unknown as Parameters<
+				typeof __detectProtectedElementsHandler
+			>[0]["supabase"],
+			fromMock,
+			createSignedUrl,
+			storageFrom,
+		};
+	}
+
 	it("returns the bounding boxes under `data` with the debug payload attached in dev", async () => {
 		const provider = buildMockProvider();
+		const { supabase, storageFrom, createSignedUrl } =
+			buildDetectionSupabaseStub();
 
 		const result = await __detectProtectedElementsHandler({
+			userId: "user-1",
+			supabase,
 			provider,
 			input: {
-				photoUrl: "https://example/photo",
+				photoId: "photo-1",
+				taskId: "task-1",
 				taskTitle: "ceiling",
 				notes: "be careful",
 			},
@@ -240,8 +357,10 @@ describe("detectProtectedElementsHandler", () => {
 
 		expect(result.data).toHaveLength(1);
 		expect(result.debug).toEqual(SAMPLE_DEBUG);
+		expect(storageFrom).toHaveBeenCalledWith("source-photos");
+		expect(createSignedUrl).toHaveBeenCalledWith("user-1/photo.png", 600);
 		expect(provider.detectProtectedElements).toHaveBeenCalledWith({
-			photoUrl: "https://example/photo",
+			photoUrl: "https://signed/source.png",
 			taskTitle: "ceiling",
 			notes: "be careful",
 		});
@@ -250,24 +369,64 @@ describe("detectProtectedElementsHandler", () => {
 	it("strips the debug payload in production", async () => {
 		process.env.NODE_ENV = "production";
 		const provider = buildMockProvider();
+		const { supabase } = buildDetectionSupabaseStub();
 
 		const result = await __detectProtectedElementsHandler({
+			userId: "user-1",
+			supabase,
 			provider,
-			input: { photoUrl: "https://example/photo", taskTitle: "ceiling" },
+			input: {
+				photoId: "photo-1",
+				taskId: "task-1",
+				taskTitle: "ceiling",
+			},
 		});
 
 		expect(result.data).toHaveLength(1);
 		expect("debug" in result).toBe(false);
 	});
+
+	it("rejects when the photo is not in the task project", async () => {
+		const provider = buildMockProvider();
+		const { supabase, createSignedUrl } = buildDetectionSupabaseStub({
+			photoResult: {
+				data: {
+					storage_bucket: "source-photos",
+					storage_path: "user-1/photo.png",
+					project_id: "other-project",
+				},
+				error: null,
+			},
+		});
+
+		await expect(
+			__detectProtectedElementsHandler({
+				userId: "user-1",
+				supabase,
+				provider,
+				input: {
+					photoId: "photo-1",
+					taskId: "task-1",
+					taskTitle: "ceiling",
+				},
+			}),
+		).rejects.toThrow("Photo not found");
+		expect(createSignedUrl).not.toHaveBeenCalled();
+		expect(provider.detectProtectedElements).not.toHaveBeenCalled();
+	});
 });
 
 describe("createDesignBriefHandler", () => {
-	it("delegates to the provider and returns markdown + prompt under data with debug in dev", async () => {
+	it("persists the generated brief and returns markdown + prompt + id under data with debug in dev", async () => {
 		const provider = buildMockProvider();
+		const stub = buildDesignBriefSupabaseStub({});
 
 		const result = await __createDesignBriefHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
 			provider,
 			input: {
+				taskId: "task-1",
 				taskTitle: "ceiling",
 				styleRules: "scandinavian",
 				protectedElements: [
@@ -284,16 +443,47 @@ describe("createDesignBriefHandler", () => {
 		});
 
 		expect(result.data).toEqual({
+			id: "brief-1",
+			markdown: "# brief",
+			prompt: "PRESERVE EXACTLY",
+			version: 1,
+		});
+		expect(result.debug).toEqual(SAMPLE_DEBUG);
+		expect(stub.fromMock).toHaveBeenCalledWith("design_briefs");
+		expect(stub.chain.insert).toHaveBeenCalledWith({
+			owner_id: "user-1",
+			task_id: "task-1",
 			markdown: "# brief",
 			prompt: "PRESERVE EXACTLY",
 		});
-		expect(result.debug).toEqual(SAMPLE_DEBUG);
 		expect(provider.createDesignBrief).toHaveBeenCalledWith(
 			expect.objectContaining({
+				taskId: "task-1",
 				taskTitle: "ceiling",
 				styleRules: "scandinavian",
 			})
 		);
+	});
+
+	it("throws when persisting the generated brief fails", async () => {
+		const provider = buildMockProvider();
+		const stub = buildDesignBriefSupabaseStub({
+			insertResult: { data: null, error: { message: "rls denied" } },
+		});
+
+		await expect(
+			__createDesignBriefHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				provider,
+				input: {
+					taskId: "task-1",
+					taskTitle: "ceiling",
+					styleRules: "scandinavian",
+					protectedElements: [],
+				},
+			})
+		).rejects.toThrow("Database error");
 	});
 });
 
@@ -357,6 +547,31 @@ describe("generateRenovationImagesHandler", () => {
 				},
 			})
 		).rejects.toThrow("Task not found");
+		expect(provider.generateRenovationImages).not.toHaveBeenCalled();
+	});
+
+	it("rejects when an explicitly selected source photo cannot be loaded", async () => {
+		const stub = buildGenerationSupabaseStub({
+			sourcePhotoResult: { data: null, error: null },
+		});
+		const provider = buildMockProvider();
+
+		await expect(
+			__generateRenovationImagesHandler({
+				userId: "user-1",
+				supabase: stub.supabase,
+				provider,
+				providerName: "mock",
+				input: {
+					taskId: "t1",
+					briefId: null,
+					prompt: "PRESERVE EXACTLY",
+					count: 1,
+					photoId: "photo-1",
+				},
+			})
+		).rejects.toThrow("Source photo not found or unavailable");
+		expect(stub.jobsChain.insert).not.toHaveBeenCalled();
 		expect(provider.generateRenovationImages).not.toHaveBeenCalled();
 	});
 
@@ -549,48 +764,19 @@ function buildListProtectedElementsStub(opts: {
 	};
 }
 
-/**
- * `saveDetectedElements` chain stub — two separate operations:
- * `.delete().eq().eq().eq()` resolves first, then `.insert(...).select(...)`
- * resolves with the inserted rows. We use `Promise.resolve(...).then(cb)`
- * indirection via thenable on the last `.eq` so the delete chain awaits.
- */
 function buildSaveDetectedElementsStub(opts: {
-	deleteResult?: { error: unknown };
-	insertResult?: { data: Row[] | null; error: unknown };
+	rpcResult?: { data: Row[] | null; error: unknown };
 }) {
-	const fromMock = vi.fn();
-
-	const deleteChain: Record<string, (...args: unknown[]) => unknown> = {};
-	let deleteEqCalls = 0;
-	deleteChain.eq = vi.fn(() => {
-		deleteEqCalls += 1;
-		if (deleteEqCalls >= 3) {
-			return Promise.resolve(opts.deleteResult ?? { error: null });
-		}
-		return deleteChain;
-	});
-
-	const insertChain: Record<string, (...args: unknown[]) => unknown> = {};
-	insertChain.select = vi.fn(() =>
-		Promise.resolve(opts.insertResult ?? { data: [], error: null })
+	const rpc = vi.fn(() =>
+		Promise.resolve(opts.rpcResult ?? { data: [], error: null }),
 	);
-
-	const chain: Record<string, (...args: unknown[]) => unknown> = {};
-	chain.delete = vi.fn(() => deleteChain);
-	chain.insert = vi.fn(() => insertChain);
-
-	fromMock.mockImplementation(() => chain);
 	return {
 		supabase: {
-			from: fromMock,
+			rpc,
 		} as unknown as Parameters<
 			typeof __saveDetectedElementsHandler
 		>[0]["supabase"],
-		fromMock,
-		chain,
-		deleteChain,
-		insertChain,
+		rpc,
 	};
 }
 
@@ -698,9 +884,9 @@ describe("listProtectedElementsHandler", () => {
 });
 
 describe("saveDetectedElementsHandler", () => {
-	it("deletes existing rows then inserts the new set with status 'suggested'", async () => {
+	it("replaces rows through the atomic RPC with status 'suggested'", async () => {
 		const stub = buildSaveDetectedElementsStub({
-			insertResult: { data: [SAMPLE_ROW], error: null },
+			rpcResult: { data: [SAMPLE_ROW], error: null },
 		});
 
 		const result = await __saveDetectedElementsHandler({
@@ -709,7 +895,6 @@ describe("saveDetectedElementsHandler", () => {
 			input: {
 				taskId: "11111111-1111-1111-1111-111111111111",
 				photoId: "22222222-2222-2222-2222-222222222222",
-				projectId: "33333333-3333-3333-3333-333333333333",
 				elements: [
 					{
 						label: "left window",
@@ -726,21 +911,24 @@ describe("saveDetectedElementsHandler", () => {
 
 		expect(result).toHaveLength(1);
 		expect(result[0]?.id).toBe("el-1");
-		expect(stub.chain.delete).toHaveBeenCalledTimes(1);
-		expect(stub.chain.insert).toHaveBeenCalledTimes(1);
-		const insertedRows = (stub.chain.insert as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[0] as Record<string, unknown>[];
-		expect(insertedRows[0]).toMatchObject({
-			owner_id: "user-1",
-			task_id: "11111111-1111-1111-1111-111111111111",
-			photo_id: "22222222-2222-2222-2222-222222222222",
-			project_id: "33333333-3333-3333-3333-333333333333",
-			status: "suggested",
-			label: "left window",
+		expect(stub.rpc).toHaveBeenCalledWith("replace_protected_elements", {
+			p_task_id: "11111111-1111-1111-1111-111111111111",
+			p_photo_id: "22222222-2222-2222-2222-222222222222",
+			p_elements: [
+				{
+					label: "left window",
+					kind: "window",
+					x: 0.1,
+					y: 0.2,
+					width: 0.2,
+					height: 0.3,
+					confidence: 0.9,
+				},
+			],
 		});
 	});
 
-	it("skips the insert when the elements array is empty", async () => {
+	it("still calls the RPC when the elements array is empty so stale rows are cleared", async () => {
 		const stub = buildSaveDetectedElementsStub({});
 
 		const result = await __saveDetectedElementsHandler({
@@ -749,19 +937,21 @@ describe("saveDetectedElementsHandler", () => {
 			input: {
 				taskId: "11111111-1111-1111-1111-111111111111",
 				photoId: "22222222-2222-2222-2222-222222222222",
-				projectId: "33333333-3333-3333-3333-333333333333",
 				elements: [],
 			},
 		});
 
 		expect(result).toEqual([]);
-		expect(stub.chain.delete).toHaveBeenCalledTimes(1);
-		expect(stub.chain.insert).not.toHaveBeenCalled();
+		expect(stub.rpc).toHaveBeenCalledWith("replace_protected_elements", {
+			p_task_id: "11111111-1111-1111-1111-111111111111",
+			p_photo_id: "22222222-2222-2222-2222-222222222222",
+			p_elements: [],
+		});
 	});
 
-	it("wraps supabase errors from the delete step", async () => {
+	it("wraps supabase errors from the replace RPC", async () => {
 		const stub = buildSaveDetectedElementsStub({
-			deleteResult: { error: { code: "42501", message: "rls" } },
+			rpcResult: { data: null, error: { code: "42501", message: "rls" } },
 		});
 
 		await expect(
@@ -771,7 +961,6 @@ describe("saveDetectedElementsHandler", () => {
 				input: {
 					taskId: "11111111-1111-1111-1111-111111111111",
 					photoId: "22222222-2222-2222-2222-222222222222",
-					projectId: "33333333-3333-3333-3333-333333333333",
 					elements: [
 						{
 							label: "x",
@@ -786,36 +975,6 @@ describe("saveDetectedElementsHandler", () => {
 				},
 			})
 		).rejects.toThrow("Not authorized");
-		expect(stub.chain.insert).not.toHaveBeenCalled();
-	});
-
-	it("wraps supabase errors from the insert step", async () => {
-		const stub = buildSaveDetectedElementsStub({
-			insertResult: { data: null, error: { code: "PGRST116", message: "x" } },
-		});
-
-		await expect(
-			__saveDetectedElementsHandler({
-				userId: "user-1",
-				supabase: stub.supabase,
-				input: {
-					taskId: "11111111-1111-1111-1111-111111111111",
-					photoId: "22222222-2222-2222-2222-222222222222",
-					projectId: "33333333-3333-3333-3333-333333333333",
-					elements: [
-						{
-							label: "x",
-							kind: "window",
-							x: 0,
-							y: 0,
-							width: 0.1,
-							height: 0.1,
-							confidence: null,
-						},
-					],
-				},
-			})
-		).rejects.toThrow("Not found");
 	});
 });
 

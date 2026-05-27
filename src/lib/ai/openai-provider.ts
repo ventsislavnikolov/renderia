@@ -10,7 +10,11 @@ import {
 	DEFAULT_TEXT_MODEL,
 	type ModelSelection,
 } from "./models";
-import { buildDesignPrompt, sanitizePromptField } from "./prompts";
+import {
+	buildDesignBriefMarkdown,
+	buildDesignPrompt,
+	sanitizePromptField,
+} from "./prompts";
 import type {
 	GeneratedImageResult,
 	ProviderDebug,
@@ -99,7 +103,7 @@ function resolveTextModel(selection: ModelSelection) {
 			return getMoonshotClient()(selection.model);
 		case "mock":
 			throw new Error(
-				"resolveTextModel called with provider=mock — wire mockRenovationProvider before dispatch."
+				"resolveTextModel called with provider=mock — wire mockRenovationProvider before dispatch.",
 			);
 		default: {
 			const exhaustive: never = selection.provider;
@@ -312,17 +316,11 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 	async createDesignBrief(input) {
 		const safeTaskTitle = sanitizePromptField(input.taskTitle);
 		const safeStyleRules = sanitizePromptField(input.styleRules);
-		const markdown = [
-			`# ${safeTaskTitle}`,
-			"",
-			`Style rules: ${safeStyleRules}`,
-			"",
-			"Preserved elements:",
-			...input.protectedElements.map(
-				(element) =>
-					`- ${sanitizePromptField(element.label)} (${sanitizePromptField(element.kind)})`
-			),
-		].join("\n");
+		const markdown = buildDesignBriefMarkdown({
+			taskTitle: safeTaskTitle,
+			styleRules: safeStyleRules,
+			protectedElements: input.protectedElements,
+		});
 		return {
 			value: {
 				markdown,
@@ -350,7 +348,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 					image: await toFile(
 						Buffer.from(input.sourceImage.base64, "base64"),
 						input.sourceImage.filename,
-						{ type: input.sourceImage.contentType }
+						{ type: input.sourceImage.contentType },
 					),
 					prompt: input.prompt,
 					n: input.count,
@@ -382,7 +380,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 						images: images.map((_, i) => ({ index: i })),
 					},
 					null,
-					2
+					2,
 				),
 				durationMs,
 			},

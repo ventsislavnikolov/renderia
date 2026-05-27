@@ -90,15 +90,15 @@ export type ProviderResult<T> = {
 
 export type RenovationAiProvider = {
 	suggestTasks(
-		input: SuggestTasksInput
+		input: SuggestTasksInput,
 	): Promise<ProviderResult<SuggestedTask[]>>;
 	detectProtectedElements(
-		input: DetectProtectedElementsInput
+		input: DetectProtectedElementsInput,
 	): Promise<ProviderResult<BoundingBox[]>>;
 	createDesignBrief(
-		input: CreateDesignBriefInput
+		input: CreateDesignBriefInput,
 	): Promise<ProviderResult<{ markdown: string; prompt: string }>>;
 	generateRenovationImages(
-		input: GenerateRenovationImagesInput
+		input: GenerateRenovationImagesInput,
 	): Promise<ProviderResult<GeneratedImageResult[]>>;
 };

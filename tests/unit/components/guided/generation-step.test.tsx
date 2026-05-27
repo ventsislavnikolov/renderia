@@ -110,7 +110,7 @@ describe("GenerationStep", () => {
 			);
 		});
 		expect(favBtn.getAttribute("aria-pressed")).toBe("true");
-		expect(favBtn.textContent).toMatch(/★ Favorite/);
+		expect(favBtn.textContent).toContain("Favorite");
 	});
 
 	it("exposes the generated prompt inside the debug details (non-production only)", async () => {

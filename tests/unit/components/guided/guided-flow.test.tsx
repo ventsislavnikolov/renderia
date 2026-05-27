@@ -146,6 +146,7 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 		brief: string;
 		prompt: string;
 		onBriefChange: (brief: string) => void;
+		onBriefIdChange: (briefId: string | null) => void;
 		onPromptChange: (prompt: string) => void;
 		onNext: () => void;
 	}) => (
@@ -156,6 +157,7 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 				type="button"
 				onClick={() => {
 					props.onBriefChange("# brief");
+					props.onBriefIdChange("brief-1");
 					props.onPromptChange("PRESERVE EXACTLY");
 				}}
 			>
@@ -177,6 +179,9 @@ vi.mock("../../../../src/components/guided/generation-step", () => ({
 	}) => (
 		<div data-testid="generation-step">
 			<span data-testid="generation-task-id">{props.taskId}</span>
+			<span data-testid="generation-brief-id">
+				{props.briefId ?? "null"}
+			</span>
 			<span data-testid="generation-brief">{props.brief}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
 		</div>
@@ -238,12 +243,15 @@ describe("GuidedFlow orchestrator", () => {
 		expect(screen.getByTestId("brief-value").textContent).toBe("# brief");
 		await user.click(screen.getByText("continue-to-generate"));
 		const generation = screen.getByTestId("generation-step");
-		expect(
-			within(generation).getByTestId("generation-brief").textContent,
-		).toBe("# brief");
-		expect(
-			within(generation).getByTestId("generation-prompt").textContent,
-		).toBe("PRESERVE EXACTLY");
+			expect(
+				within(generation).getByTestId("generation-brief").textContent,
+			).toBe("# brief");
+			expect(
+				within(generation).getByTestId("generation-brief-id").textContent,
+			).toBe("brief-1");
+			expect(
+				within(generation).getByTestId("generation-prompt").textContent,
+			).toBe("PRESERVE EXACTLY");
 	});
 
 	it("resets downstream state when a different photo is selected", async () => {

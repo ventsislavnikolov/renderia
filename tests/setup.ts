@@ -7,7 +7,23 @@
  * explicitly here once.
  */
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
+
+function stubBrowserEnv() {
+	vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
+	vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+}
+
+stubBrowserEnv();
+
+beforeEach(() => {
+	stubBrowserEnv();
+	Object.defineProperty(window, "scrollTo", {
+		configurable: true,
+		value: vi.fn(),
+		writable: true,
+	});
+});
 
 afterEach(() => {
 	cleanup();

@@ -382,7 +382,16 @@ export type Database = {
 			};
 		};
 		Views: Record<string, never>;
-		Functions: Record<string, never>;
+		Functions: {
+			replace_protected_elements: {
+				Args: {
+					p_task_id: string;
+					p_photo_id: string;
+					p_elements: Json;
+				};
+				Returns: Database["public"]["Tables"]["protected_elements"]["Row"][];
+			};
+		};
 		Enums: Record<string, never>;
 		CompositeTypes: Record<string, never>;
 	};

@@ -93,7 +93,7 @@ export function GenerationStep(props: {
 				return;
 			}
 			setError(
-				caught instanceof Error ? caught.message : "Failed to generate images"
+				caught instanceof Error ? caught.message : "Failed to generate images",
 			);
 		} finally {
 			if (!cancelledRef.current) setGenerating(false);
@@ -119,8 +119,8 @@ export function GenerationStep(props: {
 		setImages(
 			(prev) =>
 				prev?.map((entry) =>
-					entry.id === image.id ? { ...entry, isFavorite: nextValue } : entry
-				) ?? prev
+					entry.id === image.id ? { ...entry, isFavorite: nextValue } : entry,
+				) ?? prev,
 		);
 		try {
 			const headers = await getAuthHeaders();
@@ -140,11 +140,11 @@ export function GenerationStep(props: {
 					prev?.map((entry) =>
 						entry.id === image.id
 							? { ...entry, isFavorite: image.isFavorite }
-							: entry
-					) ?? prev
+							: entry,
+					) ?? prev,
 			);
 			setError(
-				caught instanceof Error ? caught.message : "Failed to update favorite"
+				caught instanceof Error ? caught.message : "Failed to update favorite",
 			);
 		}
 	}
@@ -218,7 +218,7 @@ export function GenerationStep(props: {
 				<div className="grid gap-6 md:grid-cols-2">
 					{images.map((image) => (
 						<article
-							className="grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
+							className="generation-card grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
 							key={image.id}
 						>
 							<img
@@ -234,7 +234,7 @@ export function GenerationStep(props: {
 									aria-pressed={image.isFavorite}
 									className={cn(
 										"gap-1.5",
-										image.isFavorite && "border-gold text-gold"
+										image.isFavorite && "border-gold text-gold",
 									)}
 									onClick={() => void toggleFavorite(image)}
 									size="sm"
@@ -244,7 +244,7 @@ export function GenerationStep(props: {
 									<Star
 										className={cn(
 											"size-3.5",
-											image.isFavorite && "fill-gold text-gold"
+											image.isFavorite && "fill-gold text-gold",
 										)}
 									/>
 									{image.isFavorite ? "Favorite" : "Mark favorite"}

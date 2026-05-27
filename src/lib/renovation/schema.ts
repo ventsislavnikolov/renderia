@@ -55,23 +55,27 @@ export type ListTasksInput = z.infer<typeof listTasksSchema>;
  * normalised to the 0..1 range relative to the photo so we can render the
  * same overlay across image sizes without re-running detection.
  */
-export const protectedElementSchema = z.object({
-	label: z.string().min(1).max(200),
-	kind: z.enum([
-		"window",
-		"door",
-		"stairs",
-		"ceiling_line",
-		"wall_edge",
-		"structure",
-		"other",
-	]),
-	x: z.number().min(0).max(1),
-	y: z.number().min(0).max(1),
-	width: z.number().min(0).max(1),
-	height: z.number().min(0).max(1),
-	confidence: z.number().optional(),
-});
+export const protectedElementSchema = z
+	.object({
+		label: z.string().min(1).max(200),
+		kind: z.enum([
+			"window",
+			"door",
+			"stairs",
+			"ceiling_line",
+			"wall_edge",
+			"structure",
+			"other",
+		]),
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+		width: z.number().gt(0).max(1),
+		height: z.number().gt(0).max(1),
+		confidence: z.number().optional(),
+	})
+	.refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, {
+		message: "Protected element box must fit inside image bounds",
+	});
 export type ProtectedElementInput = z.infer<typeof protectedElementSchema>;
 
 export const createPhotoSchema = z.object({
@@ -124,7 +128,8 @@ export const suggestTasksSchema = z.object({
 export type SuggestTasksInput = z.infer<typeof suggestTasksSchema>;
 
 export const detectProtectedElementsSchema = z.object({
-	photoUrl: z.string().url(),
+	photoId: z.string().uuid(),
+	taskId: z.string().uuid(),
 	taskTitle: z.string().min(1).max(200),
 	notes: z.string().max(4000).optional(),
 	model: modelSelectionSchema.optional(),
@@ -134,6 +139,7 @@ export type DetectProtectedElementsInput = z.infer<
 >;
 
 export const createDesignBriefSchema = z.object({
+	taskId: z.string().uuid(),
 	taskTitle: z.string().min(1).max(200),
 	styleRules: z.string().min(1).max(4000),
 	protectedElements: z.array(protectedElementSchema),
@@ -145,10 +151,8 @@ export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
  * Inputs for `generateRenovationImages` server fn.
  *
  * `count` is capped at 4 so a single request can't burn an unbounded number
- * of `gpt-image-2` generations. `briefId` is nullable because brief
- * persistence is not yet wired into the guided flow — once that lands,
- * callers can pass the persisted brief's id so the `generation_jobs` row
- * has a foreign-key trail back to the prompt source.
+ * of `gpt-image-2` generations. `briefId` is nullable for manually edited
+ * or legacy briefs that do not have a persisted `design_briefs` row yet.
  */
 export const generateRenovationImagesSchema = z.object({
 	taskId: z.string().uuid(),
@@ -181,29 +185,34 @@ export type SetImageFavoriteInput = z.infer<typeof setImageFavoriteSchema>;
  * This is the wire shape `saveDetectedElements` accepts and the basis for
  * each `protected_elements` row insert. Mirrors the column-level CHECKs in
  * `0001_initial_schema.sql`: width/height must be strictly positive,
- * coordinates fit in 0..1, confidence is nullable and bounded to 0..1.
+ * coordinates and dimensions fit inside 0..1, confidence is nullable and
+ * bounded to 0..1.
  *
  * Distinct from `protectedElementSchema` above (which is keyed `confidence:
  * optional`) because we want `null` to be an explicit "unknown" signal at
  * persistence time, not "field absent". The DB column is nullable too.
  */
-export const detectedProtectedElementSchema = z.object({
-	label: z.string().min(1).max(120),
-	kind: z.enum([
-		"window",
-		"door",
-		"stairs",
-		"ceiling_line",
-		"wall_edge",
-		"structure",
-		"other",
-	]),
-	x: z.number().min(0).max(1),
-	y: z.number().min(0).max(1),
-	width: z.number().min(0).max(1),
-	height: z.number().min(0).max(1),
-	confidence: z.number().min(0).max(1).nullable(),
-});
+export const detectedProtectedElementSchema = z
+	.object({
+		label: z.string().min(1).max(120),
+		kind: z.enum([
+			"window",
+			"door",
+			"stairs",
+			"ceiling_line",
+			"wall_edge",
+			"structure",
+			"other",
+		]),
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+		width: z.number().gt(0).max(1),
+		height: z.number().gt(0).max(1),
+		confidence: z.number().min(0).max(1).nullable(),
+	})
+	.refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, {
+		message: "Detected protected element box must fit inside image bounds",
+	});
 export type DetectedProtectedElementInput = z.infer<
 	typeof detectedProtectedElementSchema
 >;
@@ -223,14 +232,13 @@ export type ListProtectedElementsInput = z.infer<
 >;
 
 /**
- * Inputs for `saveDetectedElements`. The handler deletes all existing
- * protected elements for the (task, photo, owner) tuple before inserting
- * the new set, so a re-detect cleanly replaces stale results.
+ * Inputs for `saveDetectedElements`. The database derives `project_id` from
+ * the owned task/photo pair inside an atomic RPC, so the client never sends
+ * ownership-critical parent ids.
  */
 export const saveDetectedElementsSchema = z.object({
 	taskId: z.string().uuid(),
 	photoId: z.string().uuid(),
-	projectId: z.string().uuid(),
 	elements: z.array(detectedProtectedElementSchema),
 });
 export type SaveDetectedElementsInput = z.infer<

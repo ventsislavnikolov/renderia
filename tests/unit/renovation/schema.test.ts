@@ -4,6 +4,7 @@ import {
 	createPhotoSchema,
 	createProjectSchema,
 	createTaskSchema,
+	detectedProtectedElementSchema,
 	detectProtectedElementsSchema,
 	protectedElementSchema,
 	suggestTasksSchema,
@@ -106,6 +107,43 @@ describe("renovation schemas", () => {
 		expect(bad.success).toBe(false);
 	});
 
+	it("rejects zero-size protected element boxes", () => {
+		const bad = protectedElementSchema.safeParse({
+			label: "window",
+			kind: "window",
+			x: 0,
+			y: 0,
+			width: 0,
+			height: 0.1,
+		});
+		expect(bad.success).toBe(false);
+	});
+
+	it("rejects protected element boxes that overflow the image bounds", () => {
+		const bad = protectedElementSchema.safeParse({
+			label: "window",
+			kind: "window",
+			x: 0.8,
+			y: 0.75,
+			width: 0.25,
+			height: 0.3,
+		});
+		expect(bad.success).toBe(false);
+	});
+
+	it("rejects persisted detection boxes that overflow the image bounds", () => {
+		const bad = detectedProtectedElementSchema.safeParse({
+			label: "window",
+			kind: "window",
+			x: 0.8,
+			y: 0.75,
+			width: 0.25,
+			height: 0.3,
+			confidence: null,
+		});
+		expect(bad.success).toBe(false);
+	});
+
 	it("defaults suggestTasks projectNotes to empty string", () => {
 		const parsed = suggestTasksSchema.parse({
 			projectId: "11111111-1111-4111-8111-111111111111",
@@ -113,16 +151,18 @@ describe("renovation schemas", () => {
 		expect(parsed.projectNotes).toBe("");
 	});
 
-	it("requires a URL for detect photoUrl", () => {
+	it("requires owned row ids for protected element detection", () => {
 		expect(
 			detectProtectedElementsSchema.safeParse({
-				photoUrl: "not a url",
+				photoId: "not-a-uuid",
+				taskId: "22222222-2222-4222-8222-222222222222",
 				taskTitle: "kitchen",
 			}).success,
 		).toBe(false);
 		expect(
 			detectProtectedElementsSchema.safeParse({
-				photoUrl: "https://example/p",
+				photoId: "11111111-1111-4111-8111-111111111111",
+				taskId: "22222222-2222-4222-8222-222222222222",
 				taskTitle: "kitchen",
 			}).success,
 		).toBe(true);
@@ -131,8 +171,19 @@ describe("renovation schemas", () => {
 	it("requires non-empty styleRules for design brief", () => {
 		expect(
 			createDesignBriefSchema.safeParse({
+				taskId: "11111111-1111-1111-1111-111111111111",
 				taskTitle: "t",
 				styleRules: "",
+				protectedElements: [],
+			}).success,
+		).toBe(false);
+	});
+
+	it("requires a task id for persisted design briefs", () => {
+		expect(
+			createDesignBriefSchema.safeParse({
+				taskTitle: "t",
+				styleRules: "Scandinavian",
 				protectedElements: [],
 			}).success,
 		).toBe(false);

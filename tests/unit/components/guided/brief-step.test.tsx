@@ -90,10 +90,12 @@ describe("BriefStep", () => {
 		render(
 			<BriefStep
 				taskTitle="ceiling"
+				taskId="task-1"
 				protectedElements={sampleElements}
 				brief=""
 				prompt=""
 				onBriefChange={vi.fn()}
+				onBriefIdChange={vi.fn()}
 				onPromptChange={vi.fn()}
 				onNext={vi.fn()}
 			/>,
@@ -107,19 +109,24 @@ describe("BriefStep", () => {
 	it("invokes the createDesignBrief server fn and forwards markdown + prompt to the parent", async () => {
 		const user = userEvent.setup();
 		createDesignBriefMock.mockResolvedValue({
+			id: "brief-1",
 			markdown: "# Generated brief",
 			prompt: "PRESERVE EXACTLY left window",
+			version: 1,
 		});
 		const onBriefChange = vi.fn();
+		const onBriefIdChange = vi.fn();
 		const onPromptChange = vi.fn();
 
 		render(
 			<BriefStep
 				taskTitle="ceiling"
+				taskId="task-1"
 				protectedElements={sampleElements}
 				brief=""
 				prompt=""
 				onBriefChange={onBriefChange}
+				onBriefIdChange={onBriefIdChange}
 				onPromptChange={onPromptChange}
 				onNext={vi.fn()}
 			/>,
@@ -130,11 +137,13 @@ describe("BriefStep", () => {
 			expect(createDesignBriefMock).toHaveBeenCalledTimes(1),
 		);
 		expect(onBriefChange).toHaveBeenCalledWith("# Generated brief");
+		expect(onBriefIdChange).toHaveBeenCalledWith("brief-1");
 		expect(onPromptChange).toHaveBeenCalledWith("PRESERVE EXACTLY left window");
 		const call = createDesignBriefMock.mock.calls[0]?.[0] as {
-			data: { taskTitle: string; protectedElements: unknown[] };
+			data: { taskId: string; taskTitle: string; protectedElements: unknown[] };
 			headers: { Authorization: string };
 		};
+		expect(call.data.taskId).toBe("task-1");
 		expect(call.data.taskTitle).toBe("ceiling");
 		expect(call.data.protectedElements).toEqual(sampleElements);
 		expect(call.headers.Authorization).toBe("Bearer test-token");
@@ -152,6 +161,7 @@ describe("BriefStep", () => {
 			return (
 				<BriefStep
 					taskTitle="ceiling"
+					taskId="task-1"
 					protectedElements={sampleElements}
 					brief={brief}
 					prompt=""
@@ -159,6 +169,7 @@ describe("BriefStep", () => {
 						onBriefChange(next);
 						setBrief(next);
 					}}
+					onBriefIdChange={vi.fn()}
 					onPromptChange={vi.fn()}
 					onNext={vi.fn()}
 				/>
@@ -183,10 +194,12 @@ describe("BriefStep", () => {
 		render(
 			<BriefStep
 				taskTitle="ceiling"
+				taskId="task-1"
 				protectedElements={sampleElements}
 				brief="# brief"
 				prompt=""
 				onBriefChange={vi.fn()}
+				onBriefIdChange={vi.fn()}
 				onPromptChange={vi.fn()}
 				onNext={onNext}
 			/>,
@@ -206,10 +219,12 @@ describe("BriefStep", () => {
 		render(
 			<BriefStep
 				taskTitle="ceiling"
+				taskId="task-1"
 				protectedElements={sampleElements}
 				brief=""
 				prompt=""
 				onBriefChange={vi.fn()}
+				onBriefIdChange={vi.fn()}
 				onPromptChange={vi.fn()}
 				onNext={vi.fn()}
 			/>,
@@ -226,10 +241,12 @@ describe("BriefStep", () => {
 		render(
 			<BriefStep
 				taskTitle="ceiling"
+				taskId="task-1"
 				protectedElements={sampleElements}
 				brief=""
 				prompt=""
 				onBriefChange={vi.fn()}
+				onBriefIdChange={vi.fn()}
 				onPromptChange={vi.fn()}
 				onNext={vi.fn()}
 			/>,

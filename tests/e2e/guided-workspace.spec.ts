@@ -110,8 +110,10 @@ const FAKE_DETECTION = [
 ];
 
 const FAKE_BRIEF = {
+	id: "33333333-3333-3333-3333-333333333333",
 	markdown: "# Demo Task brief\n\nPreserve protected elements and apply style.",
 	prompt: "PRESERVE EXACTLY main window, ceiling beam. Apply requested style.",
+	version: 1,
 };
 
 const FAKE_GENERATION = {
@@ -630,7 +632,7 @@ test.describe("guided renovation workspace", () => {
 		const favBtn = firstCard.getByRole("button");
 		await favBtn.click();
 		await expect(favBtn).toHaveAttribute("aria-pressed", "true");
-		await expect(favBtn).toContainText(/★ Favorite/);
+		await expect(favBtn).toContainText(/Favorite/);
 	});
 
 	test("unauthenticated user is redirected to /auth", async ({

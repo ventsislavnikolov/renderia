@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import {
+	type CreateProjectFromPromptInput,
 	type CreateProjectInput,
+	createProjectFromPromptSchema,
 	createProjectSchema,
 	type GetProjectInput,
 	getProjectSchema,
@@ -62,6 +64,56 @@ export async function __createProjectHandler(args: {
 	return data;
 }
 
+function projectNameFromPrompt(prompt: string): string {
+	const firstLine = prompt.trim().split(/\r?\n/)[0] ?? prompt.trim();
+	const firstSentence =
+		firstLine.match(/^(.+?[.!?])(?:\s|$)/)?.[1] ?? firstLine;
+	return (
+		firstSentence
+			.replace(/[.!?]+$/, "")
+			.slice(0, 80)
+			.trim() || "New project"
+	);
+}
+
+/** @internal */
+export async function __createProjectFromPromptHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: CreateProjectFromPromptInput;
+}) {
+	const prompt = args.input.prompt.trim();
+	const projectInsert = await args.supabase
+		.from("projects")
+		.insert({
+			owner_id: args.userId,
+			name: projectNameFromPrompt(prompt),
+			description: prompt,
+		})
+		.select()
+		.single();
+
+	if (projectInsert.error) throw wrapSupabaseError(projectInsert.error);
+
+	const projectId = String(projectInsert.data.id);
+	const taskInsert = await args.supabase
+		.from("renovation_tasks")
+		.insert({
+			owner_id: args.userId,
+			project_id: projectId,
+			title: prompt,
+			category: "general",
+			notes: prompt,
+			status: "active",
+		})
+		.select()
+		.single();
+
+	if (taskInsert.error) throw wrapSupabaseError(taskInsert.error);
+
+	return { projectId, taskId: String(taskInsert.data.id) };
+}
+
 /** @internal */
 export async function __getProjectHandler(args: {
 	userId: string;
@@ -95,6 +147,13 @@ export const createProject = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createProjectHandler({ userId, supabase, input: data });
+	});
+
+export const createProjectFromPrompt = createServerFn({ method: "POST" })
+	.inputValidator(createProjectFromPromptSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __createProjectFromPromptHandler({ userId, supabase, input: data });
 	});
 
 export const getProject = createServerFn({ method: "GET" })

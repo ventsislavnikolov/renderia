@@ -45,6 +45,14 @@ export default defineConfig({
 	// every run so we never test stale output.
 	webServer: {
 		command: "pnpm build && pnpm preview",
+		env: {
+			AI_PROVIDER: "mock",
+			SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+			SUPABASE_SECRET_KEY: "test-secret-key",
+			SUPABASE_URL: "https://ittpjznlewuwiyuhrddu.supabase.co",
+			VITE_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+			VITE_SUPABASE_URL: "https://ittpjznlewuwiyuhrddu.supabase.co",
+		},
 		url: "http://localhost:3000",
 		reuseExistingServer: !process.env.CI,
 		timeout: 300_000,

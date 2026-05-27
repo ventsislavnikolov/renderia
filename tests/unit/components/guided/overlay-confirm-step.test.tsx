@@ -216,17 +216,12 @@ describe("OverlayConfirmStep", () => {
 		expect(storageFromMock).toHaveBeenCalledWith("source-photos");
 	});
 
-	it("mints a fresh signed URL per detection (HIGH-1 fix, not the cached one)", async () => {
+	it("passes photo and task ids to detection instead of a client-minted URL", async () => {
 		const user = userEvent.setup();
-		createSignedUrlMock
-			.mockResolvedValueOnce({
-				data: { signedUrl: "https://signed/first.png" },
-				error: null,
-			})
-			.mockResolvedValueOnce({
-				data: { signedUrl: "https://signed/second.png" },
-				error: null,
-			});
+		createSignedUrlMock.mockResolvedValue({
+			data: { signedUrl: "https://signed/first.png" },
+			error: null,
+		});
 		detectProtectedElementsMock.mockResolvedValue(sampleBoxes);
 
 		render(
@@ -248,13 +243,14 @@ describe("OverlayConfirmStep", () => {
 		await waitFor(() =>
 			expect(detectProtectedElementsMock).toHaveBeenCalledTimes(1),
 		);
-		// First signed URL was minted on mount (for the <img>), second on the
-		// detection click. The detection call must see the SECOND, fresh URL.
-		expect(createSignedUrlMock).toHaveBeenCalledTimes(2);
+		// The only client-side signed URL is for the preview image. The detection
+		// server fn receives ids and mints its own URL after authenticating.
+		expect(createSignedUrlMock).toHaveBeenCalledTimes(1);
 		const detectCall = detectProtectedElementsMock.mock.calls[0]?.[0] as {
-			data: { photoUrl: string };
+			data: { photoId: string; taskId: string; photoUrl?: string };
 		};
-		expect(detectCall.data.photoUrl).toBe("https://signed/second.png");
+		expect(detectCall.data).toMatchObject({ photoId: "ph-1", taskId: "t1" });
+		expect(detectCall.data.photoUrl).toBeUndefined();
 	});
 
 	it("renders detected boxes with toggle-able selection and confirms the selected subset", async () => {
@@ -550,7 +546,6 @@ describe("OverlayConfirmStep", () => {
 					data: expect.objectContaining({
 						taskId: "t1",
 						photoId: "ph-1",
-						projectId: "p1",
 						elements: expect.arrayContaining([
 							expect.objectContaining({ label: "left window" }),
 						]),

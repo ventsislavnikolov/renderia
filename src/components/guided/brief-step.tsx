@@ -26,11 +26,13 @@ const BRIEF_MAX = 8000;
  * an explicit re-generate, so the user's edits aren't blown away.
  */
 export function BriefStep(props: {
+	taskId: string;
 	taskTitle: string;
 	protectedElements: BoundingBox[];
 	brief: string;
 	prompt: string;
 	onBriefChange: (brief: string) => void;
+	onBriefIdChange: (briefId: string | null) => void;
 	onPromptChange: (prompt: string) => void;
 	onNext: () => void;
 }) {
@@ -56,15 +58,21 @@ export function BriefStep(props: {
 			const headers = await getAuthHeaders();
 			const response = (await createDesignBrief({
 				data: {
+					taskId: props.taskId,
 					taskTitle: props.taskTitle,
 					styleRules: styleRules.slice(0, STYLE_RULES_MAX),
 					protectedElements: props.protectedElements,
 				},
 				headers,
 			})) as
-				| { markdown: string; prompt: string }
+				| { id?: string; markdown: string; prompt: string; version?: number }
 				| {
-						data: { markdown: string; prompt: string };
+						data: {
+							id?: string;
+							markdown: string;
+							prompt: string;
+							version?: number;
+						};
 						debug?: ProviderDebug;
 				  };
 			if (cancelledRef.current) return;
@@ -73,10 +81,16 @@ export function BriefStep(props: {
 			const payload =
 				"data" in response && response.data
 					? response.data
-					: (response as { markdown: string; prompt: string });
+					: (response as {
+							id?: string;
+							markdown: string;
+							prompt: string;
+							version?: number;
+						});
 			const responseDebug: ProviderDebug | undefined =
 				"debug" in response ? response.debug : undefined;
 			props.onBriefChange(payload.markdown);
+			props.onBriefIdChange(payload.id ?? null);
 			props.onPromptChange(payload.prompt);
 			setDebug(responseDebug ?? null);
 		} catch (caught) {
@@ -146,9 +160,10 @@ export function BriefStep(props: {
 					<textarea
 						id="brief-markdown"
 						value={briefValue}
-						onChange={(event) =>
-							props.onBriefChange(event.target.value.slice(0, BRIEF_MAX))
-						}
+						onChange={(event) => {
+							props.onBriefChange(event.target.value.slice(0, BRIEF_MAX));
+							props.onBriefIdChange(null);
+						}}
 						maxLength={BRIEF_MAX}
 						rows={14}
 					/>

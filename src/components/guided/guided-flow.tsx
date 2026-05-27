@@ -26,9 +26,10 @@ const STEP_LABELS: Record<StepId, string> = {
 /**
  * Orchestrates the 4-step guided renovation workspace.
  *
- * State is kept entirely in this component — no router search params, no
- * server persistence. Each child step is autonomous: it owns its own data
- * lifecycle and only calls `setStep` to advance the parent.
+ * Transient flow state is kept in this component — no router search params.
+ * Child steps own their data lifecycle and only call `setStep` to advance the
+ * parent. Persisted rows, such as generated briefs, are passed through by id
+ * so downstream server functions can keep a traceable foreign-key chain.
  *
  * The stepper exposes manual navigation but disables steps whose prerequisite
  * data isn't ready so the user can't render a half-wired child.
@@ -42,6 +43,7 @@ export function GuidedFlow(props: {
 	const [photo, setPhoto] = useState<PhotoRow | null>(null);
 	const [protectedElements, setProtectedElements] = useState<BoundingBox[]>([]);
 	const [brief, setBrief] = useState("");
+	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
 
 	const reached: Record<StepId, boolean> = {
@@ -63,6 +65,7 @@ export function GuidedFlow(props: {
 		if (photo?.id !== row.id) {
 			setProtectedElements([]);
 			setBrief("");
+			setBriefId(null);
 			setPrompt("");
 		}
 		setStep("overlay");
@@ -71,6 +74,11 @@ export function GuidedFlow(props: {
 	function handleElementsConfirmed(elements: BoundingBox[]) {
 		setProtectedElements(elements);
 		setStep("brief");
+	}
+
+	function handleBriefChange(nextBrief: string) {
+		setBrief(nextBrief);
+		setBriefId(null);
 	}
 
 	return (
@@ -96,7 +104,7 @@ export function GuidedFlow(props: {
 								isCurrent && [
 									"text-foreground",
 									"after:absolute after:right-5 after:bottom-[-1px] after:left-5 after:h-0.5 after:bg-foreground after:content-['']",
-								]
+								],
 							)}
 							disabled={!isReachable}
 							key={id}
@@ -106,7 +114,7 @@ export function GuidedFlow(props: {
 							<span
 								className={cn(
 									"font-display font-medium text-[0.8125rem] tracking-[0.02em] [font-feature-settings:'tnum'] [font-variation-settings:'opsz'_9]",
-									isCurrent ? "text-foreground" : "text-ink-subtle"
+									isCurrent ? "text-foreground" : "text-ink-subtle",
 								)}
 							>
 								{String(index + 1).padStart(2, "0")}
@@ -115,7 +123,7 @@ export function GuidedFlow(props: {
 								aria-hidden="true"
 								className={cn(
 									"font-display text-[0.8125rem]",
-									isCurrent ? "text-foreground" : "text-ink-subtle opacity-60"
+									isCurrent ? "text-foreground" : "text-ink-subtle opacity-60",
 								)}
 							>
 								/
@@ -123,7 +131,7 @@ export function GuidedFlow(props: {
 							<span
 								className={cn(
 									"font-body text-[0.9375rem] tracking-tight",
-									isCurrent ? "font-semibold" : "font-medium"
+									isCurrent ? "font-semibold" : "font-medium",
 								)}
 							>
 								{STEP_LABELS[id]}
@@ -155,11 +163,13 @@ export function GuidedFlow(props: {
 			{step === "brief" && photo ? (
 				<BriefStep
 					brief={brief}
-					onBriefChange={setBrief}
+					onBriefChange={handleBriefChange}
+					onBriefIdChange={setBriefId}
 					onNext={() => setStep("generate")}
 					onPromptChange={setPrompt}
 					prompt={prompt}
 					protectedElements={protectedElements}
+					taskId={props.taskId}
 					taskTitle={props.taskTitle}
 				/>
 			) : null}
@@ -167,7 +177,7 @@ export function GuidedFlow(props: {
 			{step === "generate" ? (
 				<GenerationStep
 					brief={brief}
-					briefId={null}
+					briefId={briefId}
 					photoId={photo?.id ?? null}
 					prompt={prompt}
 					taskId={props.taskId}
