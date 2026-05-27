@@ -1,4 +1,3 @@
-import { render, screen } from "@testing-library/react";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -7,6 +6,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../src/components/layout/sidebar", () => ({
@@ -53,7 +53,7 @@ describe("AppShell", () => {
 	it("renders the brand link and child content", async () => {
 		renderShell({ children: <p>child-content</p> });
 		expect(
-			await screen.findByRole("link", { name: /renderia/i }),
+			await screen.findByRole("link", { name: /renderia/i })
 		).toBeDefined();
 		expect(await screen.findByText("child-content")).toBeDefined();
 	});
@@ -64,7 +64,7 @@ describe("AppShell", () => {
 			children: <p>body</p>,
 		});
 		expect(
-			await screen.findByRole("navigation", { name: /breadcrumb/i }),
+			await screen.findByRole("navigation", { name: /breadcrumb/i })
 		).toBeDefined();
 		expect(await screen.findByText("crumb-content")).toBeDefined();
 	});

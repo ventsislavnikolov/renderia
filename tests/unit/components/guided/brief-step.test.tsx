@@ -28,20 +28,23 @@ vi.mock("streamdown", () => ({
 		// rather than silently rendering `[object Object]`.
 		if (typeof props.children !== "string") {
 			throw new Error(
-				`Streamdown shim expected a string child but received ${typeof props.children}`,
+				`Streamdown shim expected a string child but received ${typeof props.children}`
 			);
 		}
 		return <div data-testid="streamdown-preview">{props.children}</div>;
 	},
 }));
 
-const { createDesignBriefMock, getAuthHeadersMock } = vi.hoisted(() => ({
-	createDesignBriefMock: vi.fn(),
-	getAuthHeadersMock: vi.fn(),
-}));
+const { createDesignBriefMock, getAuthHeadersMock, saveDesignBriefMock } =
+	vi.hoisted(() => ({
+		createDesignBriefMock: vi.fn(),
+		getAuthHeadersMock: vi.fn(),
+		saveDesignBriefMock: vi.fn(),
+	}));
 
 vi.mock("../../../../src/server/generation", () => ({
 	createDesignBrief: (...args: unknown[]) => createDesignBriefMock(...args),
+	saveDesignBrief: (...args: unknown[]) => saveDesignBriefMock(...args),
 }));
 
 vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
@@ -66,6 +69,7 @@ const originalLocation = window.location;
 
 beforeEach(() => {
 	createDesignBriefMock.mockReset();
+	saveDesignBriefMock.mockReset();
 	getAuthHeadersMock
 		.mockReset()
 		.mockResolvedValue({ Authorization: "Bearer test-token" });
@@ -86,19 +90,46 @@ afterEach(() => {
 });
 
 describe("BriefStep", () => {
+	it("renders styled layout hooks instead of removed legacy classes", () => {
+		render(
+			<BriefStep
+				brief=""
+				onBriefChange={vi.fn()}
+				onBriefIdChange={vi.fn()}
+				onNext={vi.fn()}
+				onPromptChange={vi.fn()}
+				prompt=""
+				protectedElements={sampleElements}
+				taskId="task-1"
+				taskTitle="ceiling"
+			/>
+		);
+
+		const step =
+			screen.getByLabelText(/Brief preview/i).parentElement?.parentElement;
+		expect(step?.className).toContain("border-border");
+		expect(step?.className).not.toContain("guided-step");
+		expect(screen.getByLabelText("Brief markdown").className).toContain(
+			"min-h"
+		);
+		expect(
+			screen.getByRole("button", { name: /generate brief/i }).className
+		).not.toBe("");
+	});
+
 	it("renders a fallback brief preview when no brief is set", () => {
 		render(
 			<BriefStep
-				taskTitle="ceiling"
-				taskId="task-1"
-				protectedElements={sampleElements}
 				brief=""
-				prompt=""
 				onBriefChange={vi.fn()}
 				onBriefIdChange={vi.fn()}
-				onPromptChange={vi.fn()}
 				onNext={vi.fn()}
-			/>,
+				onPromptChange={vi.fn()}
+				prompt=""
+				protectedElements={sampleElements}
+				taskId="task-1"
+				taskTitle="ceiling"
+			/>
 		);
 		// The deferred preview shows the fallback derived from element count.
 		const preview = screen.getByTestId("streamdown-preview");
@@ -120,22 +151,20 @@ describe("BriefStep", () => {
 
 		render(
 			<BriefStep
-				taskTitle="ceiling"
-				taskId="task-1"
-				protectedElements={sampleElements}
 				brief=""
-				prompt=""
 				onBriefChange={onBriefChange}
 				onBriefIdChange={onBriefIdChange}
-				onPromptChange={onPromptChange}
 				onNext={vi.fn()}
-			/>,
+				onPromptChange={onPromptChange}
+				prompt=""
+				protectedElements={sampleElements}
+				taskId="task-1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await user.click(screen.getByRole("button", { name: /generate brief/i }));
-		await waitFor(() =>
-			expect(createDesignBriefMock).toHaveBeenCalledTimes(1),
-		);
+		await waitFor(() => expect(createDesignBriefMock).toHaveBeenCalledTimes(1));
 		expect(onBriefChange).toHaveBeenCalledWith("# Generated brief");
 		expect(onBriefIdChange).toHaveBeenCalledWith("brief-1");
 		expect(onPromptChange).toHaveBeenCalledWith("PRESERVE EXACTLY left window");
@@ -160,18 +189,18 @@ describe("BriefStep", () => {
 			const [brief, setBrief] = useState("# initial");
 			return (
 				<BriefStep
-					taskTitle="ceiling"
-					taskId="task-1"
-					protectedElements={sampleElements}
 					brief={brief}
-					prompt=""
 					onBriefChange={(next) => {
 						onBriefChange(next);
 						setBrief(next);
 					}}
 					onBriefIdChange={vi.fn()}
-					onPromptChange={vi.fn()}
 					onNext={vi.fn()}
+					onPromptChange={vi.fn()}
+					prompt=""
+					protectedElements={sampleElements}
+					taskId="task-1"
+					taskTitle="ceiling"
 				/>
 			);
 		}
@@ -179,7 +208,7 @@ describe("BriefStep", () => {
 		render(<ControlledHost />);
 
 		const textarea = screen.getByLabelText(
-			"Brief markdown",
+			"Brief markdown"
 		) as HTMLTextAreaElement;
 		await user.type(textarea, "!");
 		// The handler ran with the original brief + the typed character.
@@ -190,24 +219,45 @@ describe("BriefStep", () => {
 	it("advances to the next step on Continue", async () => {
 		const user = userEvent.setup();
 		const onNext = vi.fn();
+		const onBriefIdChange = vi.fn();
+		const onPromptChange = vi.fn();
+		saveDesignBriefMock.mockResolvedValue({
+			id: "saved-brief-1",
+			markdown: "# brief",
+			prompt: "rebuilt prompt",
+			version: 1,
+		});
 
 		render(
 			<BriefStep
-				taskTitle="ceiling"
-				taskId="task-1"
-				protectedElements={sampleElements}
 				brief="# brief"
-				prompt=""
 				onBriefChange={vi.fn()}
-				onBriefIdChange={vi.fn()}
-				onPromptChange={vi.fn()}
+				onBriefIdChange={onBriefIdChange}
 				onNext={onNext}
-			/>,
+				onPromptChange={onPromptChange}
+				prompt=""
+				protectedElements={sampleElements}
+				taskId="task-1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await user.click(
-			screen.getByRole("button", { name: /continue to generation/i }),
+			screen.getByRole("button", { name: /continue to generation/i })
 		);
+		await waitFor(() => expect(saveDesignBriefMock).toHaveBeenCalledTimes(1));
+		expect(saveDesignBriefMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					markdown: "# brief",
+					styleRules:
+						"Scandinavian renovation style with warm neutral palette.",
+					protectedElements: sampleElements,
+				}),
+			})
+		);
+		expect(onBriefIdChange).toHaveBeenCalledWith("saved-brief-1");
+		expect(onPromptChange).toHaveBeenCalledWith("rebuilt prompt");
 		expect(onNext).toHaveBeenCalledTimes(1);
 	});
 
@@ -218,16 +268,16 @@ describe("BriefStep", () => {
 
 		render(
 			<BriefStep
-				taskTitle="ceiling"
-				taskId="task-1"
-				protectedElements={sampleElements}
 				brief=""
-				prompt=""
 				onBriefChange={vi.fn()}
 				onBriefIdChange={vi.fn()}
-				onPromptChange={vi.fn()}
 				onNext={vi.fn()}
-			/>,
+				onPromptChange={vi.fn()}
+				prompt=""
+				protectedElements={sampleElements}
+				taskId="task-1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await user.click(screen.getByRole("button", { name: /generate brief/i }));
@@ -240,16 +290,16 @@ describe("BriefStep", () => {
 
 		render(
 			<BriefStep
-				taskTitle="ceiling"
-				taskId="task-1"
-				protectedElements={sampleElements}
 				brief=""
-				prompt=""
 				onBriefChange={vi.fn()}
 				onBriefIdChange={vi.fn()}
-				onPromptChange={vi.fn()}
 				onNext={vi.fn()}
-			/>,
+				onPromptChange={vi.fn()}
+				prompt=""
+				protectedElements={sampleElements}
+				taskId="task-1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await user.click(screen.getByRole("button", { name: /generate brief/i }));

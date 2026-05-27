@@ -50,7 +50,7 @@ export function Sidebar() {
 					return;
 				}
 				setLoadError(
-					error instanceof Error ? error.message : "Failed to load projects",
+					error instanceof Error ? error.message : "Failed to load projects"
 				);
 				setProjects([]);
 			}
@@ -79,7 +79,7 @@ export function Sidebar() {
 				"flex flex-col overflow-hidden bg-surface",
 				"border-border border-b md:sticky md:top-0 md:h-screen md:border-r md:border-b-0",
 				"px-3 pt-4 pb-3 md:max-h-none",
-				"max-md:max-h-[50vh]",
+				"max-md:max-h-[50vh]"
 			)}
 		>
 			<div className="px-3 pt-2 pb-4">
@@ -163,7 +163,7 @@ function SidebarLink(props: {
 	const baseClass = cn(
 		"flex items-center gap-3 rounded-md px-3 py-2",
 		"font-body font-medium text-[0.9375rem] text-foreground tracking-tight",
-		"transition-colors hover:bg-background",
+		"transition-colors hover:bg-background"
 	);
 	return (
 		<Link
@@ -171,7 +171,7 @@ function SidebarLink(props: {
 			activeProps={{
 				className: cn(
 					baseClass,
-					"bg-primary text-primary-foreground hover:bg-primary",
+					"bg-primary text-primary-foreground hover:bg-primary"
 				),
 			}}
 			className={baseClass}
@@ -231,7 +231,7 @@ function SidebarProjectEntry(props: {
 		"flex items-center gap-2.5 rounded-md px-3 py-1.5",
 		"font-body font-medium text-foreground text-sm tracking-tight",
 		"transition-colors hover:bg-background",
-		isActive && "bg-background font-semibold",
+		isActive && "bg-background font-semibold"
 	);
 
 	return (
@@ -254,7 +254,7 @@ function SidebarProjectEntry(props: {
 									"font-body font-medium text-[0.8125rem] text-ink-muted tracking-tight",
 									"transition-colors hover:bg-background hover:text-foreground",
 									task.id === props.activeTaskId &&
-										"bg-background font-semibold text-foreground",
+										"bg-background font-semibold text-foreground"
 								)}
 								params={{
 									projectId: props.project.id,

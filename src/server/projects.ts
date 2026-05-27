@@ -139,7 +139,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(
 	async () => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listProjectsHandler({ userId, supabase });
-	},
+	}
 );
 
 export const createProject = createServerFn({ method: "POST" })

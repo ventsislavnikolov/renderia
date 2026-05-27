@@ -104,7 +104,7 @@ export function GuidedFlow(props: {
 								isCurrent && [
 									"text-foreground",
 									"after:absolute after:right-5 after:bottom-[-1px] after:left-5 after:h-0.5 after:bg-foreground after:content-['']",
-								],
+								]
 							)}
 							disabled={!isReachable}
 							key={id}
@@ -114,7 +114,7 @@ export function GuidedFlow(props: {
 							<span
 								className={cn(
 									"font-display font-medium text-[0.8125rem] tracking-[0.02em] [font-feature-settings:'tnum'] [font-variation-settings:'opsz'_9]",
-									isCurrent ? "text-foreground" : "text-ink-subtle",
+									isCurrent ? "text-foreground" : "text-ink-subtle"
 								)}
 							>
 								{String(index + 1).padStart(2, "0")}
@@ -123,7 +123,7 @@ export function GuidedFlow(props: {
 								aria-hidden="true"
 								className={cn(
 									"font-display text-[0.8125rem]",
-									isCurrent ? "text-foreground" : "text-ink-subtle opacity-60",
+									isCurrent ? "text-foreground" : "text-ink-subtle opacity-60"
 								)}
 							>
 								/
@@ -131,7 +131,7 @@ export function GuidedFlow(props: {
 							<span
 								className={cn(
 									"font-body text-[0.9375rem] tracking-tight",
-									isCurrent ? "font-semibold" : "font-medium",
+									isCurrent ? "font-semibold" : "font-medium"
 								)}
 							>
 								{STEP_LABELS[id]}
