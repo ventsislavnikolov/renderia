@@ -5,11 +5,11 @@ import type { Database } from "../types/database";
 export const supabaseBrowser = createClient<Database>(
 	requireEnv(
 		import.meta.env as Record<string, string | undefined>,
-		"VITE_SUPABASE_URL",
+		"VITE_SUPABASE_URL"
 	),
 	requireEnv(
 		import.meta.env as Record<string, string | undefined>,
-		"VITE_SUPABASE_PUBLISHABLE_KEY",
+		"VITE_SUPABASE_PUBLISHABLE_KEY"
 	),
 	{
 		auth: {
@@ -17,5 +17,5 @@ export const supabaseBrowser = createClient<Database>(
 			detectSessionInUrl: true,
 			flowType: "pkce",
 		},
-	},
+	}
 );

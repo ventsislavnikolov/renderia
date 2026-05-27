@@ -1,0 +1,68 @@
+name: E2E
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            pnpm exec playwright install --with-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      - name: Run E2E
+        env:
+          CI: "1"
+          # Supabase + OpenAI calls are mocked via page.route() in the specs,
+          # but the module-load env validators still require non-empty values.
+          VITE_SUPABASE_URL: "https://e2e.example.invalid"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_dummy"
+          SUPABASE_URL: "https://e2e.example.invalid"
+          SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_dummy"
+          SUPABASE_SECRET_KEY: "sb_secret_e2e_dummy"
+          OPENAI_API_KEY: "sk-e2e-dummy"
+          AI_PROVIDER: "mock"
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            pnpm test:e2e
+          else
+            pnpm test:e2e:chromium
+          fi
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.event_name }}
+          path: playwright-report/
+          retention-days: 7

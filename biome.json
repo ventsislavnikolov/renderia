@@ -1,36 +1,102 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
-	"vcs": {
-		"enabled": false,
-		"clientKind": "git",
-		"useIgnoreFile": false
-	},
-	"files": {
-		"ignoreUnknown": false,
-		"includes": [
-			"**/src/**/*",
-			"**/.vscode/**/*",
-			"**/index.html",
-			"**/vite.config.ts",
-			"**/vitest.config.ts",
-			"!**/src/routeTree.gen.ts",
-			"!**/src/styles.css"
-		]
-	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab"
-	},
-	"assist": { "actions": { "source": { "organizeImports": "on" } } },
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true
-		}
-	},
-	"javascript": {
-		"formatter": {
-			"quoteStyle": "double"
-		}
-	}
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core", "ultracite/biome/react"],
+  "vcs": {
+    "enabled": false,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "**/src/**/*",
+      "**/tests/**/*",
+      "**/.vscode/**/*",
+      "**/index.html",
+      "**/vite.config.ts",
+      "**/vitest.config.ts",
+      "**/playwright.config.ts",
+      "!**/src/routeTree.gen.ts",
+      "!**/src/styles.css",
+      "!**/.superpowers",
+      "!**/.worktrees",
+      "!**/.output",
+      "!**/.tanstack",
+      "!**/.vercel"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab"
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "useValidAnchor": "off",
+        "useMediaCaption": "off",
+        "noSvgWithoutTitle": "off",
+        "useSemanticElements": "off",
+        "noNoninteractiveElementInteractions": "off"
+      },
+      "complexity": {
+        "noForEach": "off",
+        "noVoid": "off",
+        "useOptionalChain": "off",
+        "noUselessFragments": "off",
+        "noImplicitCoercions": "off",
+        "useSimplifiedLogicExpression": "off",
+        "noExcessiveCognitiveComplexity": "off"
+      },
+      "correctness": {
+        "noUndeclaredVariables": "off",
+        "useImageSize": "off",
+        "useJsonImportAttributes": "off",
+        "noUnusedFunctionParameters": "off"
+      },
+      "nursery": {
+        "noShadow": "off",
+        "noLeakedRender": "off",
+        "noUnnecessaryConditions": "off"
+      },
+      "performance": {
+        "noNamespaceImport": "off",
+        "useTopLevelRegex": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      },
+      "style": {
+        "useAtIndex": "off",
+        "useTemplate": "off",
+        "useImportType": "off",
+        "noMagicNumbers": "off",
+        "noNestedTernary": "off",
+        "noParameterAssign": "off",
+        "useBlockStatements": "off",
+        "useNamingConvention": "off",
+        "useDefaultSwitchClause": "off",
+        "useFilenamingConvention": "off",
+        "useConsistentTypeDefinitions": "off"
+      },
+      "suspicious": {
+        "useAwait": "off",
+        "noExplicitAny": "off",
+        "noArrayIndexKey": "off",
+        "noUnknownAtRules": "off",
+        "noReactForwardRef": "off",
+        "noEmptyBlockStatements": "off",
+        "noTemplateCurlyInString": "off",
+        "noThenProperty": "off",
+        "noControlCharactersInRegex": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  }
 }

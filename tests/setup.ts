@@ -5,7 +5,11 @@
  * running with `globals: true` (it relies on a global `afterEach`). We keep
  * globals off to avoid polluting the type space, so register the cleanup
  * explicitly here once.
+ *
+ * `@testing-library/jest-dom/vitest` registers DOM matchers (`toBeInTheDocument`,
+ * `toHaveTextContent`, …) on Vitest's `expect` and augments the matcher types.
  */
+import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 

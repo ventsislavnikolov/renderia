@@ -138,7 +138,7 @@ export async function __suggestTasksForProjectHandler(args: {
 			}
 			const signedUrl = signed.data.signedUrl;
 			return notes === undefined ? { id, signedUrl } : { id, signedUrl, notes };
-		}),
+		})
 	);
 
 	const result = await args.provider.suggestTasks({

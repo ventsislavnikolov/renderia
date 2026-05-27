@@ -1,16 +1,34 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { PromptEntry } from "../components/home/prompt-entry";
+import { AppShell } from "../components/layout/app-shell";
 import { supabaseBrowser } from "../lib/supabase/browser";
 
-// SSR is disabled for this route so the auth guard runs only in the browser
-// where the Supabase session is available. With SSR enabled, the previous
-// `typeof window === "undefined"` short-circuit would render the protected
-// HTML on the server before the redirect could fire.
+/**
+ * `/` — chat-style entry point.
+ *
+ * SSR is disabled so the auth guard can read the Supabase session from the
+ * browser (same rationale as `/projects`). Unauthenticated visitors are
+ * bounced to `/auth`; the rest land on the centered "What should we build?"
+ * prompt that creates a project + task and drops them straight into the
+ * 4-step guided workspace.
+ */
 export const Route = createFileRoute("/")({
 	ssr: false,
 	beforeLoad: async () => {
 		const {
 			data: { session },
 		} = await supabaseBrowser.auth.getSession();
-		throw redirect({ to: session ? "/projects" : "/auth" });
+		if (!session) {
+			throw redirect({ to: "/auth" });
+		}
 	},
+	component: HomeRoute,
 });
+
+function HomeRoute() {
+	return (
+		<AppShell>
+			<PromptEntry />
+		</AppShell>
+	);
+}

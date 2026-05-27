@@ -17,11 +17,11 @@ export default defineConfig({
 	workers: 1,
 	reporter: process.env.CI ? "list" : "list",
 	expect: {
-		timeout: 5_000,
+		timeout: 5000,
 	},
 	use: {
 		baseURL: "http://localhost:3000",
-		actionTimeout: 5_000,
+		actionTimeout: 5000,
 		navigationTimeout: 15_000,
 		trace: "on-first-retry",
 	},

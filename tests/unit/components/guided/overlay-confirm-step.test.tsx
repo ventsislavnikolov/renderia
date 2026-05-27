@@ -83,7 +83,7 @@ function rowsFromBoxes(
 		width: number;
 		height: number;
 		confidence?: number;
-	}>,
+	}>
 ) {
 	return boxes.map((box, index) => ({
 		id: `db-${index}`,
@@ -150,9 +150,7 @@ beforeEach(() => {
 	// returned as fully-formed rows. Individual tests override when needed.
 	saveDetectedElementsMock.mockReset().mockImplementation(async (args) => {
 		const elements = (args as { data: { elements: unknown[] } }).data.elements;
-		return rowsFromBoxes(
-			elements as Parameters<typeof rowsFromBoxes>[0],
-		);
+		return rowsFromBoxes(elements as Parameters<typeof rowsFromBoxes>[0]);
 	});
 	updateProtectedElementStatusMock
 		.mockReset()
@@ -202,13 +200,13 @@ describe("OverlayConfirmStep", () => {
 		});
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		const img = await screen.findByAltText("photo.png");
@@ -226,22 +224,22 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
 		await waitFor(() =>
-			expect(detectProtectedElementsMock).toHaveBeenCalledTimes(1),
+			expect(detectProtectedElementsMock).toHaveBeenCalledTimes(1)
 		);
 		// The only client-side signed URL is for the preview image. The detection
 		// server fn receives ids and mints its own URL after authenticating.
@@ -264,18 +262,18 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={onConfirm}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
 		// Both detected elements rendered with proper aria-label and pressed.
@@ -293,7 +291,7 @@ describe("OverlayConfirmStep", () => {
 		expect(doorToggle.getAttribute("aria-pressed")).toBe("false");
 
 		await user.click(
-			screen.getByRole("button", { name: /confirm selection and continue/i }),
+			screen.getByRole("button", { name: /confirm selection and continue/i })
 		);
 		expect(onConfirm).toHaveBeenCalledTimes(1);
 		const confirmedArg = onConfirm.mock.calls[0]?.[0] as Array<{
@@ -313,18 +311,18 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
 		const alert = await screen.findByRole("alert");
@@ -342,18 +340,18 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
 		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));
@@ -368,7 +366,7 @@ describe("OverlayConfirmStep", () => {
 		detectProtectedElementsMock.mockResolvedValue({
 			data: sampleBoxes,
 			debug: {
-				model: "gpt-5.4-mini",
+				model: "gpt-5.5",
 				prompt: "Identify protected visual elements...",
 				rawResponse: '{"elements":[]}',
 				durationMs: 42,
@@ -377,23 +375,23 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
 		// The summary text includes the model id, duration, and the label.
 		const summary = await screen.findByText(
-			/Debug — Detection AI request\/response \(gpt-5\.4-mini, 42ms\)/i,
+			/Debug — Detection AI request\/response \(gpt-5\.5, 42ms\)/i
 		);
 		expect(summary).toBeTruthy();
 	});
@@ -438,13 +436,13 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		const windowToggle = await screen.findByRole("button", {
@@ -461,7 +459,7 @@ describe("OverlayConfirmStep", () => {
 		// The detection button switches to "Re-run detection" once persisted
 		// rows are loaded.
 		expect(
-			screen.getByRole("button", { name: /re-run detection/i }),
+			screen.getByRole("button", { name: /re-run detection/i })
 		).toBeTruthy();
 	});
 
@@ -491,13 +489,13 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		const toggle = await screen.findByRole("button", {
@@ -511,8 +509,8 @@ describe("OverlayConfirmStep", () => {
 			expect(updateProtectedElementStatusMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: { elementId: "db-only", status: "rejected" },
-				}),
-			),
+				})
+			)
 		);
 	});
 
@@ -526,18 +524,18 @@ describe("OverlayConfirmStep", () => {
 
 		render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={vi.fn()}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
 		await waitFor(() =>
@@ -550,8 +548,8 @@ describe("OverlayConfirmStep", () => {
 							expect.objectContaining({ label: "left window" }),
 						]),
 					}),
-				}),
-			),
+				})
+			)
 		);
 	});
 
@@ -567,24 +565,24 @@ describe("OverlayConfirmStep", () => {
 			() =>
 				new Promise<typeof sampleBoxes>((resolve) => {
 					resolveDetection = resolve;
-				}),
+				})
 		);
 		const onConfirm = vi.fn();
 
 		const { unmount } = render(
 			<OverlayConfirmStep
-				projectId="p1"
-				taskId="t1"
-				photo={samplePhoto}
-				taskTitle="ceiling"
 				confirmedElements={[]}
 				onConfirm={onConfirm}
-			/>,
+				photo={samplePhoto}
+				projectId="p1"
+				taskId="t1"
+				taskTitle="ceiling"
+			/>
 		);
 
 		await screen.findByAltText("photo.png");
 		await user.click(
-			screen.getByRole("button", { name: /detect protected elements/i }),
+			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 		unmount();
 		// Resolve the in-flight detection after unmount — the component should

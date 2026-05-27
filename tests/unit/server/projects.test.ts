@@ -27,10 +27,10 @@ function buildSupabaseStub(opts: {
 		chain.select = vi.fn(() => chain);
 		chain.eq = vi.fn(() => chain);
 		chain.order = vi.fn(() =>
-			Promise.resolve(opts.listResult ?? { data: [], error: null }),
+			Promise.resolve(opts.listResult ?? { data: [], error: null })
 		);
 		chain.single = vi.fn(() =>
-			Promise.resolve(opts.singleResult ?? { data: null, error: null }),
+			Promise.resolve(opts.singleResult ?? { data: null, error: null })
 		);
 		chain.insert = vi.fn(() => chain);
 		return chain;
@@ -71,7 +71,7 @@ describe("listProjectsHandler", () => {
 		});
 
 		await expect(
-			__listProjectsHandler({ userId: "user-1", supabase }),
+			__listProjectsHandler({ userId: "user-1", supabase })
 		).rejects.toThrow("Database error");
 	});
 });
@@ -108,7 +108,7 @@ describe("createProjectHandler", () => {
 				userId: "user-1",
 				supabase,
 				input: { name: "x" },
-			}),
+			})
 		).rejects.toThrow("Not authorized");
 	});
 });
@@ -212,7 +212,7 @@ describe("getProjectHandler", () => {
 				userId: "user-1",
 				supabase,
 				input: { projectId: "proj-1" },
-			}),
+			})
 		).rejects.toThrow("Not found");
 	});
 });

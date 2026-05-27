@@ -1,5 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -17,9 +20,6 @@ type ProjectRow = Tables<"projects">;
  * Projects index: fetches the signed-in user's projects via the server fn
  * and renders a create form. Loading + error are exposed in the UI so a
  * blank dashboard isn't ambiguous.
- *
- * Task 8 will not modify this component — it only adds new components for
- * the guided flow.
  */
 export function ProjectList() {
 	const [projects, setProjects] = useState<ProjectRow[] | null>(null);
@@ -29,7 +29,7 @@ export function ProjectList() {
 	const [description, setDescription] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [createdAnnouncement, setCreatedAnnouncement] = useState<string | null>(
-		null,
+		null
 	);
 	const cancelledRef = useRef(false);
 
@@ -60,8 +60,6 @@ export function ProjectList() {
 		};
 	}, [refresh]);
 
-	// Clear the "created" announcement after a few seconds so it isn't sticky
-	// for sighted users; SR users have already heard it via the live region.
 	useEffect(() => {
 		if (!createdAnnouncement) return;
 		const timer = window.setTimeout(() => setCreatedAnnouncement(null), 3000);
@@ -100,48 +98,70 @@ export function ProjectList() {
 	}
 
 	return (
-		<section className="workspace-section">
-			<header className="workspace-section-header">
-				<h1>Projects</h1>
-				<p>Group renovation tasks by house, floor, or external concept.</p>
+		<section className="grid gap-8">
+			<header className="grid gap-2">
+				<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
+					Projects
+				</h1>
+				<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted">
+					Group renovation tasks by house, floor, or external concept.
+				</p>
 			</header>
 
 			<form
-				className="workspace-form"
-				onSubmit={handleCreate}
 				aria-busy={submitting}
+				className="grid gap-4 border border-border bg-surface p-8"
+				onSubmit={handleCreate}
 			>
-				<h2>New project</h2>
-				<label htmlFor="new-project-name">
+				<h2 className="m-0 font-display font-medium text-foreground text-xl tracking-tight">
+					New project
+				</h2>
+				<label
+					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
+					htmlFor="new-project-name"
+				>
 					Name
-					<input
-						id="new-project-name"
-						value={name}
-						onChange={(event) => setName(event.target.value)}
-						placeholder="City house"
-						required
-						maxLength={200}
+					<Input
 						aria-describedby={
 							createError ? "new-project-name-error" : undefined
 						}
 						aria-invalid={createError ? true : undefined}
+						className="text-base normal-case tracking-normal"
+						id="new-project-name"
+						maxLength={200}
+						onChange={(event) => setName(event.target.value)}
+						placeholder="City house"
+						required
+						value={name}
 					/>
 				</label>
-				<label htmlFor="new-project-description">
+				<label
+					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
+					htmlFor="new-project-description"
+				>
 					Description
-					<textarea
+					<Textarea
+						className="text-base normal-case tracking-normal"
 						id="new-project-description"
-						value={description}
+						maxLength={2000}
 						onChange={(event) => setDescription(event.target.value)}
 						placeholder="Optional notes about the property."
-						maxLength={2000}
+						value={description}
 					/>
 				</label>
-				<button type="submit" disabled={submitting || name.trim().length === 0}>
+				<Button
+					className="justify-self-start"
+					disabled={submitting || name.trim().length === 0}
+					type="submit"
+				>
 					{submitting ? "Saving…" : "Create project"}
-				</button>
+				</Button>
 				{createError ? (
-					<p id="new-project-name-error" role="alert">
+					<p
+						className="m-0 font-medium text-[0.875rem] text-destructive"
+						id="new-project-name-error"
+						role="alert"
+					>
 						{createError}
 					</p>
 				) : null}
@@ -151,27 +171,42 @@ export function ProjectList() {
 			</form>
 
 			{projects === null && loadError === null ? (
-				<output className="workspace-status">Loading projects…</output>
+				<output className="block text-[0.9375rem] text-ink-muted italic">
+					Loading projects…
+				</output>
 			) : null}
-			{loadError ? <p role="alert">{loadError}</p> : null}
+			{loadError ? (
+				<p
+					className="m-0 font-medium text-[0.9375rem] text-warning"
+					role="alert"
+				>
+					{loadError}
+				</p>
+			) : null}
 
 			{projects && projects.length === 0 && !loadError ? (
-				<p className="workspace-status">
+				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 					No projects yet. Create one above to get started.
 				</p>
 			) : null}
 
 			{projects && projects.length > 0 ? (
-				<ul className="card-grid">
+				<ul className="m-0 grid list-none gap-4 p-0 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
 					{projects.map((project) => (
 						<li key={project.id}>
 							<Link
-								className="workspace-card"
-								to="/projects/$projectId"
+								className="block border border-border bg-surface p-6 no-underline transition-[border-color,box-shadow] hover:border-foreground hover:shadow-sm"
 								params={{ projectId: project.id }}
+								to="/projects/$projectId"
 							>
-								<h3>{project.name}</h3>
-								{project.description ? <p>{project.description}</p> : null}
+								<h3 className="m-0 mb-2 font-display font-medium text-foreground text-xl tracking-tight">
+									{project.name}
+								</h3>
+								{project.description ? (
+									<p className="m-0 text-[0.875rem] text-ink-muted leading-relaxed">
+										{project.description}
+									</p>
+								) : null}
 							</Link>
 						</li>
 					))}

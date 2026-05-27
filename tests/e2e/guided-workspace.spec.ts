@@ -165,7 +165,7 @@ async function installFakeSession(context: BrowserContext) {
 				// will redirect and the test will surface that as a failure.
 			}
 		},
-		{ key: SUPABASE_STORAGE_KEY, session: FAKE_SESSION },
+		{ key: SUPABASE_STORAGE_KEY, session: FAKE_SESSION }
 	);
 }
 
@@ -177,21 +177,14 @@ async function installFakeSession(context: BrowserContext) {
  * keeps working when the project structure shifts.
  */
 function buildServerFnHashMap(): Map<string, string> {
-	const ssrDir = path.join(
-		__dirname,
-		"..",
-		"..",
-		".output",
-		"server",
-		"_ssr",
-	);
+	const ssrDir = path.join(__dirname, "..", "..", ".output", "server", "_ssr");
 	const map = new Map<string, string>();
 	let files: string[];
 	try {
 		files = readdirSync(ssrDir);
 	} catch {
 		throw new Error(
-			`Expected .output/server/_ssr to exist (run \`pnpm build\` first). Missing: ${ssrDir}`,
+			`Expected .output/server/_ssr to exist (run \`pnpm build\` first). Missing: ${ssrDir}`
 		);
 	}
 	const pattern =
@@ -240,7 +233,7 @@ type ProtectedElementMockRow = {
 
 /** Track in-memory photos so the second list call sees the upload. */
 type PageState = {
-	photos: typeof FAKE_PHOTO[];
+	photos: (typeof FAKE_PHOTO)[];
 	protectedElements: ProtectedElementMockRow[];
 };
 
@@ -313,29 +306,31 @@ async function installApiMocks(page: Page, state: PageState) {
 	});
 
 	// --- Supabase Storage: upload + signed URL minting ---
-	await page.route(/\/storage\/v1\/object\/source-photos\/.*/, async (route) => {
-		if (route.request().method() === "POST") {
-			return route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ Key: FAKE_PHOTO.storage_path }),
-			});
+	await page.route(
+		/\/storage\/v1\/object\/source-photos\/.*/,
+		async (route) => {
+			if (route.request().method() === "POST") {
+				return route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify({ Key: FAKE_PHOTO.storage_path }),
+				});
+			}
+			return route.fulfill({ status: 200, body: "" });
 		}
-		return route.fulfill({ status: 200, body: "" });
-	});
+	);
 
 	await page.route(
 		/\/storage\/v1\/object\/sign\/source-photos\/.*/,
-		async (route) => {
-			return route.fulfill({
+		async (route) =>
+			route.fulfill({
 				status: 200,
 				contentType: "application/json",
 				body: JSON.stringify({
 					signedURL: "/storage/v1/object/source-photos/signed?token=fake",
 					signedUrl: "/storage/v1/object/source-photos/signed?token=fake",
 				}),
-			});
-		},
+			})
 	);
 
 	// --- TanStack server functions ---
@@ -401,14 +396,12 @@ async function installApiMocks(page: Page, state: PageState) {
 			} | null;
 			const elementId = body?.data?.elementId ?? "el-0";
 			const status = body?.data?.status ?? "confirmed";
-			const existing = state.protectedElements.find(
-				(r) => r.id === elementId,
-			);
+			const existing = state.protectedElements.find((r) => r.id === elementId);
 			const updated = existing
 				? { ...existing, status }
 				: { ...state.protectedElements[0], id: elementId, status };
 			state.protectedElements = state.protectedElements.map((r) =>
-				r.id === elementId ? { ...r, status } : r,
+				r.id === elementId ? { ...r, status } : r
 			);
 			return serializedResult(updated);
 		}
@@ -461,7 +454,7 @@ test.describe("guided renovation workspace", () => {
 		await expect(stepper).toBeVisible();
 		for (const label of ["Upload", "Confirm", "Brief", "Generate"]) {
 			await expect(
-				stepper.getByRole("button", { name: new RegExp(label) }),
+				stepper.getByRole("button", { name: new RegExp(label) })
 			).toBeVisible();
 		}
 	});
@@ -477,7 +470,7 @@ test.describe("guided renovation workspace", () => {
 		await page.goto(TASK_URL);
 
 		await expect(
-			page.getByRole("heading", { name: /Upload a source photo/i }),
+			page.getByRole("heading", { name: /Upload a source photo/i })
 		).toBeVisible();
 
 		const fileInput = page.getByLabel(/Choose a photo to upload/i);
@@ -488,7 +481,7 @@ test.describe("guided renovation workspace", () => {
 		});
 
 		await expect(
-			page.getByRole("heading", { name: /Confirm protected elements/i }),
+			page.getByRole("heading", { name: /Confirm protected elements/i })
 		).toBeVisible();
 	});
 
@@ -514,13 +507,13 @@ test.describe("guided renovation workspace", () => {
 		await detectBtn.click();
 
 		await expect(
-			page.getByRole("button", { name: /Toggle main window protection/i }),
+			page.getByRole("button", { name: /Toggle main window protection/i })
 		).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: /Toggle ceiling beam protection/i }),
+			page.getByRole("button", { name: /Toggle ceiling beam protection/i })
 		).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: /Confirm selection and continue/i }),
+			page.getByRole("button", { name: /Confirm selection and continue/i })
 		).toBeVisible();
 	});
 
@@ -555,15 +548,15 @@ test.describe("guided renovation workspace", () => {
 
 		// Boxes render immediately — no detection click was needed.
 		await expect(
-			page.getByRole("button", { name: /Toggle main window protection/i }),
+			page.getByRole("button", { name: /Toggle main window protection/i })
 		).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: /Toggle ceiling beam protection/i }),
+			page.getByRole("button", { name: /Toggle ceiling beam protection/i })
 		).toBeVisible();
 		// Detection button is in the "re-run" state because rows are already
 		// present.
 		await expect(
-			page.getByRole("button", { name: /Re-run detection/i }),
+			page.getByRole("button", { name: /Re-run detection/i })
 		).toBeVisible();
 	});
 
@@ -585,19 +578,17 @@ test.describe("guided renovation workspace", () => {
 			.click();
 
 		await expect(
-			page.getByRole("heading", { name: /Review the design brief/i }),
+			page.getByRole("heading", { name: /Review the design brief/i })
 		).toBeVisible();
 		await page.getByRole("button", { name: /Generate brief/i }).click();
 
 		const textarea = page.getByLabel("Brief markdown");
 		await expect(textarea).toHaveValue(/Demo Task brief/);
 
-		await page
-			.getByRole("button", { name: /Continue to generation/i })
-			.click();
+		await page.getByRole("button", { name: /Continue to generation/i }).click();
 
 		await expect(
-			page.getByRole("heading", { name: /Review generated variations/i }),
+			page.getByRole("heading", { name: /Review generated variations/i })
 		).toBeVisible();
 	});
 
@@ -618,11 +609,9 @@ test.describe("guided renovation workspace", () => {
 		// Wait for the textarea to be populated before continuing — otherwise
 		// the disabled-state guard on Continue may swallow our click.
 		await expect(page.getByLabel("Brief markdown")).toHaveValue(
-			/Demo Task brief/,
+			/Demo Task brief/
 		);
-		await page
-			.getByRole("button", { name: /Continue to generation/i })
-			.click();
+		await page.getByRole("button", { name: /Continue to generation/i }).click();
 
 		// Lock onto the first variation's favorite button via the article
 		// wrapper — the button's accessible name changes from "Mark favorite"

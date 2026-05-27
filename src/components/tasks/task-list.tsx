@@ -1,5 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -10,15 +14,10 @@ import { createTask, listProjectTasks } from "../../server/tasks";
 type TaskRow = Tables<"renovation_tasks">;
 
 /**
- * Lists renovation tasks for a project plus a quick-create form.
- *
- * The route owns the `projectId` (from URL params) and passes it down so
- * the same component can be reused inside the project detail route and
- * any future "all tasks" overview.
- *
- * Photo upload, protected-element overlay, brief, and generation are
- * intentionally not rendered here — those live inside the guided task
- * workspace route added in Task 8.
+ * Lists renovation tasks for a project plus a quick-create form. The route
+ * owns the `projectId` (from URL params) and passes it down so the same
+ * component can be reused inside the project detail route and any future
+ * "all tasks" overview.
  */
 export function TaskList(props: { projectId: string }) {
 	const [tasks, setTasks] = useState<TaskRow[] | null>(null);
@@ -29,7 +28,7 @@ export function TaskList(props: { projectId: string }) {
 	const [notes, setNotes] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [createdAnnouncement, setCreatedAnnouncement] = useState<string | null>(
-		null,
+		null
 	);
 	const cancelledRef = useRef(false);
 
@@ -106,60 +105,84 @@ export function TaskList(props: { projectId: string }) {
 	const formValid = title.trim().length > 0 && category.trim().length > 0;
 
 	return (
-		<section className="workspace-section">
-			<header className="workspace-section-header">
-				<h1>Renovation tasks</h1>
-				<p>
+		<section className="grid gap-8">
+			<header className="grid gap-2">
+				<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
+					Renovation tasks
+				</h1>
+				<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted">
 					Each task captures one area of the house. Open a task to step through
 					the guided renovation flow.
 				</p>
 			</header>
 
 			<form
-				className="workspace-form"
-				onSubmit={handleCreate}
 				aria-busy={submitting}
+				className="grid gap-4 border border-border bg-surface p-8"
+				onSubmit={handleCreate}
 			>
-				<h2>New task</h2>
-				<label htmlFor="new-task-title">
+				<h2 className="m-0 font-display font-medium text-foreground text-xl tracking-tight">
+					New task
+				</h2>
+				<label
+					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
+					htmlFor="new-task-title"
+				>
 					Title
-					<input
+					<Input
+						aria-describedby={createError ? "new-task-error" : undefined}
+						aria-invalid={createError ? true : undefined}
+						className="text-base normal-case tracking-normal"
 						id="new-task-title"
-						value={title}
+						maxLength={200}
 						onChange={(event) => setTitle(event.target.value)}
 						placeholder="2nd floor — ceiling"
 						required
-						maxLength={200}
-						aria-describedby={createError ? "new-task-error" : undefined}
-						aria-invalid={createError ? true : undefined}
+						value={title}
 					/>
 				</label>
-				<label htmlFor="new-task-category">
+				<label
+					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
+					htmlFor="new-task-category"
+				>
 					Category
-					<input
+					<Input
+						className="text-base normal-case tracking-normal"
 						id="new-task-category"
-						value={category}
+						maxLength={200}
 						onChange={(event) => setCategory(event.target.value)}
 						placeholder="ceiling, facade, kitchen…"
 						required
-						maxLength={200}
+						value={category}
 					/>
 				</label>
-				<label htmlFor="new-task-notes">
+				<label
+					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
+					htmlFor="new-task-notes"
+				>
 					Notes
-					<textarea
+					<Textarea
+						className="text-base normal-case tracking-normal"
 						id="new-task-notes"
-						value={notes}
+						maxLength={4000}
 						onChange={(event) => setNotes(event.target.value)}
 						placeholder="Optional context for the AI provider."
-						maxLength={4000}
+						value={notes}
 					/>
 				</label>
-				<button type="submit" disabled={submitting || !formValid}>
+				<Button
+					className="justify-self-start"
+					disabled={submitting || !formValid}
+					type="submit"
+				>
 					{submitting ? "Saving…" : "Create task"}
-				</button>
+				</Button>
 				{createError ? (
-					<p id="new-task-error" role="alert">
+					<p
+						className="m-0 font-medium text-[0.875rem] text-destructive"
+						id="new-task-error"
+						role="alert"
+					>
 						{createError}
 					</p>
 				) : null}
@@ -169,31 +192,46 @@ export function TaskList(props: { projectId: string }) {
 			</form>
 
 			{tasks === null && loadError === null ? (
-				<output className="workspace-status">Loading tasks…</output>
+				<output className="block text-[0.9375rem] text-ink-muted italic">
+					Loading tasks…
+				</output>
 			) : null}
-			{loadError ? <p role="alert">{loadError}</p> : null}
+			{loadError ? (
+				<p
+					className="m-0 font-medium text-[0.9375rem] text-warning"
+					role="alert"
+				>
+					{loadError}
+				</p>
+			) : null}
 
 			{tasks && tasks.length === 0 && !loadError ? (
-				<p className="workspace-status">
+				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 					No tasks yet. Create one above to start a renovation concept.
 				</p>
 			) : null}
 
 			{tasks && tasks.length > 0 ? (
-				<ul className="card-grid">
+				<ul className="m-0 grid list-none gap-4 p-0 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
 					{tasks.map((task) => (
 						<li key={task.id}>
 							<Link
-								className="workspace-card"
-								to="/projects/$projectId/tasks/$taskId"
+								className="block border border-border bg-surface p-6 no-underline transition-[border-color,box-shadow] hover:border-foreground hover:shadow-sm"
 								params={{ projectId: props.projectId, taskId: task.id }}
+								to="/projects/$projectId/tasks/$taskId"
 							>
-								<h3>{task.title}</h3>
-								<p className="workspace-card-meta">
-									<span className="badge">{task.category}</span>
-									<span className="badge badge-status">{task.status}</span>
+								<h3 className="m-0 mb-3 font-display font-medium text-foreground text-xl tracking-tight">
+									{task.title}
+								</h3>
+								<p className="m-0 mb-3 flex flex-wrap gap-2">
+									<Badge variant="secondary">{task.category}</Badge>
+									<Badge variant="outline">{task.status}</Badge>
 								</p>
-								{task.notes ? <p>{task.notes}</p> : null}
+								{task.notes ? (
+									<p className="m-0 text-[0.875rem] text-ink-muted leading-relaxed">
+										{task.notes}
+									</p>
+								) : null}
 							</Link>
 						</li>
 					))}

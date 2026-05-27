@@ -25,10 +25,10 @@ function buildSupabaseStub(opts: {
 	photosChain.select = vi.fn(() => photosChain);
 	photosChain.eq = vi.fn(() => photosChain);
 	photosChain.order = vi.fn(() =>
-		Promise.resolve(opts.listResult ?? { data: [], error: null }),
+		Promise.resolve(opts.listResult ?? { data: [], error: null })
 	);
 	photosChain.single = vi.fn(() =>
-		Promise.resolve(opts.singleResult ?? { data: null, error: null }),
+		Promise.resolve(opts.singleResult ?? { data: null, error: null })
 	);
 	photosChain.insert = vi.fn(() => photosChain);
 
@@ -36,13 +36,11 @@ function buildSupabaseStub(opts: {
 	projectsChain.select = vi.fn(() => projectsChain);
 	projectsChain.eq = vi.fn(() => projectsChain);
 	projectsChain.maybeSingle = vi.fn(() =>
-		Promise.resolve(
-			opts.projectsResult ?? { data: { id: "p1" }, error: null },
-		),
+		Promise.resolve(opts.projectsResult ?? { data: { id: "p1" }, error: null })
 	);
 
 	fromMock.mockImplementation((table: string) =>
-		table === "projects" ? projectsChain : photosChain,
+		table === "projects" ? projectsChain : photosChain
 	);
 	return {
 		supabase: { from: fromMock } as unknown as Parameters<
@@ -84,7 +82,7 @@ describe("listProjectPhotosHandler", () => {
 				userId: "user-1",
 				supabase,
 				input: { projectId: "p1" },
-			}),
+			})
 		).rejects.toThrow("Database error");
 	});
 });
@@ -123,7 +121,7 @@ describe("createPhotoRecordHandler", () => {
 				storage_path: "user-1/photo.png",
 				original_name: "photo.png",
 				content_type: "image/png",
-			}),
+			})
 		);
 	});
 
@@ -142,7 +140,7 @@ describe("createPhotoRecordHandler", () => {
 					originalName: "photo.png",
 					contentType: "image/png",
 				},
-			}),
+			})
 		).rejects.toThrow("Project not found");
 		expect(photosChain.insert).not.toHaveBeenCalled();
 	});
@@ -162,7 +160,7 @@ describe("createPhotoRecordHandler", () => {
 					originalName: "x.png",
 					contentType: "image/png",
 				},
-			}),
+			})
 		).rejects.toThrow("Database error");
 	});
 });

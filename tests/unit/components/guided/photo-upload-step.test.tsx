@@ -132,10 +132,10 @@ describe("PhotoUploadStep", () => {
 		listProjectPhotosMock.mockResolvedValueOnce([samplePhoto]);
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={vi.fn()}
-			/>,
+			/>
 		);
 
 		const tile = await screen.findByRole("button", { name: /photo\.png/ });
@@ -166,14 +166,14 @@ describe("PhotoUploadStep", () => {
 
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={onPhotoSelected}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={onPhotoSelected}
-			/>,
+			/>
 		);
 
 		const hiddenInput = (await screen.findByLabelText(
-			/choose a photo to upload/i,
+			/choose a photo to upload/i
 		)) as HTMLInputElement;
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -200,14 +200,14 @@ describe("PhotoUploadStep", () => {
 
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={onPhotoSelected}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={onPhotoSelected}
-			/>,
+			/>
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i,
+			/choose a photo to upload/i
 		);
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -226,7 +226,7 @@ describe("PhotoUploadStep", () => {
 					originalName: "photo.png",
 					contentType: "image/png",
 				}),
-			}),
+			})
 		);
 	});
 
@@ -234,20 +234,20 @@ describe("PhotoUploadStep", () => {
 		listProjectPhotosMock.mockResolvedValue([]);
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={vi.fn()}
-			/>,
+			/>
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i,
+			/choose a photo to upload/i
 		);
 		const badFile = new File(["nope"], "diagram.gif", { type: "image/gif" });
 		pickFile(hiddenInput, badFile);
 
 		expect(
-			await screen.findByText(/Use a PNG, JPEG, or WEBP image/i),
+			await screen.findByText(/Use a PNG, JPEG, or WEBP image/i)
 		).toBeDefined();
 		expect(uploadMock).not.toHaveBeenCalled();
 		expect(createPhotoRecordMock).not.toHaveBeenCalled();
@@ -263,14 +263,14 @@ describe("PhotoUploadStep", () => {
 
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={vi.fn()}
-			/>,
+			/>
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i,
+			/choose a photo to upload/i
 		);
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -292,14 +292,14 @@ describe("PhotoUploadStep", () => {
 
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={vi.fn()}
-			/>,
+			/>
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i,
+			/choose a photo to upload/i
 		);
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -316,10 +316,10 @@ describe("PhotoUploadStep", () => {
 
 		render(
 			<PhotoUploadStep
+				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
-				onPhotoSelected={vi.fn()}
-			/>,
+			/>
 		);
 
 		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));

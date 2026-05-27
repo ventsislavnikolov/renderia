@@ -4,7 +4,7 @@
  */
 export function requireEnv(
 	source: Record<string, string | undefined>,
-	name: string,
+	name: string
 ): string {
 	const value = source[name];
 	if (!value) {

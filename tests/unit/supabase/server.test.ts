@@ -40,7 +40,7 @@ describe("supabase server helpers", () => {
 			expect(createClientMock).toHaveBeenCalledWith(
 				"https://example.supabase.co",
 				"pk-anon",
-				expect.objectContaining({ auth: { persistSession: false } }),
+				expect.objectContaining({ auth: { persistSession: false } })
 			);
 			const opts = createClientMock.mock.calls[0]?.[2] as {
 				global: { headers: Record<string, string> };
@@ -58,7 +58,7 @@ describe("supabase server helpers", () => {
 			expect(createClientMock).toHaveBeenCalledWith(
 				"https://example.supabase.co",
 				"sk-secret",
-				expect.objectContaining({ auth: { persistSession: false } }),
+				expect.objectContaining({ auth: { persistSession: false } })
 			);
 			const opts = createClientMock.mock.calls[0]?.[2] as { global?: unknown };
 			expect(opts.global).toBeUndefined();
@@ -96,7 +96,7 @@ describe("supabase server helpers", () => {
 	describe("requireAuthedSupabase", () => {
 		it("throws when no access token is provided", async () => {
 			await expect(requireAuthedSupabase(undefined)).rejects.toThrow(
-				"Authentication required",
+				"Authentication required"
 			);
 		});
 
@@ -111,7 +111,7 @@ describe("supabase server helpers", () => {
 			});
 
 			await expect(requireAuthedSupabase("bad")).rejects.toThrow(
-				"Authentication required",
+				"Authentication required"
 			);
 		});
 
@@ -131,7 +131,7 @@ describe("supabase server helpers", () => {
 			expect(createClientMock).toHaveBeenCalledWith(
 				"https://example.supabase.co",
 				"pk-anon",
-				expect.anything(),
+				expect.anything()
 			);
 			const opts = createClientMock.mock.calls[0]?.[2] as {
 				global: { headers: Record<string, string> };
@@ -159,10 +159,10 @@ describe("supabase server helpers", () => {
 
 		it("collapses unknown codes to a generic 'Database error'", () => {
 			expect(
-				wrapSupabaseError({ code: "12345", message: "leaky internals" }).message,
+				wrapSupabaseError({ code: "12345", message: "leaky internals" }).message
 			).toBe("Database error");
 			expect(wrapSupabaseError({ message: "leaky internals" }).message).toBe(
-				"Database error",
+				"Database error"
 			);
 		});
 	});

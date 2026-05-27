@@ -40,7 +40,7 @@ function AuthCallback() {
 				await navigate({ to: "/projects" });
 			} else {
 				setErrorMessage(
-					"Sign-in link did not establish a session. Request a new link.",
+					"Sign-in link did not establish a session. Request a new link."
 				);
 			}
 		}
@@ -52,16 +52,30 @@ function AuthCallback() {
 	}, [navigate]);
 
 	return (
-		<main className="auth-page">
-			<div className="auth-card">
-				<h1>Signing you in…</h1>
+		<main className="grid min-h-screen place-items-center bg-background px-6">
+			<div className="grid w-full max-w-md gap-4 border border-border bg-surface p-8 text-center">
+				<h1 className="m-0 font-display font-medium text-2xl text-foreground italic tracking-tight">
+					Signing you in…
+				</h1>
 				{errorMessage ? (
 					<>
-						<p role="alert">{errorMessage}</p>
-						<a href="/auth">Back to sign-in</a>
+						<p
+							className="m-0 font-medium text-[0.9375rem] text-destructive"
+							role="alert"
+						>
+							{errorMessage}
+						</p>
+						<a
+							className="text-[0.875rem] text-foreground underline"
+							href="/auth"
+						>
+							Back to sign-in
+						</a>
 					</>
 				) : (
-					<output className="workspace-status">Confirming your email…</output>
+					<output className="block text-[0.9375rem] text-ink-muted italic">
+						Confirming your email…
+					</output>
 				)}
 			</div>
 		</main>

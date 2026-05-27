@@ -12,7 +12,7 @@ import type { Database } from "../types/database";
  * key here would silently bypass RLS regardless of the header.
  */
 export function createSupabaseUserClient(
-	accessToken: string,
+	accessToken: string
 ): SupabaseClient<Database> {
 	return createClient<Database>(
 		requireEnv(process.env, "SUPABASE_URL"),
@@ -20,7 +20,7 @@ export function createSupabaseUserClient(
 		{
 			global: { headers: { Authorization: `Bearer ${accessToken}` } },
 			auth: { persistSession: false },
-		},
+		}
 	);
 }
 
@@ -38,7 +38,7 @@ export function createSupabaseAdminClient(): SupabaseClient<Database> {
 		requireEnv(process.env, "SUPABASE_SECRET_KEY"),
 		{
 			auth: { persistSession: false },
-		},
+		}
 	);
 }
 
@@ -63,7 +63,7 @@ export function requireUserId(userId: string | null | undefined) {
  * layers of ownership enforcement.
  */
 export async function requireAuthedSupabase(
-	accessToken: string | null | undefined,
+	accessToken: string | null | undefined
 ): Promise<{ userId: string; supabase: SupabaseClient<Database> }> {
 	if (!accessToken) {
 		throw new Error("Authentication required");
@@ -82,9 +82,9 @@ export async function requireAuthedSupabase(
  * shape so server functions can produce a uniform 401-shaped error.
  */
 export function readBearerToken(
-	authorization: string | undefined | null,
+	authorization: string | undefined | null
 ): string | undefined {
-	if (!authorization) return undefined;
+	if (!authorization) return;
 	const match = authorization.match(/^Bearer\s+(.+)$/i);
 	return match ? match[1]?.trim() : undefined;
 }

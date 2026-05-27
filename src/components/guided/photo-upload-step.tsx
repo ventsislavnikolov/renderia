@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -60,7 +62,7 @@ export function PhotoUploadStep(props: {
 }) {
 	const [photos, setPhotos] = useState<PhotoRow[] | null>(null);
 	const [signedUrls, setSignedUrls] = useState<Map<string, string>>(
-		() => new Map(),
+		() => new Map()
 	);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [uploadError, setUploadError] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export function PhotoUploadStep(props: {
 						.createSignedUrl(photo.storage_path, TILE_URL_TTL_SECONDS);
 					if (error || !data) return null;
 					return [photo.id, data.signedUrl] as const;
-				}),
+				})
 			);
 			if (cancelled.current || cancelledRef.current) return;
 			setSignedUrls((prev) => {
@@ -219,7 +221,7 @@ export function PhotoUploadStep(props: {
 					// the user needs to see.
 					console.error(
 						"Failed to remove orphaned storage object",
-						cleanupError,
+						cleanupError
 					);
 				}
 				throw createError;
@@ -246,68 +248,100 @@ export function PhotoUploadStep(props: {
 	}
 
 	return (
-		<div className="guided-step" aria-busy={uploading}>
-			<header className="guided-step-header">
-				<h2>1. Upload a source photo</h2>
-				<p>
+		<div
+			aria-busy={uploading}
+			className="grid gap-6 border border-border bg-surface p-10 max-md:p-6"
+		>
+			<header className="grid gap-2">
+				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
+					1. Upload a source photo
+				</h2>
+				<p className="m-0 max-w-[60ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
 					Pick a photo of the area you want to renovate. Allowed formats: PNG,
 					JPEG, WEBP. Max 10 MB.
 				</p>
 			</header>
 
-			<div className="guided-upload-controls">
-				<button type="button" onClick={pickFile} disabled={uploading}>
+			<div className="flex flex-wrap items-center gap-4">
+				<Button disabled={uploading} onClick={pickFile} type="button">
 					{uploading ? "Uploading…" : "Upload photo"}
-				</button>
+				</Button>
 				<input
+					accept="image/png,image/jpeg,image/webp"
+					aria-label="Choose a photo to upload"
+					className="sr-only"
+					onChange={handleUpload}
 					ref={fileInputRef}
 					type="file"
-					accept="image/png,image/jpeg,image/webp"
-					onChange={handleUpload}
-					className="sr-only"
-					aria-label="Choose a photo to upload"
 				/>
-				{uploadError ? <p role="alert">{uploadError}</p> : null}
+				{uploadError ? (
+					<p
+						className="m-0 font-medium text-[0.9375rem] text-warning"
+						role="alert"
+					>
+						{uploadError}
+					</p>
+				) : null}
 			</div>
 
 			{photos === null && loadError === null ? (
-				<output className="workspace-status">Loading photos…</output>
+				<output className="block text-[0.9375rem] text-ink-muted italic">
+					Loading photos…
+				</output>
 			) : null}
-			{loadError ? <p role="alert">{loadError}</p> : null}
+			{loadError ? (
+				<p
+					className="m-0 font-medium text-[0.9375rem] text-warning"
+					role="alert"
+				>
+					{loadError}
+				</p>
+			) : null}
 
 			{photos && photos.length === 0 && !loadError ? (
-				<p className="workspace-status">
+				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 					No photos yet. Upload one above to continue.
 				</p>
 			) : null}
 
 			{photos && photos.length > 0 ? (
-				<ul className="photo-grid" aria-label="Existing project photos">
+				<ul
+					aria-label="Existing project photos"
+					className="m-0 grid list-none gap-6 p-0 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]"
+				>
 					{photos.map((photo) => {
 						const isSelected = photo.id === props.selectedPhotoId;
 						const url = signedUrls.get(photo.id);
 						return (
 							<li key={photo.id}>
 								<button
-									type="button"
-									className={`photo-tile${isSelected ? " selected" : ""}`}
 									aria-pressed={isSelected}
+									className={cn(
+										"grid w-full cursor-pointer grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover p-0 text-left transition-[border-color,box-shadow]",
+										"hover:border-foreground",
+										isSelected &&
+											"border-primary shadow-[inset_0_0_0_1px_var(--primary)]"
+									)}
 									onClick={() => props.onPhotoSelected(photo)}
+									type="button"
 								>
 									{url ? (
 										<img
-											src={url}
 											alt={photo.original_name}
-											className="photo-tile-img"
+											className="block aspect-[4/3] w-full bg-background object-cover"
+											src={url}
 										/>
 									) : (
-										<div className="photo-tile-img" aria-hidden="true" />
+										<div
+											aria-hidden="true"
+											className="block aspect-[4/3] w-full bg-background"
+										/>
 									)}
-									<span className="photo-tile-meta-block">
-										<span className="photo-tile-name">
+									<span className="grid gap-0.5 px-4 py-3">
+										<span className="break-words font-body font-medium text-[0.8125rem] text-foreground">
 											{photo.original_name}
 										</span>
-										<span className="photo-tile-meta">
+										<span className="font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.06em]">
 											{photo.content_type}
 										</span>
 									</span>

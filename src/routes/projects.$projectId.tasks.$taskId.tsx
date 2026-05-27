@@ -68,7 +68,7 @@ function TaskWorkspaceRoute() {
 					return;
 				}
 				setLoadError(
-					caught instanceof Error ? caught.message : "Failed to load task",
+					caught instanceof Error ? caught.message : "Failed to load task"
 				);
 			}
 		})();
@@ -81,7 +81,7 @@ function TaskWorkspaceRoute() {
 		<>
 			<Link to="/projects">Projects</Link>
 			<span aria-hidden="true"> / </span>
-			<Link to="/projects/$projectId" params={{ projectId }}>
+			<Link params={{ projectId }} to="/projects/$projectId">
 				Project
 			</Link>
 			<span aria-hidden="true"> / </span>
@@ -91,21 +91,36 @@ function TaskWorkspaceRoute() {
 
 	return (
 		<AppShell breadcrumbs={breadcrumbs}>
-			<section className="workspace-section">
-				<header className="workspace-section-header">
-					<h1>{task?.title ?? "Renovation task"}</h1>
-					{task?.notes ? <p>{task.notes}</p> : null}
+			<section className="grid gap-8">
+				<header className="grid gap-2">
+					<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
+						{task?.title ?? "Renovation task"}
+					</h1>
+					{task?.notes ? (
+						<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted leading-relaxed">
+							{task.notes}
+						</p>
+					) : null}
 				</header>
-				{loadError ? <p role="alert">{loadError}</p> : null}
+				{loadError ? (
+					<p
+						className="m-0 font-medium text-[0.9375rem] text-warning"
+						role="alert"
+					>
+						{loadError}
+					</p>
+				) : null}
 				{task ? (
 					<GuidedFlow
 						projectId={projectId}
 						taskId={taskId}
 						taskTitle={task.title}
 					/>
-				) : !loadError ? (
-					<output className="workspace-status">Loading task…</output>
-				) : null}
+				) : loadError ? null : (
+					<output className="block text-[0.9375rem] text-ink-muted italic">
+						Loading task…
+					</output>
+				)}
 			</section>
 		</AppShell>
 	);

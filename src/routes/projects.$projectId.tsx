@@ -69,7 +69,7 @@ function ProjectRoute() {
 					return;
 				}
 				setError(
-					caught instanceof Error ? caught.message : "Failed to load project",
+					caught instanceof Error ? caught.message : "Failed to load project"
 				);
 			}
 		})();

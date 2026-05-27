@@ -36,10 +36,10 @@ function buildSupabaseStub(opts: {
 	tasksChain.select = vi.fn(() => tasksChain);
 	tasksChain.eq = vi.fn(() => tasksChain);
 	tasksChain.order = vi.fn(() =>
-		Promise.resolve(opts.listResult ?? { data: [], error: null }),
+		Promise.resolve(opts.listResult ?? { data: [], error: null })
 	);
 	tasksChain.single = vi.fn(() =>
-		Promise.resolve(opts.singleResult ?? { data: null, error: null }),
+		Promise.resolve(opts.singleResult ?? { data: null, error: null })
 	);
 	tasksChain.insert = vi.fn(() => tasksChain);
 
@@ -49,23 +49,22 @@ function buildSupabaseStub(opts: {
 		Object.assign(photosChain, {
 			then: (resolve: (value: unknown) => unknown) =>
 				resolve(opts.photosResult ?? { data: [], error: null }),
-		}),
+		})
 	);
 
 	const projectsChain: Record<string, (...args: unknown[]) => unknown> = {};
 	projectsChain.select = vi.fn(() => projectsChain);
 	projectsChain.eq = vi.fn(() => projectsChain);
 	projectsChain.maybeSingle = vi.fn(() =>
-		Promise.resolve(
-			opts.projectsResult ?? { data: { id: "p1" }, error: null },
-		),
+		Promise.resolve(opts.projectsResult ?? { data: { id: "p1" }, error: null })
 	);
 
-	const createSignedUrlMock = vi.fn(async (path: string, _ttl: number) =>
-		opts.signedUrlResult ?? {
-			data: { signedUrl: `https://signed/${path}` },
-			error: null,
-		},
+	const createSignedUrlMock = vi.fn(
+		async (path: string, _ttl: number) =>
+			opts.signedUrlResult ?? {
+				data: { signedUrl: `https://signed/${path}` },
+				error: null,
+			}
 	);
 	const storageFromMock = vi.fn(() => ({
 		createSignedUrl: createSignedUrlMock,
@@ -90,7 +89,7 @@ function buildSupabaseStub(opts: {
 }
 
 const SAMPLE_DEBUG = {
-	model: "gpt-5.4-mini",
+	model: "gpt-5.5",
 	prompt: "test prompt",
 	rawResponse: "{}",
 	durationMs: 7,
@@ -153,7 +152,7 @@ describe("listProjectTasksHandler", () => {
 				userId: "user-1",
 				supabase,
 				input: { projectId: "p1" },
-			}),
+			})
 		).rejects.toThrow("Not authorized");
 	});
 });
@@ -190,7 +189,7 @@ describe("createTaskHandler", () => {
 				title: "ceiling",
 				category: "ceiling",
 				status: "active",
-			}),
+			})
 		);
 	});
 
@@ -208,7 +207,7 @@ describe("createTaskHandler", () => {
 					title: "ceiling",
 					category: "ceiling",
 				},
-			}),
+			})
 		).rejects.toThrow("Project not found");
 		expect(tasksChain.insert).not.toHaveBeenCalled();
 	});
@@ -230,11 +229,10 @@ describe("suggestTasksForProjectHandler", () => {
 				notes: null,
 			},
 		];
-		const { supabase, storageFromMock, createSignedUrlMock } = buildSupabaseStub(
-			{
+		const { supabase, storageFromMock, createSignedUrlMock } =
+			buildSupabaseStub({
 				photosResult: { data: photos, error: null },
-			},
-		);
+			});
 		const provider = buildMockProvider();
 
 		const result = await __suggestTasksForProjectHandler({
@@ -303,7 +301,7 @@ describe("suggestTasksForProjectHandler", () => {
 				supabase,
 				provider,
 				input: { projectId: "p1", projectNotes: "" },
-			}),
+			})
 		).rejects.toThrow("Database error");
 		expect(provider.suggestTasks).not.toHaveBeenCalled();
 	});
@@ -329,7 +327,7 @@ describe("suggestTasksForProjectHandler", () => {
 				supabase,
 				provider,
 				input: { projectId: "p1", projectNotes: "" },
-			}),
+			})
 		).rejects.toThrow("Failed to mint signed URL");
 		expect(provider.suggestTasks).not.toHaveBeenCalled();
 	});

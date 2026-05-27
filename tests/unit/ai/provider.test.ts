@@ -18,10 +18,11 @@ describe("getRenovationAiProvider", () => {
 		expect(getRenovationAiProvider()).toBe(openAiRenovationProvider);
 	});
 
-	it("throws for unknown AI_PROVIDER values", () => {
+	it("routes any non-'mock' value to the live multi-provider impl", () => {
+		// The env var only distinguishes mock-vs-live now that per-call model
+		// selection picks the concrete provider (openai/google/anthropic).
+		// Legacy "openai" still resolves to live; so does any new value.
 		vi.stubEnv("AI_PROVIDER", "garbage");
-		expect(() => getRenovationAiProvider()).toThrow(
-			"Unknown AI_PROVIDER: garbage",
-		);
+		expect(getRenovationAiProvider()).toBe(openAiRenovationProvider);
 	});
 });

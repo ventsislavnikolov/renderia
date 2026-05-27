@@ -15,16 +15,24 @@ export function DebugPanel(props: {
 	if (import.meta.env.MODE === "production") return null;
 	if (!props.debug) return null;
 	return (
-		<details className="debug-panel">
-			<summary>
+		<details className="rounded-md border border-border bg-foreground/95 p-4 font-mono text-ink-subtle text-xs">
+			<summary className="cursor-pointer select-none text-gold">
 				Debug — {props.label} AI request/response ({props.debug.model},{" "}
 				{props.debug.durationMs}ms)
 			</summary>
-			<div className="debug-panel-body">
-				<h4>Prompt</h4>
-				<pre>{props.debug.prompt}</pre>
-				<h4>Raw response</h4>
-				<pre>{props.debug.rawResponse}</pre>
+			<div className="mt-3 grid gap-3">
+				<h4 className="m-0 font-display font-medium text-[0.75rem] text-gold uppercase tracking-wider">
+					Prompt
+				</h4>
+				<pre className="m-0 overflow-x-auto whitespace-pre-wrap font-mono text-[0.75rem] text-popover">
+					{props.debug.prompt}
+				</pre>
+				<h4 className="m-0 font-display font-medium text-[0.75rem] text-gold uppercase tracking-wider">
+					Raw response
+				</h4>
+				<pre className="m-0 overflow-x-auto whitespace-pre-wrap font-mono text-[0.75rem] text-popover">
+					{props.debug.rawResponse}
+				</pre>
 			</div>
 		</details>
 	);
