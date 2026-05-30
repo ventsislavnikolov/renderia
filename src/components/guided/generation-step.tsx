@@ -1,6 +1,7 @@
 import { Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderDebug } from "@/lib/ai/types";
 import { cn } from "@/lib/utils";
 import {
@@ -238,16 +239,21 @@ export function GenerationStep(props: {
 				) : null}
 			</div>
 
-			{loading && !generating ? (
-				<output className="block text-[0.9375rem] text-ink-muted italic">
-					Loading previous variations…
-				</output>
-			) : null}
-
-			{generating ? (
-				<output className="block text-[0.9375rem] text-ink-muted italic">
-					Generating {VARIATION_COUNT} variations…
-				</output>
+			{(loading && !generating) || generating ? (
+				<div className="grid gap-6 md:grid-cols-2">
+					{[0, 1].map((i) => (
+						<article
+							className="grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
+							key={i}
+						>
+							<Skeleton className="aspect-[4/3] w-full rounded-none" />
+							<div className="flex items-center justify-between gap-3 border-border border-t px-5 py-3">
+								<Skeleton className="h-3 w-16" />
+								<Skeleton className="h-8 w-28" />
+							</div>
+						</article>
+					))}
+				</div>
 			) : null}
 
 			{images && images.length > 0 ? (

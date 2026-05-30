@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
 	getAuthHeaders,
@@ -287,9 +288,16 @@ export function PhotoUploadStep(props: {
 			</div>
 
 			{photos === null && loadError === null ? (
-				<output className="block text-[0.9375rem] text-ink-muted italic">
-					Loading photos…
-				</output>
+				<ul
+					aria-label="Existing project photos"
+					className="m-0 grid list-none gap-6 p-0 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]"
+				>
+					{[0, 1, 2].map((i) => (
+						<li key={i}>
+							<Skeleton className="aspect-[4/3] w-full rounded-md" />
+						</li>
+					))}
+				</ul>
 			) : null}
 			{loadError ? (
 				<p
@@ -300,18 +308,23 @@ export function PhotoUploadStep(props: {
 				</p>
 			) : null}
 
-			{photos && photos.length === 0 && !loadError ? (
+			{photos && photos.length === 0 && !loadError && !uploading ? (
 				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 					No photos yet. Upload one above to continue.
 				</p>
 			) : null}
 
-			{photos && photos.length > 0 ? (
+			{(photos && photos.length > 0) || uploading ? (
 				<ul
 					aria-label="Existing project photos"
 					className="m-0 grid list-none gap-6 p-0 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]"
 				>
-					{photos.map((photo) => {
+					{uploading ? (
+						<li>
+							<Skeleton className="aspect-[4/3] w-full rounded-md" />
+						</li>
+					) : null}
+					{(photos ?? []).map((photo) => {
 						const isSelected = photo.id === props.selectedPhotoId;
 						const url = signedUrls.get(photo.id);
 						return (

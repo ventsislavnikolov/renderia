@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
 	getAuthHeaders,
@@ -95,9 +96,14 @@ export function Sidebar() {
 					</div>
 
 					{projects === null ? (
-						<p className="px-3 py-2 font-body text-[0.9375rem] text-ink-muted">
-							Loading...
-						</p>
+						<div className="flex flex-col gap-0.5">
+							{[0, 1, 2].map((i) => (
+								<div className="flex items-center gap-3 px-3 py-2" key={i}>
+									<Skeleton className="size-5 shrink-0 rounded-sm" />
+									<Skeleton className="h-4 w-[120px]" />
+								</div>
+							))}
+						</div>
 					) : null}
 					{loadError ? (
 						<p

@@ -13,6 +13,7 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	getAuthHeaders,
@@ -214,9 +215,20 @@ export function ProjectList() {
 			</output>
 
 			{projects === null && loadError === null ? (
-				<output className="block rounded-lg border border-border bg-surface px-4 py-3 text-[0.9375rem] text-ink-muted">
-					Loading projects...
-				</output>
+				<ul className="m-0 grid list-none overflow-hidden rounded-lg border border-border bg-background p-0 shadow-xs">
+					{[0, 1, 2].map((i) => (
+						<li className="border-border border-b last:border-b-0" key={i}>
+							<div className="grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 sm:px-5">
+								<Skeleton className="size-9 rounded-md" />
+								<div className="grid gap-1.5">
+									<Skeleton className="h-4 w-[180px]" />
+									<Skeleton className="h-3 w-[120px]" />
+								</div>
+								<Skeleton className="size-8 rounded-md" />
+							</div>
+						</li>
+					))}
+				</ul>
 			) : null}
 			{loadError ? (
 				<p

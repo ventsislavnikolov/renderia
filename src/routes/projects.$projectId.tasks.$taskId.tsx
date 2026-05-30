@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { GuidedFlow } from "../components/guided/guided-flow";
 import { AppShell } from "../components/layout/app-shell";
 import {
@@ -117,9 +118,13 @@ function TaskWorkspaceRoute() {
 						taskTitle={task.title}
 					/>
 				) : loadError ? null : (
-					<output className="block text-[0.9375rem] text-ink-muted italic">
-						Loading task…
-					</output>
+					<div className="grid gap-8 border border-border bg-surface p-10 max-md:p-6">
+						<div className="grid gap-3">
+							<Skeleton className="h-7 w-[240px]" />
+							<Skeleton className="h-5 w-[160px]" />
+						</div>
+						<Skeleton className="h-64 w-full" />
+					</div>
 				)}
 			</section>
 		</AppShell>
