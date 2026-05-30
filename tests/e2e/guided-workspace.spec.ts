@@ -414,6 +414,9 @@ async function installApiMocks(page: Page, state: PageState) {
 		if (fnId.includes("saveDesignBrief")) {
 			return serializedResult(FAKE_BRIEF);
 		}
+		if (fnId.includes("listGeneratedImages")) {
+			return serializedResult({ jobId: null, images: [] });
+		}
 		if (fnId.includes("generateRenovationImages")) {
 			return serializedResult({ data: FAKE_GENERATION });
 		}
