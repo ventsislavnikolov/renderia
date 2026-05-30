@@ -45,7 +45,7 @@ function sanitizeFilename(name: string): string {
  * the path's first segment equals `auth.uid()` so we keep authz on the
  * platform instead of trusting client code. After upload succeeds we persist
  * a `photos` row via the server fn so the rest of the app can join photos to
- * the project.
+ * the current task.
  *
  * Selecting an existing or newly-uploaded photo calls `onPhotoSelected` to
  * advance the parent guided flow. The component owns its own data lifecycle
@@ -57,6 +57,7 @@ const TILE_URL_TTL_SECONDS = 600;
 
 export function PhotoUploadStep(props: {
 	projectId: string;
+	taskId: string;
 	selectedPhotoId: string | null;
 	onPhotoSelected: (photo: PhotoRow) => void;
 }) {
@@ -77,7 +78,7 @@ export function PhotoUploadStep(props: {
 		try {
 			const headers = await getAuthHeaders();
 			const rows: PhotoRow[] = await listProjectPhotos({
-				data: { projectId: props.projectId },
+				data: { projectId: props.projectId, taskId: props.taskId },
 				headers,
 			});
 			if (cancelledRef.current) return;
@@ -91,7 +92,7 @@ export function PhotoUploadStep(props: {
 			setLoadError(error instanceof Error ? error.message : "Failed to load");
 			setPhotos([]);
 		}
-	}, [props.projectId]);
+	}, [props.projectId, props.taskId]);
 
 	useEffect(() => {
 		cancelledRef.current = false;
@@ -207,6 +208,7 @@ export function PhotoUploadStep(props: {
 				row = await createPhotoRecord({
 					data: {
 						projectId: props.projectId,
+						taskId: props.taskId,
 						storagePath,
 						originalName: file.name.slice(0, 255),
 						contentType: file.type as "image/png" | "image/jpeg" | "image/webp",

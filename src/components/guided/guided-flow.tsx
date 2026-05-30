@@ -192,6 +192,7 @@ export function GuidedFlow(props: {
 					onPhotoSelected={handlePhotoSelected}
 					projectId={props.projectId}
 					selectedPhotoId={photo?.id ?? null}
+					taskId={props.taskId}
 				/>
 			) : null}
 

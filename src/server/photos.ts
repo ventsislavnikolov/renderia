@@ -32,14 +32,17 @@ export async function __listProjectPhotosHandler(args: {
 	input: ListPhotosInput;
 }) {
 	const { data, error } = await args.supabase
-		.from("photos")
-		.select("*")
+		.from("task_photos")
+		.select("photos(*)")
 		.eq("owner_id", args.userId)
 		.eq("project_id", args.input.projectId)
-		.order("created_at", { ascending: false });
+		.eq("task_id", args.input.taskId);
 
 	if (error) throw wrapSupabaseError(error);
-	return data ?? [];
+	return (data ?? []).flatMap((row) => {
+		const photo = row.photos;
+		return photo ? [photo] : [];
+	});
 }
 
 /** @internal */
@@ -50,17 +53,18 @@ export async function __createPhotoRecordHandler(args: {
 }) {
 	// Parent-ownership pre-check. See __createTaskHandler for the same
 	// pattern — RLS will reject mismatches anyway, but going through a
-	// select first lets us surface a clean "Project not found" instead of
-	// a raw PostgREST policy error.
+	// select first lets us surface a clean "Task not found" instead of a
+	// raw PostgREST policy error.
 	const parent = await args.supabase
-		.from("projects")
+		.from("renovation_tasks")
 		.select("id")
-		.eq("id", args.input.projectId)
+		.eq("id", args.input.taskId)
+		.eq("project_id", args.input.projectId)
 		.eq("owner_id", args.userId)
 		.maybeSingle();
 
 	if (parent.error) throw wrapSupabaseError(parent.error);
-	if (!parent.data) throw new Error("Project not found");
+	if (!parent.data) throw new Error("Task not found");
 
 	const { data, error } = await args.supabase
 		.from("photos")
@@ -76,6 +80,14 @@ export async function __createPhotoRecordHandler(args: {
 		.single();
 
 	if (error) throw wrapSupabaseError(error);
+	const link = await args.supabase.from("task_photos").insert({
+		owner_id: args.userId,
+		project_id: args.input.projectId,
+		task_id: args.input.taskId,
+		photo_id: data.id,
+	});
+
+	if (link.error) throw wrapSupabaseError(link.error);
 	return data;
 }
 

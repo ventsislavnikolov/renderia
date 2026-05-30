@@ -25,6 +25,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
 	PhotoUploadStep: (props: {
 		projectId: string;
+		taskId: string;
 		selectedPhotoId: string | null;
 		onPhotoSelected: (row: {
 			id: string;
@@ -41,6 +42,7 @@ vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
 		}) => void;
 	}) => (
 		<div data-testid="photo-step">
+			<span data-testid="photo-step-task">{props.taskId}</span>
 			<span data-testid="photo-step-selected">
 				{props.selectedPhotoId ?? "none"}
 			</span>
@@ -213,6 +215,7 @@ describe("GuidedFlow orchestrator", () => {
 		expect(buttons[2]?.hasAttribute("disabled")).toBe(true);
 		expect(buttons[3]?.hasAttribute("disabled")).toBe(true);
 		expect(screen.getByTestId("photo-step")).toBeDefined();
+		expect(screen.getByTestId("photo-step-task").textContent).toBe("t1");
 	});
 
 	it("advances to the overlay step when a photo is selected", async () => {

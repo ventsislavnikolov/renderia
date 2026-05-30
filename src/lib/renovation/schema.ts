@@ -80,6 +80,7 @@ export type ProtectedElementInput = z.infer<typeof protectedElementSchema>;
 
 export const createPhotoSchema = z.object({
 	projectId: z.string().uuid(),
+	taskId: z.string().uuid(),
 	// `user-id/filename` pattern — first segment is the owning user's UUID,
 	// second segment is a safe filename. Rejects `..`, leading `/`, or any
 	// other path-traversal shape that storage bucket policies wouldn't catch.
@@ -96,6 +97,7 @@ export type CreatePhotoInput = z.infer<typeof createPhotoSchema>;
 
 export const listPhotosSchema = z.object({
 	projectId: z.string().uuid(),
+	taskId: z.string().uuid(),
 });
 export type ListPhotosInput = z.infer<typeof listPhotosSchema>;
 

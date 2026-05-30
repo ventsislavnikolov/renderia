@@ -135,13 +135,14 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 
 		const tile = await screen.findByRole("button", { name: /photo\.png/ });
 		expect(tile).toBeDefined();
 		expect(listProjectPhotosMock).toHaveBeenCalledWith({
-			data: { projectId: "p1" },
+			data: { projectId: "p1", taskId: "t1" },
 			headers: { Authorization: "Bearer test-token" },
 		});
 	});
@@ -169,6 +170,7 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={onPhotoSelected}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 
@@ -203,6 +205,7 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={onPhotoSelected}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 
@@ -223,6 +226,7 @@ describe("PhotoUploadStep", () => {
 			expect.objectContaining({
 				data: expect.objectContaining({
 					projectId: "p1",
+					taskId: "t1",
 					originalName: "photo.png",
 					contentType: "image/png",
 				}),
@@ -237,6 +241,7 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 
@@ -266,6 +271,7 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 
@@ -295,6 +301,7 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 
@@ -319,6 +326,7 @@ describe("PhotoUploadStep", () => {
 				onPhotoSelected={vi.fn()}
 				projectId="p1"
 				selectedPhotoId={null}
+				taskId="t1"
 			/>
 		);
 

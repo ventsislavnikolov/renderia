@@ -77,56 +77,56 @@ export function Sidebar() {
 			aria-label="Workspace"
 			className={cn(
 				"flex flex-col overflow-hidden bg-surface",
-				"border-border border-b md:sticky md:top-0 md:h-screen md:border-r md:border-b-0",
-				"px-3 pt-4 pb-3 md:max-h-none",
+				"border-border border-b md:sticky md:top-0 md:h-screen md:w-[320px] md:border-r md:border-b-0",
+				"px-6 pt-10 pb-6 md:max-h-none",
 				"max-md:max-h-[50vh]"
 			)}
 		>
-			<div className="px-3 pt-2 pb-4">
+			<div className="px-6 pb-8">
 				<Link
-					className="font-semibold text-[1.05rem] text-foreground leading-none tracking-tight"
+					className="font-semibold text-[2rem] text-foreground leading-none no-underline"
 					to="/"
 				>
 					Renderia
 				</Link>
 			</div>
 
-			<nav aria-label="Primary" className="flex flex-col gap-0.5 pb-2">
-				<SidebarLink icon={<Plus className="size-4" />} label="New" to="/" />
+			<nav aria-label="Primary" className="flex flex-col gap-2 pb-4">
+				<SidebarLink icon={<Plus className="size-6" />} label="New" to="/" />
 				<SidebarLink
-					icon={<Layers className="size-4" />}
+					icon={<Layers className="size-6" />}
 					label="Projects"
 					to="/projects"
 				/>
 			</nav>
 
-			<Separator className="mb-1" />
+			<Separator className="mb-5" />
 
-			<ScrollArea className="-mx-3 min-h-0 flex-1 px-3">
-				<div className="px-3 pt-3 pb-1 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]">
+			<ScrollArea className="-mx-6 min-h-0 flex-1 px-6">
+				<div className="px-6 pb-4 font-body font-semibold text-[0.8125rem] text-ink-subtle uppercase tracking-[0.16em]">
 					Projects
 				</div>
 
 				{projects === null ? (
-					<p className="px-3 py-1 font-body text-ink-muted text-sm italic">
-						Loading…
+					<p className="px-6 py-2 font-body text-[1rem] text-ink-muted">
+						Loading...
 					</p>
 				) : null}
 				{loadError ? (
 					<p
-						className="px-3 py-1 font-body text-destructive text-sm italic"
+						className="px-6 py-2 font-body text-[1rem] text-destructive"
 						role="alert"
 					>
 						{loadError}
 					</p>
 				) : null}
 				{projects && projects.length === 0 ? (
-					<p className="px-3 py-1 font-body text-ink-muted text-sm italic">
+					<p className="px-6 py-2 font-body text-[1rem] text-ink-muted">
 						No projects yet.
 					</p>
 				) : null}
 				{projects && projects.length > 0 ? (
-					<ul className="m-0 flex flex-col gap-0.5 p-0">
+					<ul className="m-0 flex flex-col gap-1 p-0">
 						{projects.map((project) => (
 							<SidebarProjectEntry
 								activeProjectId={activeProjectId}
@@ -139,16 +139,16 @@ export function Sidebar() {
 				) : null}
 			</ScrollArea>
 
-			<Separator className="mt-1" />
+			<Separator className="mt-6" />
 
-			<div className="pt-2">
+			<div className="pt-5">
 				<Button
-					className="w-full justify-start font-body text-ink-muted hover:bg-background hover:text-foreground"
+					className="h-12 w-full justify-start rounded-[10px] px-6 font-body font-medium text-[1.125rem] text-ink-muted hover:bg-background hover:text-foreground"
 					disabled={signingOut}
 					onClick={handleSignOut}
 					variant="ghost"
 				>
-					{signingOut ? "Signing out…" : "Sign out"}
+					{signingOut ? "Signing out..." : "Sign out"}
 				</Button>
 			</div>
 		</aside>
@@ -161,8 +161,8 @@ function SidebarLink(props: {
 	label: string;
 }) {
 	const baseClass = cn(
-		"flex items-center gap-3 rounded-md px-3 py-2",
-		"font-body font-medium text-[0.9375rem] text-foreground tracking-tight",
+		"flex items-center gap-5 rounded-[10px] px-6 py-4",
+		"font-body font-semibold text-[1.25rem] text-foreground",
 		"transition-colors hover:bg-background"
 	);
 	return (
@@ -179,7 +179,7 @@ function SidebarLink(props: {
 		>
 			<span
 				aria-hidden="true"
-				className="inline-flex size-5 items-center justify-center"
+				className="inline-flex size-7 items-center justify-center"
 			>
 				{props.icon}
 			</span>
@@ -228,8 +228,8 @@ function SidebarProjectEntry(props: {
 	}, [isActive, props.project.id]);
 
 	const projectClass = cn(
-		"flex items-center gap-2.5 rounded-md px-3 py-1.5",
-		"font-body font-medium text-foreground text-sm tracking-tight",
+		"flex items-center gap-4 rounded-[10px] px-6 py-3",
+		"font-body font-medium text-[1.125rem] text-foreground",
 		"transition-colors hover:bg-background",
 		isActive && "bg-background font-semibold"
 	);
@@ -241,17 +241,17 @@ function SidebarProjectEntry(props: {
 				params={{ projectId: props.project.id }}
 				to="/projects/$projectId"
 			>
-				<Folder aria-hidden="true" className="size-4 shrink-0 text-ink-muted" />
+				<Folder aria-hidden="true" className="size-6 shrink-0 text-ink-muted" />
 				<span className="flex-1 truncate">{props.project.name}</span>
 			</Link>
 			{isActive && tasksLoaded && tasks && tasks.length > 0 ? (
-				<ul className="m-0 ml-5 flex flex-col gap-0 border-border border-l py-0.5 pl-3">
+				<ul className="m-0 ml-9 flex flex-col gap-0 border-border border-l py-1 pl-4">
 					{tasks.slice(0, 6).map((task) => (
 						<li key={task.id}>
 							<Link
 								className={cn(
-									"block truncate rounded px-2.5 py-1.5",
-									"font-body font-medium text-[0.8125rem] text-ink-muted tracking-tight",
+									"block truncate rounded-md px-3 py-2",
+									"font-body font-medium text-[0.9375rem] text-ink-muted",
 									"transition-colors hover:bg-background hover:text-foreground",
 									task.id === props.activeTaskId &&
 										"bg-background font-semibold text-foreground"

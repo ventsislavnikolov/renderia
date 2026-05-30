@@ -17,7 +17,7 @@ export function AppShell(props: {
 	breadcrumbs?: ReactNode;
 }) {
 	return (
-		<div className="grid min-h-screen md:grid-cols-[260px_1fr]">
+		<div className="grid min-h-screen md:grid-cols-[320px_1fr]">
 			<Sidebar />
 			<main className="mx-auto w-full max-w-[1280px] px-6 py-10 md:px-12 md:py-10">
 				{props.breadcrumbs ? (

@@ -6,6 +6,7 @@ import {
 	createTaskSchema,
 	detectedProtectedElementSchema,
 	detectProtectedElementsSchema,
+	listPhotosSchema,
 	protectedElementSchema,
 	suggestTasksSchema,
 } from "../../../src/lib/renovation/schema";
@@ -28,14 +29,39 @@ describe("renovation schemas", () => {
 		).toBe(false);
 	});
 
-	it("requires a uuid for createPhoto.projectId", () => {
+	it("requires uuids for createPhoto projectId and taskId", () => {
 		const ok = createPhotoSchema.safeParse({
 			projectId: "11111111-1111-4111-8111-111111111111",
+			taskId: "22222222-2222-4222-8222-222222222222",
 			storagePath: "11111111-1111-4111-8111-111111111111/photo.png",
 			originalName: "photo.png",
 			contentType: "image/png",
 		});
 		expect(ok.success).toBe(true);
+
+		expect(
+			createPhotoSchema.safeParse({
+				projectId: "11111111-1111-4111-8111-111111111111",
+				taskId: "not-a-uuid",
+				storagePath: "11111111-1111-4111-8111-111111111111/photo.png",
+				originalName: "photo.png",
+				contentType: "image/png",
+			}).success
+		).toBe(false);
+	});
+
+	it("requires listPhotos to scope by project and task", () => {
+		expect(
+			listPhotosSchema.safeParse({
+				projectId: "11111111-1111-4111-8111-111111111111",
+				taskId: "22222222-2222-4222-8222-222222222222",
+			}).success
+		).toBe(true);
+		expect(
+			listPhotosSchema.safeParse({
+				projectId: "11111111-1111-4111-8111-111111111111",
+			}).success
+		).toBe(false);
 	});
 
 	it("rejects storagePath shapes that allow traversal", () => {
@@ -49,6 +75,7 @@ describe("renovation schemas", () => {
 			expect(
 				createPhotoSchema.safeParse({
 					projectId: "11111111-1111-4111-8111-111111111111",
+					taskId: "22222222-2222-4222-8222-222222222222",
 					storagePath,
 					originalName: "photo.png",
 					contentType: "image/png",
@@ -60,6 +87,7 @@ describe("renovation schemas", () => {
 	it("restricts photo contentType to safe image mime types", () => {
 		const base = {
 			projectId: "11111111-1111-4111-8111-111111111111",
+			taskId: "22222222-2222-4222-8222-222222222222",
 			storagePath: "11111111-1111-4111-8111-111111111111/photo.png",
 			originalName: "photo.png",
 		};
