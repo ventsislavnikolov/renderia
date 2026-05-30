@@ -88,7 +88,7 @@ export function GenerationStep(props: {
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setError(
@@ -129,7 +129,7 @@ export function GenerationStep(props: {
 					caught instanceof Error &&
 					caught.message === UNAUTHENTICATED_ERROR
 				) {
-					window.location.assign("/auth");
+					window.location.assign("/sign-in");
 					return;
 				}
 				setError(
@@ -161,7 +161,7 @@ export function GenerationStep(props: {
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			// Revert the optimistic flip and surface the failure inline.

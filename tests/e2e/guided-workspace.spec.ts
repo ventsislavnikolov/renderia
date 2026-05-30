@@ -627,7 +627,7 @@ test.describe("guided renovation workspace", () => {
 		await expect(favBtn).toContainText(/Favorite/);
 	});
 
-	test("unauthenticated user is redirected to /auth", async ({
+	test("unauthenticated user is redirected to /sign-in", async ({
 		page,
 		context,
 	}) => {
@@ -641,6 +641,6 @@ test.describe("guided renovation workspace", () => {
 		});
 
 		await page.goto(TASK_URL);
-		await expect(page).toHaveURL(/\/auth/);
+		await expect(page).toHaveURL(/\/sign-in/);
 	});
 });

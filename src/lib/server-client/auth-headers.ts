@@ -3,7 +3,7 @@ import { supabaseBrowser } from "../supabase/browser";
 /**
  * Sentinel `Error.message` thrown by `getAuthHeaders` when the browser has no
  * Supabase session. Callers compare against this constant to decide whether
- * to redirect to `/auth` instead of showing a generic error toast.
+ * to redirect to `/sign-in` instead of showing a generic error toast.
  */
 export const UNAUTHENTICATED_ERROR = "UNAUTHENTICATED";
 
@@ -16,7 +16,7 @@ export const UNAUTHENTICATED_ERROR = "UNAUTHENTICATED";
  * current session's access token to every server-fn call.
  *
  * Throws `Error(UNAUTHENTICATED_ERROR)` when no session is present so callers
- * can branch on it (catch → `window.location.assign("/auth")`). We use a
+ * can branch on it (catch → `window.location.assign("/sign-in")`). We use a
  * window navigation instead of TanStack Router's `redirect()` so the helper
  * works from any context (components, hooks, plain async functions) without
  * needing access to the router instance.

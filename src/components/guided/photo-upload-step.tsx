@@ -85,7 +85,7 @@ export function PhotoUploadStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setLoadError(error instanceof Error ? error.message : "Failed to load");
@@ -166,7 +166,7 @@ export function PhotoUploadStep(props: {
 			const { data: sessionResult } = await supabaseBrowser.auth.getSession();
 			const userId = sessionResult.session?.user?.id;
 			if (!userId) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 
@@ -234,7 +234,7 @@ export function PhotoUploadStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setUploadError(error instanceof Error ? error.message : "Upload failed");

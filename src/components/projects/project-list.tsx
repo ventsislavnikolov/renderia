@@ -1,6 +1,17 @@
 import { Link } from "@tanstack/react-router";
+import { ArrowRight, Folder, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -28,6 +39,7 @@ export function ProjectList() {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [submitting, setSubmitting] = useState(false);
+	const [createOpen, setCreateOpen] = useState(false);
 	const [createdAnnouncement, setCreatedAnnouncement] = useState<string | null>(
 		null
 	);
@@ -44,7 +56,7 @@ export function ProjectList() {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setLoadError(error instanceof Error ? error.message : "Failed to load");
@@ -84,11 +96,12 @@ export function ProjectList() {
 			setDescription("");
 			await refresh();
 			if (cancelledRef.current) return;
+			setCreateOpen(false);
 			setCreatedAnnouncement("Project created.");
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setCreateError(error instanceof Error ? error.message : "Failed to save");
@@ -98,86 +111,116 @@ export function ProjectList() {
 	}
 
 	return (
-		<section className="grid gap-8">
-			<header className="grid gap-2">
-				<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
-					Projects
-				</h1>
-				<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted">
-					Group renovation tasks by house, floor, or external concept.
-				</p>
-			</header>
-
-			<form
-				aria-busy={submitting}
-				className="grid gap-4 border border-border bg-surface p-8"
-				onSubmit={handleCreate}
-			>
-				<h2 className="m-0 font-display font-medium text-foreground text-xl tracking-tight">
-					New project
-				</h2>
-				<label
-					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
-					htmlFor="new-project-name"
-				>
-					Name
-					<Input
-						aria-describedby={
-							createError ? "new-project-name-error" : undefined
-						}
-						aria-invalid={createError ? true : undefined}
-						className="text-base normal-case tracking-normal"
-						id="new-project-name"
-						maxLength={200}
-						onChange={(event) => setName(event.target.value)}
-						placeholder="City house"
-						required
-						value={name}
-					/>
-				</label>
-				<label
-					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
-					htmlFor="new-project-description"
-				>
-					Description
-					<Textarea
-						className="text-base normal-case tracking-normal"
-						id="new-project-description"
-						maxLength={2000}
-						onChange={(event) => setDescription(event.target.value)}
-						placeholder="Optional notes about the property."
-						value={description}
-					/>
-				</label>
-				<Button
-					className="justify-self-start"
-					disabled={submitting || name.trim().length === 0}
-					type="submit"
-				>
-					{submitting ? "Saving…" : "Create project"}
-				</Button>
-				{createError ? (
-					<p
-						className="m-0 font-medium text-[0.875rem] text-destructive"
-						id="new-project-name-error"
-						role="alert"
-					>
-						{createError}
+		<section className="grid gap-6">
+			<header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+				<div className="grid gap-1.5">
+					<h1 className="m-0 font-body font-semibold text-[1.625rem] text-foreground tracking-tight">
+						Projects
+					</h1>
+					<p className="m-0 max-w-[58ch] font-body text-[0.9375rem] text-ink-muted leading-6">
+						Group renovation rooms and concepts by property, floor, or client.
 					</p>
-				) : null}
-				<output aria-live="polite" className="sr-only">
-					{createdAnnouncement ?? ""}
-				</output>
-			</form>
+				</div>
+				<Dialog
+					onOpenChange={(open) => {
+						setCreateOpen(open);
+						if (!open) setCreateError(null);
+					}}
+					open={createOpen}
+				>
+					<DialogTrigger asChild>
+						<Button className="w-fit" size="sm" type="button">
+							<Plus aria-hidden="true" className="size-4" />
+							New project
+						</Button>
+					</DialogTrigger>
+					<DialogContent className="gap-0 overflow-hidden border-border bg-background p-0 shadow-2xl sm:max-w-[520px]">
+						<form
+							aria-busy={submitting}
+							className="grid gap-5 p-6"
+							onSubmit={handleCreate}
+						>
+							<DialogHeader className="gap-1.5 pr-8">
+								<DialogTitle className="font-body font-semibold text-[1.125rem] tracking-tight">
+									New project
+								</DialogTitle>
+								<DialogDescription className="text-[0.875rem] leading-5">
+									Create a workspace for rooms, notes, and generated concepts.
+								</DialogDescription>
+							</DialogHeader>
+							<div className="grid gap-4">
+								<label
+									className="grid gap-2 font-body font-medium text-[0.8125rem] text-foreground"
+									htmlFor="new-project-name"
+								>
+									Name
+									<Input
+										aria-describedby={
+											createError ? "new-project-name-error" : undefined
+										}
+										aria-invalid={createError ? true : undefined}
+										className="h-10 bg-surface-2 text-[0.9375rem]"
+										id="new-project-name"
+										maxLength={200}
+										onChange={(event) => setName(event.target.value)}
+										placeholder="City house"
+										required
+										value={name}
+									/>
+								</label>
+								<label
+									className="grid gap-2 font-body font-medium text-[0.8125rem] text-foreground"
+									htmlFor="new-project-description"
+								>
+									Description
+									<Textarea
+										className="min-h-24 resize-none bg-surface-2 text-[0.9375rem]"
+										id="new-project-description"
+										maxLength={2000}
+										onChange={(event) => setDescription(event.target.value)}
+										placeholder="Optional notes about the property."
+										value={description}
+									/>
+								</label>
+							</div>
+							{createError ? (
+								<p
+									className="m-0 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 font-medium text-[0.875rem] text-destructive"
+									id="new-project-name-error"
+									role="alert"
+								>
+									{createError}
+								</p>
+							) : null}
+							<DialogFooter>
+								<DialogClose asChild>
+									<Button disabled={submitting} type="button" variant="outline">
+										Cancel
+									</Button>
+								</DialogClose>
+								<Button
+									disabled={submitting || name.trim().length === 0}
+									type="submit"
+								>
+									{submitting ? "Saving…" : "Create project"}
+								</Button>
+							</DialogFooter>
+						</form>
+					</DialogContent>
+				</Dialog>
+			</header>
+			<output aria-live="polite" className="sr-only">
+				{createdAnnouncement ?? ""}
+			</output>
 
 			{projects === null && loadError === null ? (
-				<output className="block text-[0.9375rem] text-ink-muted italic">
-					Loading projects…
+				<output className="block rounded-lg border border-border bg-surface px-4 py-3 text-[0.9375rem] text-ink-muted">
+					Loading projects...
 				</output>
 			) : null}
 			{loadError ? (
 				<p
-					className="m-0 font-medium text-[0.9375rem] text-warning"
+					className="m-0 rounded-lg border border-warning/25 bg-warning/5 px-4 py-3 font-medium text-[0.9375rem] text-warning"
 					role="alert"
 				>
 					{loadError}
@@ -185,28 +228,48 @@ export function ProjectList() {
 			) : null}
 
 			{projects && projects.length === 0 && !loadError ? (
-				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
-					No projects yet. Create one above to get started.
-				</p>
+				<div className="rounded-lg border border-border border-dashed bg-surface px-6 py-10 text-center">
+					<p className="m-0 font-medium text-[0.9375rem] text-foreground">
+						No projects yet
+					</p>
+					<p className="m-0 mt-1 text-[0.875rem] text-ink-muted">
+						Use New project to create your first workspace.
+					</p>
+				</div>
 			) : null}
 
 			{projects && projects.length > 0 ? (
-				<ul className="m-0 grid list-none gap-4 p-0 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
+				<ul className="m-0 grid list-none overflow-hidden rounded-lg border border-border bg-background p-0 shadow-xs">
 					{projects.map((project) => (
-						<li key={project.id}>
+						<li
+							className="border-border border-b last:border-b-0"
+							key={project.id}
+						>
 							<Link
-								className="block border border-border bg-surface p-6 no-underline transition-[border-color,box-shadow] hover:border-foreground hover:shadow-sm"
+								className="group grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 no-underline transition-colors hover:bg-surface sm:px-5"
 								params={{ projectId: project.id }}
 								to="/projects/$projectId"
 							>
-								<h3 className="m-0 mb-2 font-display font-medium text-foreground text-xl tracking-tight">
-									{project.name}
-								</h3>
-								{project.description ? (
-									<p className="m-0 text-[0.875rem] text-ink-muted leading-relaxed">
-										{project.description}
-									</p>
-								) : null}
+								<span
+									aria-hidden="true"
+									className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface-2 text-ink-muted"
+								>
+									<Folder className="size-4" />
+								</span>
+								<span className="min-w-0">
+									<span className="block truncate font-body font-medium text-[0.9375rem] text-foreground tracking-tight">
+										{project.name}
+									</span>
+									<span className="mt-0.5 block truncate text-[0.8125rem] text-ink-muted">
+										{project.description || "No description"}
+									</span>
+								</span>
+								<span
+									aria-hidden="true"
+									className="inline-flex size-8 items-center justify-center rounded-md text-ink-subtle transition-colors group-hover:bg-background group-hover:text-foreground"
+								>
+									<ArrowRight className="size-4" />
+								</span>
 							</Link>
 						</li>
 					))}

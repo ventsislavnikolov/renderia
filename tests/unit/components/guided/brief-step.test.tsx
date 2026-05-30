@@ -270,7 +270,7 @@ describe("BriefStep", () => {
 		expect(onNext).toHaveBeenCalledTimes(1);
 	});
 
-	it("redirects to /auth when the server fn surfaces UNAUTHENTICATED", async () => {
+	it("redirects to /sign-in when the server fn surfaces UNAUTHENTICATED", async () => {
 		const user = userEvent.setup();
 		createDesignBriefMock.mockRejectedValue(new Error("UNAUTHENTICATED"));
 		const assignSpy = window.location.assign as unknown as Mock;
@@ -292,7 +292,7 @@ describe("BriefStep", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: /generate brief/i }));
-		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));
+		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/sign-in"));
 	});
 
 	it("surfaces non-auth errors via role=alert", async () => {

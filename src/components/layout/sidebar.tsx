@@ -46,7 +46,7 @@ export function Sidebar() {
 			} catch (error) {
 				if (cancelled) return;
 				if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-					window.location.assign("/auth");
+					window.location.assign("/sign-in");
 					return;
 				}
 				setLoadError(
@@ -68,7 +68,7 @@ export function Sidebar() {
 		try {
 			await supabaseBrowser.auth.signOut();
 		} finally {
-			window.location.assign("/auth");
+			window.location.assign("/sign-in");
 		}
 	}
 

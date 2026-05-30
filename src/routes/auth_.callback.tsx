@@ -67,7 +67,7 @@ function AuthCallback() {
 						</p>
 						<a
 							className="text-[0.875rem] text-foreground underline"
-							href="/auth"
+							href="/sign-in"
 						>
 							Back to sign-in
 						</a>

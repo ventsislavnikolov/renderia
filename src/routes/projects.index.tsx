@@ -8,7 +8,7 @@ import { supabaseBrowser } from "../lib/supabase/browser";
  *
  * SSR is disabled because the auth guard depends on the browser-only
  * Supabase session (same rationale as `/`). Unauthenticated visitors are
- * redirected to `/auth`.
+ * redirected to `/sign-in`.
  */
 export const Route = createFileRoute("/projects/")({
 	ssr: false,
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/projects/")({
 			data: { session },
 		} = await supabaseBrowser.auth.getSession();
 		if (!session) {
-			throw redirect({ to: "/auth" });
+			throw redirect({ to: "/sign-in" });
 		}
 	},
 	component: ProjectsRoute,

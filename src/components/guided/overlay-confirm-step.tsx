@@ -147,7 +147,7 @@ export function OverlayConfirmStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			// Failing to load persisted rows is non-fatal — the user can run
@@ -240,7 +240,7 @@ export function OverlayConfirmStep(props: {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setDetectError(
@@ -291,7 +291,7 @@ export function OverlayConfirmStep(props: {
 				return next;
 			});
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setDetectError(

@@ -46,7 +46,7 @@ export function PromptEntry() {
 			});
 		} catch (caught) {
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setError(

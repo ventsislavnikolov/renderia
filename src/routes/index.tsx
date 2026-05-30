@@ -8,7 +8,7 @@ import { supabaseBrowser } from "../lib/supabase/browser";
  *
  * SSR is disabled so the auth guard can read the Supabase session from the
  * browser (same rationale as `/projects`). Unauthenticated visitors are
- * bounced to `/auth`; the rest land on the centered "What should we build?"
+ * bounced to `/sign-in`; the rest land on the centered "What should we build?"
  * prompt that creates a project + task and drops them straight into the
  * 4-step guided workspace.
  */
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
 			data: { session },
 		} = await supabaseBrowser.auth.getSession();
 		if (!session) {
-			throw redirect({ to: "/auth" });
+			throw redirect({ to: "/sign-in" });
 		}
 	},
 	component: HomeRoute,

@@ -285,7 +285,7 @@ describe("PhotoUploadStep", () => {
 		expect(alert.textContent).toMatch(/Database error/);
 	});
 
-	it("redirects to /auth when there is no Supabase session", async () => {
+	it("redirects to /sign-in when there is no Supabase session", async () => {
 		listProjectPhotosMock.mockResolvedValue([]);
 		getSessionMock.mockResolvedValue({ data: { session: null } });
 		const assignSpy = window.location.assign as unknown as Mock;
@@ -306,11 +306,11 @@ describe("PhotoUploadStep", () => {
 		});
 		pickFile(hiddenInput, file);
 
-		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));
+		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/sign-in"));
 		expect(uploadMock).not.toHaveBeenCalled();
 	});
 
-	it("redirects to /auth when listProjectPhotos surfaces UNAUTHENTICATED (Task 7 fix)", async () => {
+	it("redirects to /sign-in when listProjectPhotos surfaces UNAUTHENTICATED (Task 7 fix)", async () => {
 		listProjectPhotosMock.mockRejectedValueOnce(new Error("UNAUTHENTICATED"));
 		const assignSpy = window.location.assign as unknown as Mock;
 
@@ -322,6 +322,6 @@ describe("PhotoUploadStep", () => {
 			/>
 		);
 
-		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));
+		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/sign-in"));
 	});
 });

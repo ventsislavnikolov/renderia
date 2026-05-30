@@ -33,7 +33,7 @@ export const Route = createFileRoute("/projects/$projectId")({
 			data: { session },
 		} = await supabaseBrowser.auth.getSession();
 		if (!session) {
-			throw redirect({ to: "/auth" });
+			throw redirect({ to: "/sign-in" });
 		}
 	},
 	component: ProjectRoute,
@@ -65,7 +65,7 @@ function ProjectRoute() {
 					caught instanceof Error &&
 					caught.message === UNAUTHENTICATED_ERROR
 				) {
-					window.location.assign("/auth");
+					window.location.assign("/sign-in");
 					return;
 				}
 				setError(

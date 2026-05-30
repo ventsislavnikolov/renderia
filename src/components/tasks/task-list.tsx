@@ -1,7 +1,18 @@
 import { Link } from "@tanstack/react-router";
+import { ArrowRight, DoorOpen, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -27,6 +38,7 @@ export function TaskList(props: { projectId: string }) {
 	const [category, setCategory] = useState("");
 	const [notes, setNotes] = useState("");
 	const [submitting, setSubmitting] = useState(false);
+	const [createOpen, setCreateOpen] = useState(false);
 	const [createdAnnouncement, setCreatedAnnouncement] = useState<string | null>(
 		null
 	);
@@ -46,7 +58,7 @@ export function TaskList(props: { projectId: string }) {
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setLoadError(error instanceof Error ? error.message : "Failed to load");
@@ -89,11 +101,12 @@ export function TaskList(props: { projectId: string }) {
 			setNotes("");
 			await refresh();
 			if (cancelledRef.current) return;
-			setCreatedAnnouncement("Task created.");
+			setCreateOpen(false);
+			setCreatedAnnouncement("Room created.");
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/auth");
+				window.location.assign("/sign-in");
 				return;
 			}
 			setCreateError(error instanceof Error ? error.message : "Failed to save");
@@ -105,100 +118,129 @@ export function TaskList(props: { projectId: string }) {
 	const formValid = title.trim().length > 0 && category.trim().length > 0;
 
 	return (
-		<section className="grid gap-8">
-			<header className="grid gap-2">
-				<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
-					Renovation tasks
-				</h1>
-				<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted">
-					Each task captures one area of the house. Open a task to step through
-					the guided renovation flow.
-				</p>
-			</header>
-
-			<form
-				aria-busy={submitting}
-				className="grid gap-4 border border-border bg-surface p-8"
-				onSubmit={handleCreate}
-			>
-				<h2 className="m-0 font-display font-medium text-foreground text-xl tracking-tight">
-					New task
-				</h2>
-				<label
-					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
-					htmlFor="new-task-title"
-				>
-					Title
-					<Input
-						aria-describedby={createError ? "new-task-error" : undefined}
-						aria-invalid={createError ? true : undefined}
-						className="text-base normal-case tracking-normal"
-						id="new-task-title"
-						maxLength={200}
-						onChange={(event) => setTitle(event.target.value)}
-						placeholder="2nd floor — ceiling"
-						required
-						value={title}
-					/>
-				</label>
-				<label
-					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
-					htmlFor="new-task-category"
-				>
-					Category
-					<Input
-						className="text-base normal-case tracking-normal"
-						id="new-task-category"
-						maxLength={200}
-						onChange={(event) => setCategory(event.target.value)}
-						placeholder="ceiling, facade, kitchen…"
-						required
-						value={category}
-					/>
-				</label>
-				<label
-					className="grid gap-2 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.08em]"
-					htmlFor="new-task-notes"
-				>
-					Notes
-					<Textarea
-						className="text-base normal-case tracking-normal"
-						id="new-task-notes"
-						maxLength={4000}
-						onChange={(event) => setNotes(event.target.value)}
-						placeholder="Optional context for the AI provider."
-						value={notes}
-					/>
-				</label>
-				<Button
-					className="justify-self-start"
-					disabled={submitting || !formValid}
-					type="submit"
-				>
-					{submitting ? "Saving…" : "Create task"}
-				</Button>
-				{createError ? (
-					<p
-						className="m-0 font-medium text-[0.875rem] text-destructive"
-						id="new-task-error"
-						role="alert"
-					>
-						{createError}
+		<section className="grid gap-6">
+			<header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+				<div className="grid gap-1.5">
+					<h1 className="m-0 font-body font-semibold text-[1.625rem] text-foreground tracking-tight">
+						Rooms
+					</h1>
+					<p className="m-0 max-w-[58ch] font-body text-[0.9375rem] text-ink-muted leading-6">
+						Open a room to upload photos, write the brief, and generate
+						concepts.
 					</p>
-				) : null}
-				<output aria-live="polite" className="sr-only">
-					{createdAnnouncement ?? ""}
-				</output>
-			</form>
+				</div>
+				<Dialog
+					onOpenChange={(open) => {
+						setCreateOpen(open);
+						if (!open) setCreateError(null);
+					}}
+					open={createOpen}
+				>
+					<DialogTrigger asChild>
+						<Button className="w-fit" size="sm" type="button">
+							<Plus aria-hidden="true" className="size-4" />
+							New room
+						</Button>
+					</DialogTrigger>
+					<DialogContent className="gap-0 overflow-hidden border-border bg-background p-0 shadow-2xl sm:max-w-[540px]">
+						<form
+							aria-busy={submitting}
+							className="grid gap-5 p-6"
+							onSubmit={handleCreate}
+						>
+							<DialogHeader className="gap-1.5 pr-8">
+								<DialogTitle className="font-body font-semibold text-[1.125rem] tracking-tight">
+									New room
+								</DialogTitle>
+								<DialogDescription className="text-[0.875rem] leading-5">
+									Add a room or renovation area to guide the concept workflow.
+								</DialogDescription>
+							</DialogHeader>
+							<div className="grid gap-4">
+								<label
+									className="grid gap-2 font-body font-medium text-[0.8125rem] text-foreground"
+									htmlFor="new-task-title"
+								>
+									Title
+									<Input
+										aria-describedby={
+											createError ? "new-task-error" : undefined
+										}
+										aria-invalid={createError ? true : undefined}
+										className="h-10 bg-surface-2 text-[0.9375rem]"
+										id="new-task-title"
+										maxLength={200}
+										onChange={(event) => setTitle(event.target.value)}
+										placeholder="Living room"
+										required
+										value={title}
+									/>
+								</label>
+								<label
+									className="grid gap-2 font-body font-medium text-[0.8125rem] text-foreground"
+									htmlFor="new-task-category"
+								>
+									Category
+									<Input
+										className="h-10 bg-surface-2 text-[0.9375rem]"
+										id="new-task-category"
+										maxLength={200}
+										onChange={(event) => setCategory(event.target.value)}
+										placeholder="living room, kitchen, facade"
+										required
+										value={category}
+									/>
+								</label>
+								<label
+									className="grid gap-2 font-body font-medium text-[0.8125rem] text-foreground"
+									htmlFor="new-task-notes"
+								>
+									Notes
+									<Textarea
+										className="min-h-24 resize-none bg-surface-2 text-[0.9375rem]"
+										id="new-task-notes"
+										maxLength={4000}
+										onChange={(event) => setNotes(event.target.value)}
+										placeholder="Optional context for the AI provider."
+										value={notes}
+									/>
+								</label>
+							</div>
+							{createError ? (
+								<p
+									className="m-0 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 font-medium text-[0.875rem] text-destructive"
+									id="new-task-error"
+									role="alert"
+								>
+									{createError}
+								</p>
+							) : null}
+							<DialogFooter>
+								<DialogClose asChild>
+									<Button disabled={submitting} type="button" variant="outline">
+										Cancel
+									</Button>
+								</DialogClose>
+								<Button disabled={submitting || !formValid} type="submit">
+									{submitting ? "Saving…" : "Create room"}
+								</Button>
+							</DialogFooter>
+						</form>
+					</DialogContent>
+				</Dialog>
+			</header>
+			<output aria-live="polite" className="sr-only">
+				{createdAnnouncement ?? ""}
+			</output>
 
 			{tasks === null && loadError === null ? (
-				<output className="block text-[0.9375rem] text-ink-muted italic">
-					Loading tasks…
+				<output className="block rounded-lg border border-border bg-surface px-4 py-3 text-[0.9375rem] text-ink-muted">
+					Loading rooms...
 				</output>
 			) : null}
 			{loadError ? (
 				<p
-					className="m-0 font-medium text-[0.9375rem] text-warning"
+					className="m-0 rounded-lg border border-warning/25 bg-warning/5 px-4 py-3 font-medium text-[0.9375rem] text-warning"
 					role="alert"
 				>
 					{loadError}
@@ -206,32 +248,58 @@ export function TaskList(props: { projectId: string }) {
 			) : null}
 
 			{tasks && tasks.length === 0 && !loadError ? (
-				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
-					No tasks yet. Create one above to start a renovation concept.
-				</p>
+				<div className="rounded-lg border border-border border-dashed bg-surface px-6 py-10 text-center">
+					<p className="m-0 font-medium text-[0.9375rem] text-foreground">
+						No rooms yet
+					</p>
+					<p className="m-0 mt-1 text-[0.875rem] text-ink-muted">
+						Use New room to start a renovation concept.
+					</p>
+				</div>
 			) : null}
 
 			{tasks && tasks.length > 0 ? (
-				<ul className="m-0 grid list-none gap-4 p-0 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
+				<ul className="m-0 grid list-none overflow-hidden rounded-lg border border-border bg-background p-0 shadow-xs">
 					{tasks.map((task) => (
-						<li key={task.id}>
+						<li
+							className="border-border border-b last:border-b-0"
+							key={task.id}
+						>
 							<Link
-								className="block border border-border bg-surface p-6 no-underline transition-[border-color,box-shadow] hover:border-foreground hover:shadow-sm"
+								className="group grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 no-underline transition-colors hover:bg-surface sm:px-5"
 								params={{ projectId: props.projectId, taskId: task.id }}
 								to="/projects/$projectId/tasks/$taskId"
 							>
-								<h3 className="m-0 mb-3 font-display font-medium text-foreground text-xl tracking-tight">
-									{task.title}
-								</h3>
-								<p className="m-0 mb-3 flex flex-wrap gap-2">
-									<Badge variant="secondary">{task.category}</Badge>
-									<Badge variant="outline">{task.status}</Badge>
-								</p>
-								{task.notes ? (
-									<p className="m-0 text-[0.875rem] text-ink-muted leading-relaxed">
-										{task.notes}
-									</p>
-								) : null}
+								<span
+									aria-hidden="true"
+									className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface-2 text-ink-muted"
+								>
+									<DoorOpen className="size-4" />
+								</span>
+								<span className="min-w-0">
+									<span className="flex min-w-0 flex-wrap items-center gap-2">
+										<span className="truncate font-body font-medium text-[0.9375rem] text-foreground tracking-tight">
+											{task.title}
+										</span>
+										<span className="flex shrink-0 items-center gap-1.5">
+											<Badge className="rounded-md" variant="secondary">
+												{task.category}
+											</Badge>
+											<Badge className="rounded-md" variant="outline">
+												{task.status}
+											</Badge>
+										</span>
+									</span>
+									<span className="mt-0.5 block truncate text-[0.8125rem] text-ink-muted">
+										{task.notes || "No notes"}
+									</span>
+								</span>
+								<span
+									aria-hidden="true"
+									className="inline-flex size-8 items-center justify-center rounded-md text-ink-subtle transition-colors group-hover:bg-background group-hover:text-foreground"
+								>
+									<ArrowRight className="size-4" />
+								</span>
 							</Link>
 						</li>
 					))}

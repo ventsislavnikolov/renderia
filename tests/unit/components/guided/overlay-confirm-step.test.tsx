@@ -329,7 +329,7 @@ describe("OverlayConfirmStep", () => {
 		expect(alert.textContent).toMatch(/provider 500/);
 	});
 
-	it("redirects to /auth when the server fn surfaces UNAUTHENTICATED", async () => {
+	it("redirects to /sign-in when the server fn surfaces UNAUTHENTICATED", async () => {
 		const user = userEvent.setup();
 		createSignedUrlMock.mockResolvedValue({
 			data: { signedUrl: "https://signed/a.png" },
@@ -354,7 +354,7 @@ describe("OverlayConfirmStep", () => {
 			screen.getByRole("button", { name: /detect protected elements/i })
 		);
 
-		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/auth"));
+		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/sign-in"));
 	});
 
 	it("renders the dev debug panel when the server fn returns { data, debug }", async () => {

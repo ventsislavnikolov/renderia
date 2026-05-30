@@ -81,7 +81,7 @@ export function GuidedFlow(props: {
 					caught instanceof Error &&
 					caught.message === UNAUTHENTICATED_ERROR
 				) {
-					window.location.assign("/auth");
+					window.location.assign("/sign-in");
 				}
 				// Silent on other errors — the user can still generate a fresh brief.
 			}
