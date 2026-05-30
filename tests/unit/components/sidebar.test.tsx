@@ -83,7 +83,7 @@ describe("Sidebar", () => {
 		signOutMock.mockResolvedValue(undefined);
 	});
 
-	it("uses a Codex-like wide rail and active primary row", async () => {
+	it("renders wide rail with action items and project list", async () => {
 		renderSidebar("/projects");
 
 		const rail = await screen.findByRole("complementary", {
@@ -91,14 +91,8 @@ describe("Sidebar", () => {
 		});
 		expect(rail).toHaveClass("md:w-[320px]");
 
-		const brand = screen.getByRole("link", { name: /^renderia$/i });
-		expect(brand).toHaveClass("text-[2rem]");
-
-		const projectsLink = screen.getByRole("link", { name: /^projects$/i });
-		expect(projectsLink).toHaveClass("rounded-[10px]");
-		expect(projectsLink).toHaveClass("bg-primary");
-		expect(projectsLink).toHaveClass("px-6");
-		expect(projectsLink).toHaveClass("py-4");
+		expect(screen.getByRole("link", { name: /^new$/i })).toBeDefined();
+		expect(screen.getByRole("button", { name: /^search$/i })).toBeDefined();
 
 		expect(await screen.findByRole("link", { name: /pleven/i })).toBeDefined();
 	});
