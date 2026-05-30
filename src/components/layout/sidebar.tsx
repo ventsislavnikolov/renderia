@@ -1,9 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Folder, Layers, Plus } from "lucide-react";
+import { Folder, FolderOpen, Search, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
 	getAuthHeaders,
@@ -17,20 +18,12 @@ import { listProjectTasks } from "../../server/tasks";
 type ProjectRow = Tables<"projects">;
 type TaskRow = Tables<"renovation_tasks">;
 
-/**
- * Codex/Claude-style left rail. Re-fetches the project list whenever the
- * URL changes so a project created from the chat-prompt entry point shows
- * up in the rail without a manual refresh.
- *
- * On screens narrower than `md` the AppShell collapses the rail into a
- * horizontal strip at the top — Tailwind responsive utilities take care
- * of that here.
- */
 export function Sidebar() {
 	const location = useLocation();
 	const [projects, setProjects] = useState<ProjectRow[] | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [signingOut, setSigningOut] = useState(false);
+	const [searchOpen, setSearchOpen] = useState(false);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the rerun trigger by design
 	useEffect(() => {
@@ -73,118 +66,138 @@ export function Sidebar() {
 	}
 
 	return (
-		<aside
-			aria-label="Workspace"
-			className={cn(
-				"flex flex-col overflow-hidden bg-surface",
-				"border-border border-b md:sticky md:top-0 md:h-screen md:w-[320px] md:border-r md:border-b-0",
-				"px-6 pt-10 pb-6 md:max-h-none",
-				"max-md:max-h-[50vh]"
-			)}
-		>
-			<div className="px-6 pb-8">
-				<Link
-					className="font-semibold text-[2rem] text-foreground leading-none no-underline"
-					to="/"
-				>
-					Renderia
-				</Link>
-			</div>
+		<>
+			<aside
+				aria-label="Workspace"
+				className={cn(
+					"flex flex-col overflow-hidden bg-surface",
+					"border-border border-b md:sticky md:top-0 md:h-screen md:w-[320px] md:border-r md:border-b-0",
+					"px-3 pt-4 pb-4 md:max-h-none",
+					"max-md:max-h-[50vh]"
+				)}
+			>
+				<nav aria-label="Primary" className="flex flex-col gap-0.5 pb-4">
+					<SidebarActionLink
+						icon={<SquarePen className="size-5" />}
+						label="New"
+						to="/"
+					/>
+					<SidebarActionButton
+						icon={<Search className="size-5" />}
+						label="Search"
+						onClick={() => setSearchOpen(true)}
+					/>
+				</nav>
 
-			<nav aria-label="Primary" className="flex flex-col gap-2 pb-4">
-				<SidebarLink icon={<Plus className="size-6" />} label="New" to="/" />
-				<SidebarLink
-					icon={<Layers className="size-6" />}
-					label="Projects"
-					to="/projects"
-				/>
-			</nav>
+				<ScrollArea className="-mx-3 min-h-0 flex-1 px-3">
+					<div className="px-3 pt-1 pb-2 font-body font-semibold text-[0.75rem] text-ink-subtle uppercase tracking-[0.16em]">
+						Projects
+					</div>
 
-			<Separator className="mb-5" />
+					{projects === null ? (
+						<p className="px-3 py-2 font-body text-[0.9375rem] text-ink-muted">
+							Loading...
+						</p>
+					) : null}
+					{loadError ? (
+						<p
+							className="px-3 py-2 font-body text-[0.9375rem] text-destructive"
+							role="alert"
+						>
+							{loadError}
+						</p>
+					) : null}
+					{projects && projects.length === 0 ? (
+						<p className="px-3 py-2 font-body text-[0.9375rem] text-ink-muted">
+							No projects yet.
+						</p>
+					) : null}
+					{projects && projects.length > 0 ? (
+						<ul className="m-0 flex flex-col gap-0.5 p-0">
+							{projects.map((project) => (
+								<SidebarProjectEntry
+									activeProjectId={activeProjectId}
+									activeTaskId={activeTaskId}
+									key={project.id}
+									project={project}
+								/>
+							))}
+						</ul>
+					) : null}
+				</ScrollArea>
 
-			<ScrollArea className="-mx-6 min-h-0 flex-1 px-6">
-				<div className="px-6 pb-4 font-body font-semibold text-[0.8125rem] text-ink-subtle uppercase tracking-[0.16em]">
-					Projects
-				</div>
-
-				{projects === null ? (
-					<p className="px-6 py-2 font-body text-[1rem] text-ink-muted">
-						Loading...
-					</p>
-				) : null}
-				{loadError ? (
-					<p
-						className="px-6 py-2 font-body text-[1rem] text-destructive"
-						role="alert"
+				<div className="pt-2">
+					<Button
+						className="h-10 w-full justify-start rounded-lg px-3 font-body font-medium text-[0.9375rem] text-ink-muted hover:bg-background hover:text-foreground"
+						disabled={signingOut}
+						onClick={handleSignOut}
+						variant="ghost"
 					>
-						{loadError}
-					</p>
-				) : null}
-				{projects && projects.length === 0 ? (
-					<p className="px-6 py-2 font-body text-[1rem] text-ink-muted">
-						No projects yet.
-					</p>
-				) : null}
-				{projects && projects.length > 0 ? (
-					<ul className="m-0 flex flex-col gap-1 p-0">
-						{projects.map((project) => (
-							<SidebarProjectEntry
-								activeProjectId={activeProjectId}
-								activeTaskId={activeTaskId}
-								key={project.id}
-								project={project}
-							/>
-						))}
-					</ul>
-				) : null}
-			</ScrollArea>
+						{signingOut ? "Signing out..." : "Sign out"}
+					</Button>
+				</div>
+			</aside>
 
-			<Separator className="mt-6" />
-
-			<div className="pt-5">
-				<Button
-					className="h-12 w-full justify-start rounded-[10px] px-6 font-body font-medium text-[1.125rem] text-ink-muted hover:bg-background hover:text-foreground"
-					disabled={signingOut}
-					onClick={handleSignOut}
-					variant="ghost"
-				>
-					{signingOut ? "Signing out..." : "Sign out"}
-				</Button>
-			</div>
-		</aside>
+			<SearchModal
+				onOpenChange={(open) => setSearchOpen(open)}
+				open={searchOpen}
+				projects={projects ?? []}
+			/>
+		</>
 	);
 }
 
-function SidebarLink(props: {
+function SidebarActionLink(props: {
 	to: string;
 	icon: React.ReactNode;
 	label: string;
 }) {
 	const baseClass = cn(
-		"flex items-center gap-5 rounded-[10px] px-6 py-4",
-		"font-body font-semibold text-[1.25rem] text-foreground",
+		"flex items-center gap-3 rounded-lg px-3 py-2.5",
+		"font-body font-medium text-[1rem] text-foreground",
 		"transition-colors hover:bg-background"
 	);
 	return (
 		<Link
 			activeOptions={{ exact: true }}
-			activeProps={{
-				className: cn(
-					baseClass,
-					"bg-primary text-primary-foreground hover:bg-primary"
-				),
-			}}
+			activeProps={{ className: cn(baseClass, "bg-background font-semibold") }}
 			className={baseClass}
 			to={props.to}
 		>
 			<span
 				aria-hidden="true"
-				className="inline-flex size-7 items-center justify-center"
+				className="inline-flex size-5 items-center justify-center"
 			>
 				{props.icon}
 			</span>
 			<span>{props.label}</span>
 		</Link>
+	);
+}
+
+function SidebarActionButton(props: {
+	icon: React.ReactNode;
+	label: string;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			className={cn(
+				"flex w-full items-center gap-3 rounded-lg px-3 py-2.5",
+				"font-body font-medium text-[1rem] text-foreground",
+				"transition-colors hover:bg-background"
+			)}
+			onClick={props.onClick}
+			type="button"
+		>
+			<span
+				aria-hidden="true"
+				className="inline-flex size-5 items-center justify-center"
+			>
+				{props.icon}
+			</span>
+			<span>{props.label}</span>
+		</button>
 	);
 }
 
@@ -228,8 +241,8 @@ function SidebarProjectEntry(props: {
 	}, [isActive, props.project.id]);
 
 	const projectClass = cn(
-		"flex items-center gap-4 rounded-[10px] px-6 py-3",
-		"font-body font-medium text-[1.125rem] text-foreground",
+		"flex items-center gap-3 rounded-lg px-3 py-2",
+		"font-body font-medium text-[0.9375rem] text-foreground",
 		"transition-colors hover:bg-background",
 		isActive && "bg-background font-semibold"
 	);
@@ -241,17 +254,27 @@ function SidebarProjectEntry(props: {
 				params={{ projectId: props.project.id }}
 				to="/projects/$projectId"
 			>
-				<Folder aria-hidden="true" className="size-6 shrink-0 text-ink-muted" />
+				{isActive ? (
+					<FolderOpen
+						aria-hidden="true"
+						className="size-5 shrink-0 text-ink-muted"
+					/>
+				) : (
+					<Folder
+						aria-hidden="true"
+						className="size-5 shrink-0 text-ink-muted"
+					/>
+				)}
 				<span className="flex-1 truncate">{props.project.name}</span>
 			</Link>
 			{isActive && tasksLoaded && tasks && tasks.length > 0 ? (
-				<ul className="m-0 ml-9 flex flex-col gap-0 border-border border-l py-1 pl-4">
+				<ul className="m-0 ml-8 flex flex-col gap-0 border-border border-l py-1 pl-3">
 					{tasks.slice(0, 6).map((task) => (
 						<li key={task.id}>
 							<Link
 								className={cn(
-									"block truncate rounded-md px-3 py-2",
-									"font-body font-medium text-[0.9375rem] text-ink-muted",
+									"flex items-center justify-between rounded-md px-2 py-1.5",
+									"font-body font-medium text-[0.875rem] text-ink-muted",
 									"transition-colors hover:bg-background hover:text-foreground",
 									task.id === props.activeTaskId &&
 										"bg-background font-semibold text-foreground"
@@ -262,7 +285,12 @@ function SidebarProjectEntry(props: {
 								}}
 								to="/projects/$projectId/tasks/$taskId"
 							>
-								{task.title}
+								<span className="flex-1 truncate">{task.title}</span>
+								{task.updated_at ? (
+									<span className="ml-2 shrink-0 text-[0.75rem] text-ink-subtle">
+										{formatRelativeTime(task.updated_at)}
+									</span>
+								) : null}
 							</Link>
 						</li>
 					))}
@@ -272,13 +300,89 @@ function SidebarProjectEntry(props: {
 	);
 }
 
-/** Pull the project id out of `/projects/<uuid>/...`. Returns null off-path. */
+function SearchModal(props: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	projects: ProjectRow[];
+}) {
+	const [query, setQuery] = useState("");
+
+	function handleOpenChange(open: boolean) {
+		if (!open) setQuery("");
+		props.onOpenChange(open);
+	}
+
+	const filtered = query.trim()
+		? props.projects.filter((p) =>
+				p.name.toLowerCase().includes(query.toLowerCase())
+			)
+		: props.projects;
+
+	return (
+		<Dialog onOpenChange={handleOpenChange} open={props.open}>
+			<DialogContent
+				className="gap-0 overflow-hidden p-0 sm:max-w-[480px]"
+				showCloseButton={false}
+			>
+				<DialogTitle className="sr-only">Search projects</DialogTitle>
+				<div className="flex items-center border-b px-4">
+					<Search className="mr-3 size-4 shrink-0 text-ink-muted" />
+					<Input
+						autoFocus
+						className="h-12 border-0 bg-transparent px-0 text-[1rem] shadow-none focus-visible:ring-0"
+						onChange={(e) => setQuery(e.target.value)}
+						placeholder="Search projects..."
+						value={query}
+					/>
+				</div>
+				<ScrollArea className="max-h-[320px]">
+					{filtered.length === 0 ? (
+						<p className="px-4 py-6 text-center text-[0.9375rem] text-ink-muted">
+							No projects found.
+						</p>
+					) : (
+						<ul className="m-0 p-2">
+							{filtered.map((project) => (
+								<li key={project.id}>
+									<Link
+										className={cn(
+											"flex items-center gap-3 rounded-lg px-3 py-2.5",
+											"font-body text-[0.9375rem] text-foreground",
+											"transition-colors hover:bg-surface"
+										)}
+										onClick={() => props.onOpenChange(false)}
+										params={{ projectId: project.id }}
+										to="/projects/$projectId"
+									>
+										<Folder className="size-4 shrink-0 text-ink-muted" />
+										<span className="truncate">{project.name}</span>
+									</Link>
+								</li>
+							))}
+						</ul>
+					)}
+				</ScrollArea>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function formatRelativeTime(isoString: string): string {
+	const ms = Date.now() - new Date(isoString).getTime();
+	const minutes = Math.floor(ms / 60_000);
+	if (minutes < 1) return "now";
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h`;
+	const days = Math.floor(hours / 24);
+	return `${days}d`;
+}
+
 function extractProjectIdFromPath(pathname: string): string | null {
 	const match = pathname.match(/^\/projects\/([^/]+)/);
 	return match ? (match[1] ?? null) : null;
 }
 
-/** Pull the task id out of `/projects/<uuid>/tasks/<uuid>`. */
 function extractTaskIdFromPath(pathname: string): string | null {
 	const match = pathname.match(/^\/projects\/[^/]+\/tasks\/([^/]+)/);
 	return match ? (match[1] ?? null) : null;
