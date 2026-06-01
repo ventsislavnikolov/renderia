@@ -1,14 +1,23 @@
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { createDevLoginLink } from "@/server/auth";
+
+const DEV_LOGIN_EMAIL = "soavarice@gmail.com";
 
 export function AuthPage() {
 	const [email, setEmail] = useState("");
 	const [errorMessage, setErrorMessage] = useState("");
 	const [successMessage, setSuccessMessage] = useState("");
 	const [submitting, setSubmitting] = useState(false);
+	const [devSubmitting, setDevSubmitting] = useState(false);
+	const [canUseDevLogin, setCanUseDevLogin] = useState(false);
+
+	useEffect(() => {
+		setCanUseDevLogin(import.meta.env.DEV);
+	}, []);
 
 	async function sendMagicLink(event: React.FormEvent) {
 		event.preventDefault();
@@ -26,6 +35,28 @@ export function AuthPage() {
 			setErrorMessage(error.message);
 		} else {
 			setSuccessMessage("Check your email for the sign-in link.");
+		}
+	}
+
+	async function signInAsDevUser() {
+		setErrorMessage("");
+		setSuccessMessage("");
+		setDevSubmitting(true);
+		try {
+			const { actionLink } = await createDevLoginLink({
+				data: {
+					email: DEV_LOGIN_EMAIL,
+					redirectTo: `${window.location.origin}/auth/callback`,
+				},
+			});
+			window.location.assign(actionLink);
+		} catch (caught) {
+			setErrorMessage(
+				caught instanceof Error
+					? caught.message
+					: "Failed to create dev login link"
+			);
+			setDevSubmitting(false);
 		}
 	}
 
@@ -132,6 +163,25 @@ export function AuthPage() {
 								</output>
 							) : null}
 						</form>
+
+						{canUseDevLogin ? (
+							<div className="grid gap-3 border-border border-t pt-5">
+								<p className="m-0 text-center text-[0.8125rem] text-ink-subtle leading-5">
+									Local testing
+								</p>
+								<Button
+									className="h-11 w-full"
+									disabled={submitting || devSubmitting}
+									onClick={signInAsDevUser}
+									type="button"
+									variant="outline"
+								>
+									{devSubmitting
+										? "Signing in..."
+										: `Continue as ${DEV_LOGIN_EMAIL}`}
+								</Button>
+							</div>
+						) : null}
 
 						<p className="m-0 text-center text-[0.8125rem] text-ink-subtle leading-5">
 							We'll send a one-time sign-in link. No password required.

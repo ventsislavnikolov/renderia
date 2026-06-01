@@ -234,6 +234,9 @@ export async function __saveDesignBriefHandler(args: {
 		styleRules: args.input.styleRules,
 		briefMarkdown: args.input.markdown,
 		protectedElements: args.input.protectedElements,
+		roomObjects: args.input.roomObjects,
+		referencePhotoName: args.input.referencePhotoName,
+		supportingPhotoCount: args.input.supportingPhotoCount,
 	});
 	const { data, error } = await args.supabase
 		.from("design_briefs")

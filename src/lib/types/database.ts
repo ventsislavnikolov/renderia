@@ -13,6 +13,7 @@ export type GenerationJobStatus =
 	| "running"
 	| "succeeded"
 	| "failed";
+export type StructuralPreviewStatus = "generated" | "approved" | "superseded";
 
 type Nullable<T> = T | null;
 
@@ -144,18 +145,24 @@ export type Database = {
 					project_id: string;
 					task_id: string;
 					photo_id: string;
+					display_order: number;
+					reviewed_at: Nullable<string>;
 				};
 				Insert: {
 					owner_id: string;
 					project_id: string;
 					task_id: string;
 					photo_id: string;
+					display_order?: number;
+					reviewed_at?: Nullable<string>;
 				};
 				Update: {
 					owner_id?: string;
 					project_id?: string;
 					task_id?: string;
 					photo_id?: string;
+					display_order?: number;
+					reviewed_at?: Nullable<string>;
 				};
 				Relationships: [
 					{
@@ -276,6 +283,183 @@ export type Database = {
 					},
 				];
 			};
+			task_room_sets: {
+				Row: {
+					task_id: string;
+					owner_id: string;
+					project_id: string;
+					reference_photo_id: Nullable<string>;
+					preview_approved: boolean;
+					preview_approved_at: Nullable<string>;
+					active_preview_id: Nullable<string>;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					task_id: string;
+					owner_id: string;
+					project_id: string;
+					reference_photo_id?: Nullable<string>;
+					preview_approved?: boolean;
+					preview_approved_at?: Nullable<string>;
+					active_preview_id?: Nullable<string>;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					task_id?: string;
+					owner_id?: string;
+					project_id?: string;
+					reference_photo_id?: Nullable<string>;
+					preview_approved?: boolean;
+					preview_approved_at?: Nullable<string>;
+					active_preview_id?: Nullable<string>;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "task_room_sets_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "task_room_sets_reference_photo_id_owner_id_project_id_fkey";
+						columns: ["reference_photo_id", "owner_id", "project_id"];
+						referencedRelation: "photos";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "task_room_sets_active_preview_fkey";
+						columns: ["active_preview_id", "owner_id", "task_id"];
+						referencedRelation: "structural_previews";
+						referencedColumns: ["id", "owner_id", "task_id"];
+					},
+				];
+			};
+			room_objects: {
+				Row: {
+					id: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					label: string;
+					kind: string;
+					preservation_mode: "exact_preserve" | "keep_type_restyle";
+					is_persisted: boolean;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					label: string;
+					kind: string;
+					preservation_mode: "exact_preserve" | "keep_type_restyle";
+					is_persisted?: boolean;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					id?: string;
+					owner_id?: string;
+					project_id?: string;
+					task_id?: string;
+					label?: string;
+					kind?: string;
+					preservation_mode?: "exact_preserve" | "keep_type_restyle";
+					is_persisted?: boolean;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "room_objects_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+				];
+			};
+			room_object_appearances: {
+				Row: {
+					id: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					photo_id: string;
+					room_object_id: Nullable<string>;
+					label: string;
+					kind: string;
+					x: number;
+					y: number;
+					width: number;
+					height: number;
+					confidence: Nullable<number>;
+					source: "ai" | "manual";
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					photo_id: string;
+					room_object_id?: Nullable<string>;
+					label: string;
+					kind: string;
+					x: number;
+					y: number;
+					width: number;
+					height: number;
+					confidence?: Nullable<number>;
+					source: "ai" | "manual";
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					id?: string;
+					owner_id?: string;
+					project_id?: string;
+					task_id?: string;
+					photo_id?: string;
+					room_object_id?: Nullable<string>;
+					label?: string;
+					kind?: string;
+					x?: number;
+					y?: number;
+					width?: number;
+					height?: number;
+					confidence?: Nullable<number>;
+					source?: "ai" | "manual";
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "room_object_appearances_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "room_object_appearances_photo_id_owner_id_project_id_fkey";
+						columns: ["photo_id", "owner_id", "project_id"];
+						referencedRelation: "photos";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "room_object_appearances_room_object_id_owner_id_task_id_fkey";
+						columns: ["room_object_id", "owner_id", "task_id"];
+						referencedRelation: "room_objects";
+						referencedColumns: ["id", "owner_id", "task_id"];
+					},
+				];
+			};
 			generation_jobs: {
 				Row: {
 					id: string;
@@ -380,6 +564,64 @@ export type Database = {
 						columns: ["task_id", "owner_id"];
 						referencedRelation: "renovation_tasks";
 						referencedColumns: ["id", "owner_id"];
+					},
+				];
+			};
+			structural_previews: {
+				Row: {
+					id: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					reference_photo_id: string;
+					storage_bucket: "structural-previews";
+					storage_path: string;
+					prompt: string;
+					room_state_snapshot: Json;
+					status: StructuralPreviewStatus;
+					approved_at: Nullable<string>;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					reference_photo_id: string;
+					storage_bucket?: "structural-previews";
+					storage_path: string;
+					prompt: string;
+					room_state_snapshot?: Json;
+					status?: StructuralPreviewStatus;
+					approved_at?: Nullable<string>;
+					created_at?: string;
+				};
+				Update: {
+					id?: string;
+					owner_id?: string;
+					project_id?: string;
+					task_id?: string;
+					reference_photo_id?: string;
+					storage_bucket?: "structural-previews";
+					storage_path?: string;
+					prompt?: string;
+					room_state_snapshot?: Json;
+					status?: StructuralPreviewStatus;
+					approved_at?: Nullable<string>;
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "structural_previews_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "structural_previews_reference_photo_id_owner_id_project_id_fkey";
+						columns: ["reference_photo_id", "owner_id", "project_id"];
+						referencedRelation: "photos";
+						referencedColumns: ["id", "owner_id", "project_id"];
 					},
 				];
 			};

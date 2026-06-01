@@ -59,8 +59,10 @@ const TILE_URL_TTL_SECONDS = 600;
 export function PhotoUploadStep(props: {
 	projectId: string;
 	taskId: string;
-	selectedPhotoId: string | null;
-	onPhotoSelected: (photo: PhotoRow) => void;
+	selectedPhotoId?: string | null;
+	selectedPhotoIds?: string[];
+	onPhotoSelected?: (photo: PhotoRow) => void;
+	onPhotosConfirmed?: (photos: PhotoRow[]) => void;
 }) {
 	const [photos, setPhotos] = useState<PhotoRow[] | null>(null);
 	const [signedUrls, setSignedUrls] = useState<Map<string, string>>(
@@ -70,6 +72,9 @@ export function PhotoUploadStep(props: {
 	const [uploadError, setUploadError] = useState<string | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [announcement, setAnnouncement] = useState<string | null>(null);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(
+		() => new Set(props.selectedPhotoIds ?? [])
+	);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const cancelledRef = useRef(false);
 
@@ -108,6 +113,12 @@ export function PhotoUploadStep(props: {
 		const timer = window.setTimeout(() => setAnnouncement(null), 3000);
 		return () => window.clearTimeout(timer);
 	}, [announcement]);
+
+	useEffect(() => {
+		if (props.selectedPhotoIds) {
+			setSelectedIds(new Set(props.selectedPhotoIds));
+		}
+	}, [props.selectedPhotoIds]);
 
 	// Mint short-lived signed URLs for each photo in parallel so tiles can show
 	// the actual image. We avoid re-minting URLs we already have — `photos`
@@ -232,7 +243,7 @@ export function PhotoUploadStep(props: {
 
 			if (cancelledRef.current) return;
 			setAnnouncement("Photo uploaded.");
-			props.onPhotoSelected(row);
+			props.onPhotoSelected?.(row);
 			await refresh();
 		} catch (error) {
 			if (cancelledRef.current) return;
@@ -244,6 +255,33 @@ export function PhotoUploadStep(props: {
 		} finally {
 			if (!cancelledRef.current) setUploading(false);
 		}
+	}
+
+	function isMultiSelectMode() {
+		return typeof props.onPhotosConfirmed === "function";
+	}
+
+	function togglePhoto(photo: PhotoRow) {
+		if (!isMultiSelectMode()) {
+			props.onPhotoSelected?.(photo);
+			return;
+		}
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(photo.id)) {
+				next.delete(photo.id);
+			} else if (next.size < 4) {
+				next.add(photo.id);
+			}
+			return next;
+		});
+	}
+
+	function confirmSelectedPhotos() {
+		if (!photos || !props.onPhotosConfirmed) return;
+		const selected = photos.filter((photo) => selectedIds.has(photo.id));
+		if (selected.length === 0) return;
+		props.onPhotosConfirmed(selected);
 	}
 
 	function pickFile() {
@@ -260,7 +298,7 @@ export function PhotoUploadStep(props: {
 					1. Upload a source photo
 				</h2>
 				<p className="m-0 max-w-[60ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
-					Pick a photo of the area you want to renovate. Allowed formats: PNG,
+					Pick between 1 and 4 photos of the same room. Allowed formats: PNG,
 					JPEG, WEBP. Max 10 MB.
 				</p>
 			</header>
@@ -284,6 +322,17 @@ export function PhotoUploadStep(props: {
 					>
 						{uploadError}
 					</p>
+				) : null}
+				{isMultiSelectMode() ? (
+					<Button
+						disabled={selectedIds.size === 0}
+						onClick={confirmSelectedPhotos}
+						type="button"
+						variant="outline"
+					>
+						Continue with {selectedIds.size} photo
+						{selectedIds.size === 1 ? "" : "s"}
+					</Button>
 				) : null}
 			</div>
 
@@ -325,7 +374,9 @@ export function PhotoUploadStep(props: {
 						</li>
 					) : null}
 					{(photos ?? []).map((photo) => {
-						const isSelected = photo.id === props.selectedPhotoId;
+						const isSelected = isMultiSelectMode()
+							? selectedIds.has(photo.id)
+							: photo.id === props.selectedPhotoId;
 						const url = signedUrls.get(photo.id);
 						return (
 							<li key={photo.id}>
@@ -337,7 +388,7 @@ export function PhotoUploadStep(props: {
 										isSelected &&
 											"border-primary shadow-[inset_0_0_0_1px_var(--primary)]"
 									)}
-									onClick={() => props.onPhotoSelected(photo)}
+									onClick={() => togglePhoto(photo)}
 									type="button"
 								>
 									{url ? (

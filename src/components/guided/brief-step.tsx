@@ -3,6 +3,7 @@ import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
+import type { RoomObject } from "../../lib/renovation/room-state";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -31,6 +32,9 @@ export function BriefStep(props: {
 	taskId: string;
 	taskTitle: string;
 	protectedElements: BoundingBox[];
+	roomObjects?: RoomObject[];
+	referencePhotoName?: string;
+	supportingPhotoCount?: number;
 	brief: string;
 	prompt: string;
 	styleRules: string;
@@ -65,6 +69,9 @@ export function BriefStep(props: {
 					taskTitle: props.taskTitle,
 					styleRules: styleRules.slice(0, STYLE_RULES_MAX),
 					protectedElements: props.protectedElements,
+					roomObjects: props.roomObjects,
+					referencePhotoName: props.referencePhotoName,
+					supportingPhotoCount: props.supportingPhotoCount,
 				},
 				headers,
 			})) as
@@ -125,6 +132,9 @@ export function BriefStep(props: {
 					styleRules: styleRules.slice(0, STYLE_RULES_MAX),
 					markdown: markdown.slice(0, BRIEF_MAX),
 					protectedElements: props.protectedElements,
+					roomObjects: props.roomObjects,
+					referencePhotoName: props.referencePhotoName,
+					supportingPhotoCount: props.supportingPhotoCount,
 				},
 				headers,
 			})) as {
@@ -170,7 +180,7 @@ export function BriefStep(props: {
 		>
 			<header className="grid gap-2">
 				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
-					3. Review the design brief
+					5. Review the design brief
 				</h2>
 				<p className="m-0 max-w-[68ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
 					Edit the brief to capture the renovation you want. The preview shows

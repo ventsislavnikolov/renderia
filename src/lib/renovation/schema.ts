@@ -61,10 +61,13 @@ export const protectedElementSchema = z
 		kind: z.enum([
 			"window",
 			"door",
+			"radiator",
 			"stairs",
 			"ceiling_line",
 			"wall_edge",
 			"structure",
+			"column_beam",
+			"built_in",
 			"other",
 		]),
 		x: z.number().min(0).max(1),
@@ -77,6 +80,26 @@ export const protectedElementSchema = z
 		message: "Protected element box must fit inside image bounds",
 	});
 export type ProtectedElementInput = z.infer<typeof protectedElementSchema>;
+
+export const roomElementKindSchema = z.enum([
+	"window",
+	"door",
+	"radiator",
+	"stairs",
+	"ceiling_line",
+	"wall_edge",
+	"structure",
+	"column_beam",
+	"built_in",
+	"other",
+]);
+export type RoomElementKindInput = z.infer<typeof roomElementKindSchema>;
+
+export const preservationModeSchema = z.enum([
+	"exact_preserve",
+	"keep_type_restyle",
+]);
+export type PreservationModeInput = z.infer<typeof preservationModeSchema>;
 
 export const createPhotoSchema = z.object({
 	projectId: z.string().uuid(),
@@ -140,30 +163,12 @@ export type DetectProtectedElementsInput = z.infer<
 	typeof detectProtectedElementsSchema
 >;
 
-export const createDesignBriefSchema = z.object({
-	taskId: z.string().uuid(),
-	taskTitle: z.string().min(1).max(200),
-	styleRules: z.string().min(1).max(4000),
-	protectedElements: z.array(protectedElementSchema),
-	model: modelSelectionSchema.optional(),
-});
-export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
-
 export const loadLatestDesignBriefSchema = z.object({
 	taskId: z.string().uuid(),
 });
 export type LoadLatestDesignBriefInput = z.infer<
 	typeof loadLatestDesignBriefSchema
 >;
-
-export const saveDesignBriefSchema = z.object({
-	taskId: z.string().uuid(),
-	taskTitle: z.string().min(1).max(200),
-	styleRules: z.string().min(1).max(4000),
-	markdown: z.string().min(1).max(8000),
-	protectedElements: z.array(protectedElementSchema),
-});
-export type SaveDesignBriefInput = z.infer<typeof saveDesignBriefSchema>;
 
 /**
  * Inputs for `generateRenovationImages` server fn.
@@ -228,10 +233,13 @@ export const detectedProtectedElementSchema = z
 		kind: z.enum([
 			"window",
 			"door",
+			"radiator",
 			"stairs",
 			"ceiling_line",
 			"wall_edge",
 			"structure",
+			"column_beam",
+			"built_in",
 			"other",
 		]),
 		x: z.number().min(0).max(1),
@@ -245,6 +253,98 @@ export const detectedProtectedElementSchema = z
 	});
 export type DetectedProtectedElementInput = z.infer<
 	typeof detectedProtectedElementSchema
+>;
+
+export const roomAppearanceSchema = z
+	.object({
+		id: z.string().min(1).max(120),
+		photoId: z.string().uuid(),
+		label: z.string().min(1).max(120),
+		kind: roomElementKindSchema,
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+		width: z.number().gt(0).max(1),
+		height: z.number().gt(0).max(1),
+		confidence: z.number().min(0).max(1).nullable(),
+		source: z.enum(["ai", "manual"]),
+		objectId: z.string().min(1).max(120).nullable(),
+	})
+	.refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, {
+		message: "Room appearance box must fit inside image bounds",
+	});
+export type RoomAppearanceInput = z.infer<typeof roomAppearanceSchema>;
+
+export const roomObjectSchema = z.object({
+	id: z.string().min(1).max(120),
+	label: z.string().min(1).max(120),
+	kind: roomElementKindSchema,
+	preservationMode: preservationModeSchema,
+	appearanceIds: z.array(z.string().min(1).max(120)),
+	isPersisted: z.boolean(),
+});
+export type RoomObjectInput = z.infer<typeof roomObjectSchema>;
+
+export const createDesignBriefSchema = z.object({
+	taskId: z.string().uuid(),
+	taskTitle: z.string().min(1).max(200),
+	styleRules: z.string().min(1).max(4000),
+	protectedElements: z.array(protectedElementSchema),
+	roomObjects: z.array(roomObjectSchema).optional(),
+	referencePhotoName: z.string().max(255).optional(),
+	supportingPhotoCount: z.number().int().min(1).max(4).optional(),
+	model: modelSelectionSchema.optional(),
+});
+export type CreateDesignBriefInput = z.infer<typeof createDesignBriefSchema>;
+
+export const saveDesignBriefSchema = z.object({
+	taskId: z.string().uuid(),
+	taskTitle: z.string().min(1).max(200),
+	styleRules: z.string().min(1).max(4000),
+	markdown: z.string().min(1).max(8000),
+	protectedElements: z.array(protectedElementSchema),
+	roomObjects: z.array(roomObjectSchema).optional(),
+	referencePhotoName: z.string().max(255).optional(),
+	supportingPhotoCount: z.number().int().min(1).max(4).optional(),
+});
+export type SaveDesignBriefInput = z.infer<typeof saveDesignBriefSchema>;
+
+export const taskRoomStateSchema = z.object({
+	photoIds: z.array(z.string().min(1).max(120)).min(1).max(4),
+	reviewedPhotoIds: z.array(z.string().min(1).max(120)).max(4),
+	referencePhotoId: z.string().min(1).max(120).nullable(),
+	appearances: z.array(roomAppearanceSchema),
+	objects: z.array(roomObjectSchema),
+	previewApproved: z.boolean(),
+});
+export type TaskRoomStateInput = z.infer<typeof taskRoomStateSchema>;
+
+export const createStructuralPreviewSchema = z.object({
+	taskId: z.string().uuid(),
+	taskTitle: z.string().min(1).max(200),
+	referencePhotoId: z.string().uuid(),
+	roomState: taskRoomStateSchema,
+});
+export type CreateStructuralPreviewInput = z.infer<
+	typeof createStructuralPreviewSchema
+>;
+
+export const loadTaskRoomStateSchema = z.object({
+	taskId: z.string().uuid(),
+});
+export type LoadTaskRoomStateInput = z.infer<typeof loadTaskRoomStateSchema>;
+
+export const saveTaskRoomStateSchema = z.object({
+	taskId: z.string().uuid(),
+	roomState: taskRoomStateSchema,
+});
+export type SaveTaskRoomStateInput = z.infer<typeof saveTaskRoomStateSchema>;
+
+export const approveStructuralPreviewSchema = z.object({
+	taskId: z.string().uuid(),
+	previewId: z.string().uuid(),
+});
+export type ApproveStructuralPreviewInput = z.infer<
+	typeof approveStructuralPreviewSchema
 >;
 
 /**

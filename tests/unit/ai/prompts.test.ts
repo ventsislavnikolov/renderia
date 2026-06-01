@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildDesignBriefMarkdown,
 	buildDesignPrompt,
+	buildStructuralPreviewPrompt,
 } from "../../../src/lib/ai/prompts";
 
 describe("buildDesignPrompt", () => {
@@ -209,6 +210,67 @@ describe("buildDesignPrompt", () => {
 		expect(markdown).toContain("## Variation concepts");
 		expect(markdown).toContain("## Generation guidance");
 		expect(markdown).toContain("Keep the same camera viewpoint");
+	});
+
+	it("embeds canonical room-object modes when provided", () => {
+		const prompt = buildDesignPrompt({
+			taskTitle: "attic studio",
+			styleRules: "warm oak, plaster walls",
+			briefMarkdown: "Create a calm studio.",
+			protectedElements: [],
+			roomObjects: [
+				{
+					id: "obj-1",
+					label: "main door",
+					kind: "door",
+					preservationMode: "keep_type_restyle",
+					appearanceIds: ["app-1", "app-2"],
+					isPersisted: true,
+				},
+			],
+			referencePhotoId: "photo-2",
+			referencePhotoName: "door-side",
+			supportingPhotoCount: 3,
+		});
+
+		expect(prompt).toContain("APPROVED ROOM OBJECTS");
+		expect(prompt).toContain("main door");
+		expect(prompt).toContain("keep_type_restyle");
+		expect(prompt).toContain("same opening and footprint");
+		expect(prompt).toContain("Supporting room evidence: 3 photo(s)");
+	});
+
+	it("builds a structural preview prompt from canonical room objects", () => {
+		const prompt = buildStructuralPreviewPrompt({
+			taskTitle: "attic studio",
+			referencePhotoName: "window-side",
+			roomObjects: [
+				{
+					id: "obj-1",
+					label: "main door",
+					kind: "door",
+					preservationMode: "keep_type_restyle",
+					appearanceIds: ["app-1", "app-2"],
+					isPersisted: true,
+				},
+				{
+					id: "obj-2",
+					label: "left window",
+					kind: "window",
+					preservationMode: "exact_preserve",
+					appearanceIds: ["app-3"],
+					isPersisted: true,
+				},
+			],
+			supportingPhotoCount: 4,
+		});
+
+		expect(prompt).toContain("STRUCTURAL PREVIEW OBJECTIVE");
+		expect(prompt).toContain("empty room");
+		expect(prompt).toContain("neutral updated style");
+		expect(prompt).toContain("main door");
+		expect(prompt).toContain("left window");
+		expect(prompt).toContain("Reference photo angle: window-side");
 	});
 
 	it("keeps the full design-brief markdown contract stable", () => {

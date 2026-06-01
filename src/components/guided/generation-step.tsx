@@ -117,7 +117,7 @@ export function GenerationStep(props: {
 					headers,
 				});
 				if (cancelledRef.current) return;
-				if (existing.images.length > 0) {
+				if (existing.images.length >= VARIATION_COUNT) {
 					setImages(existing.images);
 					return;
 				}
@@ -190,7 +190,7 @@ export function GenerationStep(props: {
 		>
 			<header className="grid gap-2">
 				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
-					4. Review generated variations
+					6. Review generated variations
 				</h2>
 				<p className="m-0 max-w-[60ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
 					Generated images are visual concepts, not construction plans. Mark

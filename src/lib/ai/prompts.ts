@@ -1,3 +1,4 @@
+import type { RoomObject } from "../renovation/room-state";
 import type { BoundingBox } from "./types";
 
 const SECTION_HEADER_PATTERN =
@@ -22,6 +23,14 @@ function formatPercent(value: number): string {
 
 function protectedElementLine(element: BoundingBox): string {
 	return `${sanitizePromptField(element.label)} (${sanitizePromptField(element.kind)}) bbox left=${formatPercent(element.x)}, top=${formatPercent(element.y)}, width=${formatPercent(element.width)}, height=${formatPercent(element.height)}`;
+}
+
+function roomObjectLine(object: RoomObject): string {
+	const modeLine =
+		object.preservationMode === "keep_type_restyle"
+			? "same opening and footprint, but may be redesigned in a neutral updated style"
+			: "keep the same identity, placement, and visible form";
+	return `- ${sanitizePromptField(object.label)} (${sanitizePromptField(object.kind)}) mode=${object.preservationMode}; ${modeLine}. Evidence views: ${object.appearanceIds.length}.`;
 }
 
 /**
@@ -70,13 +79,19 @@ export function buildDesignBriefMarkdown(input: {
 	taskTitle: string;
 	styleRules: string;
 	protectedElements: BoundingBox[];
+	roomObjects?: RoomObject[];
 }) {
+	const canonicalObjects = input.roomObjects?.filter(
+		(entry) => entry.isPersisted
+	);
 	const preserved =
-		input.protectedElements.length > 0
-			? input.protectedElements
-					.map((element) => `- ${protectedElementLine(element)}`)
-					.join("\n")
-			: "- No protected elements were confirmed. Keep the source photo's visible structural layout stable.";
+		canonicalObjects && canonicalObjects.length > 0
+			? canonicalObjects.map(roomObjectLine).join("\n")
+			: input.protectedElements.length > 0
+				? input.protectedElements
+						.map((element) => `- ${protectedElementLine(element)}`)
+						.join("\n")
+				: "- No protected elements were confirmed. Keep the source photo's visible structural layout stable.";
 
 	const concepts = VARIATION_CONCEPTS.map(
 		(concept, index) =>
@@ -132,10 +147,33 @@ export function buildDesignPrompt(input: {
 	styleRules: string;
 	briefMarkdown: string;
 	protectedElements: BoundingBox[];
+	roomObjects?: RoomObject[];
+	referencePhotoId?: string;
+	referencePhotoName?: string;
+	supportingPhotoCount?: number;
 }) {
 	const preserved = input.protectedElements
 		.map((element) => `- ${protectedElementLine(element)}`)
 		.join("\n");
+	const canonicalObjects = input.roomObjects?.filter(
+		(entry) => entry.isPersisted
+	);
+	const objectSection =
+		canonicalObjects && canonicalObjects.length > 0
+			? [
+					"",
+					"APPROVED ROOM OBJECTS:",
+					...canonicalObjects.map(roomObjectLine),
+					input.referencePhotoName
+						? `- Approved render angle: ${sanitizePromptField(input.referencePhotoName)}.`
+						: null,
+					input.supportingPhotoCount
+						? `- Supporting room evidence: ${input.supportingPhotoCount} photo(s).`
+						: null,
+				]
+					.filter(Boolean)
+					.join("\n")
+			: "";
 
 	return [
 		"RENOVATION OBJECTIVE:",
@@ -157,6 +195,7 @@ export function buildDesignPrompt(input: {
 		"PRESERVE EXACTLY:",
 		preserved || "- No additional protected elements confirmed.",
 		"- Do not move, remove, resize, crop, cover, or replace any protected element.",
+		...(objectSection ? [objectSection] : []),
 		"",
 		"DOOR RENOVATION RULE:",
 		"- Door openings stay in place. Door panels may be replaced with new Scandinavian interior doors.",
@@ -201,6 +240,41 @@ export function buildDesignPrompt(input: {
 		"- Photorealistic renovation concept, not a technical drawing.",
 		"- Preserve the source photo's layout first; apply the Scandinavian playbook second.",
 	].join("\n");
+}
+
+export function buildStructuralPreviewPrompt(input: {
+	taskTitle: string;
+	referencePhotoName?: string;
+	roomObjects: RoomObject[];
+	supportingPhotoCount: number;
+}) {
+	const persisted = input.roomObjects.filter((entry) => entry.isPersisted);
+	return [
+		"STRUCTURAL PREVIEW OBJECTIVE:",
+		`Using the chosen source photo as the camera angle, generate one believable empty room structural preview for ${sanitizePromptField(input.taskTitle)}.`,
+		"- This is not the final furnished design.",
+		"- Show an empty room + persisted objects only, with minimal neutral architectural finish detail.",
+		"- Do not add furniture, decor, staging, or design personality.",
+		"- Preserve room geometry, openings, and structural layout from the full room evidence set.",
+		input.referencePhotoName
+			? `- Reference photo angle: ${sanitizePromptField(input.referencePhotoName)}.`
+			: null,
+		`- Supporting room evidence: ${input.supportingPhotoCount} photo(s).`,
+		"",
+		"ROOM OBJECT RULES:",
+		...persisted.map(roomObjectLine),
+		"",
+		"MODE INTERPRETATION:",
+		"- exact_preserve means keep the object materially unchanged.",
+		"- keep_type_restyle means keep the same type, opening, and footprint, but show a neutral updated style.",
+		"",
+		"OUTPUT RULES:",
+		"- The preview must still look like the same room and the same camera viewpoint.",
+		"- Blue-mode objects should already appear in a neutral updated style.",
+		"- Red-mode objects should remain visually the same aside from minor generative noise.",
+	]
+		.filter(Boolean)
+		.join("\n");
 }
 
 /**

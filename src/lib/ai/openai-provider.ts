@@ -320,6 +320,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			taskTitle: safeTaskTitle,
 			styleRules: safeStyleRules,
 			protectedElements: input.protectedElements,
+			roomObjects: input.roomObjects,
 		});
 		return {
 			value: {
@@ -329,6 +330,9 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 					styleRules: safeStyleRules,
 					briefMarkdown: markdown,
 					protectedElements: input.protectedElements,
+					roomObjects: input.roomObjects,
+					referencePhotoName: input.referencePhotoName,
+					supportingPhotoCount: input.supportingPhotoCount,
 				}),
 			},
 		};

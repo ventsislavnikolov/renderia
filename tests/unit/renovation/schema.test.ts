@@ -3,12 +3,16 @@ import {
 	createDesignBriefSchema,
 	createPhotoSchema,
 	createProjectSchema,
+	createStructuralPreviewSchema,
 	createTaskSchema,
 	detectedProtectedElementSchema,
 	detectProtectedElementsSchema,
 	listPhotosSchema,
 	protectedElementSchema,
+	roomAppearanceSchema,
+	roomObjectSchema,
 	suggestTasksSchema,
+	taskRoomStateSchema,
 } from "../../../src/lib/renovation/schema";
 
 describe("renovation schemas", () => {
@@ -214,5 +218,94 @@ describe("renovation schemas", () => {
 				protectedElements: [],
 			}).success
 		).toBe(false);
+	});
+
+	it("validates canonical room objects with preservation modes", () => {
+		expect(
+			roomObjectSchema.safeParse({
+				id: "obj-1",
+				label: "main door",
+				kind: "door",
+				preservationMode: "exact_preserve",
+				appearanceIds: ["app-1"],
+				isPersisted: true,
+			}).success
+		).toBe(true);
+		expect(
+			roomObjectSchema.safeParse({
+				id: "obj-1",
+				label: "main door",
+				kind: "sofa",
+				preservationMode: "exact_preserve",
+				appearanceIds: ["app-1"],
+				isPersisted: true,
+			}).success
+		).toBe(false);
+	});
+
+	it("limits task room state to 1-4 photos", () => {
+		expect(
+			taskRoomStateSchema.safeParse({
+				photoIds: ["p1"],
+				reviewedPhotoIds: [],
+				referencePhotoId: null,
+				appearances: [],
+				objects: [],
+				previewApproved: false,
+			}).success
+		).toBe(true);
+		expect(
+			taskRoomStateSchema.safeParse({
+				photoIds: [],
+				reviewedPhotoIds: [],
+				referencePhotoId: null,
+				appearances: [],
+				objects: [],
+				previewApproved: false,
+			}).success
+		).toBe(false);
+		expect(
+			taskRoomStateSchema.safeParse({
+				photoIds: ["p1", "p2", "p3", "p4", "p5"],
+				reviewedPhotoIds: [],
+				referencePhotoId: null,
+				appearances: [],
+				objects: [],
+				previewApproved: false,
+			}).success
+		).toBe(false);
+	});
+
+	it("validates room appearances and structural preview requests", () => {
+		expect(
+			roomAppearanceSchema.safeParse({
+				id: "app-1",
+				photoId: "11111111-1111-4111-8111-111111111111",
+				label: "left window",
+				kind: "window",
+				x: 0.1,
+				y: 0.2,
+				width: 0.2,
+				height: 0.3,
+				confidence: 0.8,
+				source: "manual",
+				objectId: null,
+			}).success
+		).toBe(true);
+		expect(
+			createStructuralPreviewSchema.safeParse({
+				taskId: "11111111-1111-4111-8111-111111111111",
+				taskTitle: "Bedroom refresh",
+				referencePhotoId: "22222222-2222-4222-8222-222222222222",
+				roomState: {
+					photoIds: ["p1"],
+					reviewedPhotoIds: ["p1"],
+					referencePhotoId: "p1",
+					appearances: [],
+					objects: [],
+					previewApproved: false,
+				},
+			}).success
+		).toBe(true);
 	});
 });

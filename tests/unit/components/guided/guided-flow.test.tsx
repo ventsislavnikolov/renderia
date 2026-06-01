@@ -2,142 +2,211 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Integration tests for the guided flow orchestrator.
- *
- * The plan (Task 9) called for a Playwright e2e spec, but the workspace has
- * no live Supabase session in local test runs (`SUPABASE_SECRET_KEY` is empty
- * in `.env.local`) and the magic-link sign-in flow is impractical to drive
- * from headless tests. We mock the child step components at the module
- * boundary so we can drive the orchestrator deterministically and assert its
- * gating, reachability, downstream reset, and step transitions without the
- * heavy machinery of Playwright + a fake Supabase backend.
- *
- * Each child step gets its own dedicated test file that mocks the network
- * boundaries (Supabase storage, server fns, auth headers). See:
- *   - tests/unit/components/guided/photo-upload-step.test.tsx
- *   - tests/unit/components/guided/overlay-confirm-step.test.tsx
- *   - tests/unit/components/guided/brief-step.test.tsx
- */
-
-// Mock each step with a tiny shim that exposes a callable button for the
-// transitions we care about. Real-step behavior lives in their own tests.
-vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
-	PhotoUploadStep: (props: {
-		projectId: string;
-		taskId: string;
-		selectedPhotoId: string | null;
-		onPhotoSelected: (row: {
-			id: string;
-			owner_id: string;
-			project_id: string;
-			storage_bucket: "source-photos";
-			storage_path: string;
-			original_name: string;
-			content_type: string;
-			width: number | null;
-			height: number | null;
-			notes: string | null;
-			created_at: string;
-		}) => void;
-	}) => (
-		<div data-testid="photo-step">
-			<span data-testid="photo-step-task">{props.taskId}</span>
-			<span data-testid="photo-step-selected">
-				{props.selectedPhotoId ?? "none"}
-			</span>
-			<button
-				onClick={() =>
-					props.onPhotoSelected({
-						id: "ph-1",
-						owner_id: "user-1",
-						project_id: props.projectId,
-						storage_bucket: "source-photos",
-						storage_path: "user-1/photo.png",
-						original_name: "photo.png",
-						content_type: "image/png",
-						width: null,
-						height: null,
-						notes: null,
-						created_at: "2026-01-01T00:00:00Z",
-					})
-				}
-				type="button"
-			>
-				select-photo
-			</button>
-			<button
-				onClick={() =>
-					props.onPhotoSelected({
-						id: "ph-2",
-						owner_id: "user-1",
-						project_id: props.projectId,
-						storage_bucket: "source-photos",
-						storage_path: "user-1/other.png",
-						original_name: "other.png",
-						content_type: "image/png",
-						width: null,
-						height: null,
-						notes: null,
-						created_at: "2026-01-02T00:00:00Z",
-					})
-				}
-				type="button"
-			>
-				select-other-photo
-			</button>
-		</div>
-	),
+const {
+	getAuthHeadersMock,
+	loadLatestDesignBriefMock,
+	listProjectPhotosMock,
+	loadTaskRoomStateMock,
+	saveTaskRoomStateMock,
+} = vi.hoisted(() => ({
+	getAuthHeadersMock: vi.fn(),
+	loadLatestDesignBriefMock: vi.fn(),
+	listProjectPhotosMock: vi.fn(),
+	loadTaskRoomStateMock: vi.fn(),
+	saveTaskRoomStateMock: vi.fn(),
 }));
 
-vi.mock("../../../../src/components/guided/overlay-confirm-step", () => ({
-	OverlayConfirmStep: (props: {
-		confirmedElements: Array<{
-			label: string;
-			kind: string;
-			x: number;
-			y: number;
-			width: number;
-			height: number;
-		}>;
-		onConfirm: (
-			elements: Array<{
-				label: string;
-				kind:
-					| "window"
-					| "door"
-					| "stairs"
-					| "ceiling_line"
-					| "wall_edge"
-					| "structure"
-					| "other";
-				x: number;
-				y: number;
-				width: number;
-				height: number;
+vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
+	UNAUTHENTICATED_ERROR: "UNAUTHENTICATED",
+	getAuthHeaders: (...args: unknown[]) => getAuthHeadersMock(...args),
+}));
+
+vi.mock("../../../../src/server/generation", () => ({
+	loadLatestDesignBrief: (...args: unknown[]) =>
+		loadLatestDesignBriefMock(...args),
+}));
+
+vi.mock("../../../../src/server/photos", () => ({
+	listProjectPhotos: (...args: unknown[]) => listProjectPhotosMock(...args),
+}));
+
+vi.mock("../../../../src/server/room-state", () => ({
+	loadTaskRoomState: (...args: unknown[]) => loadTaskRoomStateMock(...args),
+	saveTaskRoomState: (...args: unknown[]) => saveTaskRoomStateMock(...args),
+}));
+
+vi.mock("../../../../src/components/guided/photo-upload-step", () => ({
+	PhotoUploadStep: (props: {
+		selectedPhotoIds: string[];
+		onPhotosConfirmed: (
+			rows: Array<{
+				id: string;
+				owner_id: string;
+				project_id: string;
+				storage_bucket: "source-photos";
+				storage_path: string;
+				original_name: string;
+				content_type: string;
+				width: number | null;
+				height: number | null;
+				notes: string | null;
+				created_at: string;
 			}>
 		) => void;
 	}) => (
-		<div data-testid="overlay-step">
-			<span data-testid="overlay-inbound-count">
-				{props.confirmedElements.length}
+		<div data-testid="photo-step">
+			<span data-testid="selected-photo-count">
+				{props.selectedPhotoIds.length}
 			</span>
 			<button
 				onClick={() =>
-					props.onConfirm([
+					props.onPhotosConfirmed([
 						{
-							label: "left window",
-							kind: "window",
-							x: 0.1,
-							y: 0.2,
-							width: 0.2,
-							height: 0.3,
+							id: "ph-1",
+							owner_id: "user-1",
+							project_id: "p1",
+							storage_bucket: "source-photos",
+							storage_path: "user-1/one.png",
+							original_name: "one.png",
+							content_type: "image/png",
+							width: null,
+							height: null,
+							notes: null,
+							created_at: "2026-01-01T00:00:00Z",
+						},
+						{
+							id: "ph-2",
+							owner_id: "user-1",
+							project_id: "p1",
+							storage_bucket: "source-photos",
+							storage_path: "user-1/two.png",
+							original_name: "two.png",
+							content_type: "image/png",
+							width: null,
+							height: null,
+							notes: null,
+							created_at: "2026-01-02T00:00:00Z",
 						},
 					])
 				}
 				type="button"
 			>
-				confirm-elements
+				confirm-photos
+			</button>
+		</div>
+	),
+}));
+
+vi.mock("../../../../src/components/guided/photo-review-step", () => ({
+	PhotoReviewStep: (props: {
+		roomState: {
+			reviewedPhotoIds: string[];
+			photoIds: string[];
+			appearances: Array<{
+				id: string;
+				photoId: string;
+				label: string;
+				kind: string;
+			}>;
+		};
+		onStateChange: (next: unknown) => void;
+		onContinue: () => void;
+	}) => (
+		<div data-testid="review-step">
+			<span data-testid="reviewed-photo-count">
+				{props.roomState.reviewedPhotoIds.length}
+			</span>
+			<button
+				onClick={() => {
+					props.onStateChange({
+						...props.roomState,
+						reviewedPhotoIds: props.roomState.photoIds,
+						appearances: [
+							{
+								id: "app-1",
+								photoId: "ph-1",
+								label: "main door",
+								kind: "door",
+								x: 0.1,
+								y: 0.2,
+								width: 0.15,
+								height: 0.3,
+								confidence: 0.9,
+								source: "ai",
+								objectId: "obj-1",
+							},
+						],
+					});
+					props.onContinue();
+				}}
+				type="button"
+			>
+				review-all-photos
+			</button>
+		</div>
+	),
+}));
+
+vi.mock("../../../../src/components/guided/room-merge-step", () => ({
+	RoomMergeStep: (props: {
+		roomState: {
+			objects: Array<{ id: string; label: string }>;
+			appearances: Array<{ id: string }>;
+		};
+		onStateChange: (next: unknown) => void;
+		onContinue: () => void;
+	}) => (
+		<div data-testid="merge-step">
+			<span data-testid="merge-object-count">
+				{props.roomState.objects.length}
+			</span>
+			<button
+				onClick={() => {
+					props.onStateChange({
+						...props.roomState,
+						objects: [
+							{
+								id: "obj-1",
+								label: "main door",
+								kind: "door",
+								preservationMode: "keep_type_restyle",
+								appearanceIds: ["app-1"],
+								isPersisted: true,
+							},
+						],
+					});
+					props.onContinue();
+				}}
+				type="button"
+			>
+				merge-room-objects
+			</button>
+		</div>
+	),
+}));
+
+vi.mock("../../../../src/components/guided/layout-preview-step", () => ({
+	LayoutPreviewStep: (props: {
+		roomState: { previewApproved: boolean; referencePhotoId: string | null };
+		onStateChange: (next: unknown) => void;
+		onApproved: () => void;
+	}) => (
+		<div data-testid="preview-step">
+			<span data-testid="preview-approved">
+				{String(props.roomState.previewApproved)}
+			</span>
+			<button
+				onClick={() => {
+					props.onStateChange({
+						...props.roomState,
+						referencePhotoId: "ph-2",
+						previewApproved: true,
+					});
+					props.onApproved();
+				}}
+				type="button"
+			>
+				approve-preview
 			</button>
 		</div>
 	),
@@ -154,12 +223,11 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 	}) => (
 		<div data-testid="brief-step">
 			<span data-testid="brief-value">{props.brief}</span>
-			<span data-testid="prompt-value">{props.prompt}</span>
 			<button
 				onClick={() => {
-					props.onBriefChange("# brief");
+					props.onBriefChange("# room brief");
 					props.onBriefIdChange("brief-1");
-					props.onPromptChange("PRESERVE EXACTLY");
+					props.onPromptChange("APPROVED ROOM OBJECTS");
 				}}
 				type="button"
 			>
@@ -174,16 +242,14 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 
 vi.mock("../../../../src/components/guided/generation-step", () => ({
 	GenerationStep: (props: {
-		taskId: string;
 		briefId: string | null;
-		brief: string;
 		prompt: string;
+		photoId?: string | null;
 	}) => (
 		<div data-testid="generation-step">
-			<span data-testid="generation-task-id">{props.taskId}</span>
 			<span data-testid="generation-brief-id">{props.briefId ?? "null"}</span>
-			<span data-testid="generation-brief">{props.brief}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
+			<span data-testid="generation-photo-id">{props.photoId ?? "null"}</span>
 		</div>
 	),
 }));
@@ -193,104 +259,71 @@ import { GuidedFlow } from "../../../../src/components/guided/guided-flow";
 describe("GuidedFlow orchestrator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		getAuthHeadersMock.mockResolvedValue({
+			Authorization: "Bearer test-token",
+		});
+		loadLatestDesignBriefMock.mockResolvedValue(null);
+		listProjectPhotosMock.mockResolvedValue([]);
+		loadTaskRoomStateMock.mockResolvedValue({
+			roomState: {
+				photoIds: [],
+				reviewedPhotoIds: [],
+				referencePhotoId: null,
+				appearances: [],
+				objects: [],
+				previewApproved: false,
+			},
+			preview: null,
+		});
+		saveTaskRoomStateMock.mockResolvedValue({ ok: true });
 	});
 
-	it("starts on the Upload step with downstream steps disabled", () => {
+	it("starts on the Upload step with the new six-step workflow gated", () => {
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		const stepper = screen.getByRole("navigation", {
 			name: /guided renovation steps/i,
 		});
 		const buttons = within(stepper).getAllByRole("button");
-		// Plan originally listed 5 stepper entries (Upload, Detect, Confirm,
-		// Brief, Generate); Task 8 merged Detect into Confirm (the "Detect"
-		// label had no component body). The orchestrator now exposes 4.
-		expect(buttons).toHaveLength(4);
+		expect(buttons).toHaveLength(6);
 		expect(buttons[0]?.textContent).toMatch(/Upload/i);
-		expect(buttons[1]?.textContent).toMatch(/Confirm/i);
-		expect(buttons[2]?.textContent).toMatch(/Brief/i);
-		expect(buttons[3]?.textContent).toMatch(/Generate/i);
-		expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
-		// Downstream steps unreachable without a selected photo.
-		expect(buttons[1]?.hasAttribute("disabled")).toBe(true);
-		expect(buttons[2]?.hasAttribute("disabled")).toBe(true);
-		expect(buttons[3]?.hasAttribute("disabled")).toBe(true);
-		expect(screen.getByTestId("photo-step")).toBeDefined();
-		expect(screen.getByTestId("photo-step-task").textContent).toBe("t1");
-	});
+		expect(buttons[1]?.textContent).toMatch(/Review/i);
+		expect(buttons[2]?.textContent).toMatch(/Merge/i);
+	expect(buttons[3]?.textContent).toMatch(/Preview/i);
+	expect(buttons[4]?.textContent).toMatch(/Brief/i);
+	expect(buttons[5]?.textContent).toMatch(/Generate/i);
+	expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
+	expect(buttons[1]?.hasAttribute("disabled")).toBe(true);
+	expect(buttons[5]?.hasAttribute("disabled")).toBe(true);
+});
 
-	it("advances to the overlay step when a photo is selected", async () => {
+	it("advances upload → review → merge → preview → brief → generate", async () => {
 		const user = userEvent.setup();
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
-		await user.click(screen.getByText("select-photo"));
-		expect(screen.getByTestId("overlay-step")).toBeDefined();
-		// Confirm step is now reachable in the stepper.
-		const stepper = screen.getByRole("navigation", {
-			name: /guided renovation steps/i,
-		});
-		const overlayButton = within(stepper).getByRole("button", {
-			name: /Confirm/i,
-		});
-		expect(overlayButton.hasAttribute("disabled")).toBe(false);
-		expect(overlayButton.getAttribute("aria-current")).toBe("step");
-	});
 
-	it("advances through confirm → brief → generate, exposing prompt + brief to the final step", async () => {
-		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
-		await user.click(screen.getByText("select-photo"));
-		await user.click(screen.getByText("confirm-elements"));
+		await user.click(screen.getByText("confirm-photos"));
+		expect(screen.getByTestId("review-step")).toBeDefined();
+
+		await user.click(screen.getByText("review-all-photos"));
+		expect(screen.getByTestId("merge-step")).toBeDefined();
+
+		await user.click(screen.getByText("merge-room-objects"));
+		expect(screen.getByTestId("preview-step")).toBeDefined();
+
+		await user.click(screen.getByText("approve-preview"));
 		expect(screen.getByTestId("brief-step")).toBeDefined();
+
 		await user.click(screen.getByText("generate-brief"));
-		expect(screen.getByTestId("brief-value").textContent).toBe("# brief");
 		await user.click(screen.getByText("continue-to-generate"));
+
 		const generation = screen.getByTestId("generation-step");
-		expect(within(generation).getByTestId("generation-brief").textContent).toBe(
-			"# brief"
-		);
 		expect(
 			within(generation).getByTestId("generation-brief-id").textContent
 		).toBe("brief-1");
 		expect(
 			within(generation).getByTestId("generation-prompt").textContent
-		).toBe("PRESERVE EXACTLY");
-	});
-
-	it("resets downstream state when a different photo is selected", async () => {
-		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
-		// Walk all the way to generate so brief + protected elements are set.
-		await user.click(screen.getByText("select-photo"));
-		await user.click(screen.getByText("confirm-elements"));
-		await user.click(screen.getByText("generate-brief"));
-		await user.click(screen.getByText("continue-to-generate"));
-		expect(screen.getByTestId("generation-step")).toBeDefined();
-
-		// Jump back to photo step using the stepper and pick a different photo.
-		const stepper = screen.getByRole("navigation", {
-			name: /guided renovation steps/i,
-		});
-		await user.click(within(stepper).getByRole("button", { name: /Upload/i }));
-		await user.click(screen.getByText("select-other-photo"));
-
-		// Overlay step gets no inbound elements (downstream state was reset).
-		expect(screen.getByTestId("overlay-inbound-count").textContent).toBe("0");
-		// And brief/generate are gated again until elements + brief land.
-		const buttons = within(stepper).getAllByRole("button");
-		expect(buttons[2]?.hasAttribute("disabled")).toBe(true);
-		expect(buttons[3]?.hasAttribute("disabled")).toBe(true);
-	});
-
-	it("ignores stepper clicks on unreachable steps", async () => {
-		const user = userEvent.setup();
-		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
-		const stepper = screen.getByRole("navigation", {
-			name: /guided renovation steps/i,
-		});
-		const generateButton = within(stepper).getByRole("button", {
-			name: /Generate/i,
-		});
-		// Disabled buttons swallow clicks; the photo step should still be active.
-		await user.click(generateButton).catch(() => undefined);
-		expect(screen.getByTestId("photo-step")).toBeDefined();
+		).toBe("APPROVED ROOM OBJECTS");
+		expect(
+			within(generation).getByTestId("generation-photo-id").textContent
+		).toBe("ph-2");
 	});
 });

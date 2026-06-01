@@ -1,12 +1,17 @@
+import type { RoomObject } from "../renovation/room-state";
+
 export type BoundingBox = {
 	label: string;
 	kind:
 		| "window"
 		| "door"
+		| "radiator"
 		| "stairs"
 		| "ceiling_line"
 		| "wall_edge"
 		| "structure"
+		| "column_beam"
+		| "built_in"
 		| "other";
 	x: number;
 	y: number;
@@ -41,6 +46,9 @@ export type CreateDesignBriefInput = {
 	taskTitle: string;
 	styleRules: string;
 	protectedElements: BoundingBox[];
+	roomObjects?: RoomObject[];
+	referencePhotoName?: string;
+	supportingPhotoCount?: number;
 	model?: ModelSelection;
 };
 

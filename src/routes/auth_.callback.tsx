@@ -18,6 +18,9 @@ function AuthCallback() {
 			const url = new URL(window.location.href);
 			const code = url.searchParams.get("code");
 			const errorDescription = url.searchParams.get("error_description");
+			const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+			const accessToken = hashParams.get("access_token");
+			const refreshToken = hashParams.get("refresh_token");
 
 			if (errorDescription) {
 				if (!cancelled) setErrorMessage(errorDescription);
@@ -32,6 +35,19 @@ function AuthCallback() {
 					setErrorMessage(error.message);
 					return;
 				}
+			}
+
+			if (accessToken && refreshToken) {
+				const { error } = await supabaseBrowser.auth.setSession({
+					access_token: accessToken,
+					refresh_token: refreshToken,
+				});
+				if (cancelled) return;
+				if (error) {
+					setErrorMessage(error.message);
+					return;
+				}
+				window.history.replaceState({}, document.title, url.pathname);
 			}
 
 			const { data } = await supabaseBrowser.auth.getSession();
