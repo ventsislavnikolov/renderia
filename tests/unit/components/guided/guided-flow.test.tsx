@@ -288,13 +288,13 @@ describe("GuidedFlow orchestrator", () => {
 		expect(buttons[0]?.textContent).toMatch(/Upload/i);
 		expect(buttons[1]?.textContent).toMatch(/Review/i);
 		expect(buttons[2]?.textContent).toMatch(/Merge/i);
-	expect(buttons[3]?.textContent).toMatch(/Preview/i);
-	expect(buttons[4]?.textContent).toMatch(/Brief/i);
-	expect(buttons[5]?.textContent).toMatch(/Generate/i);
-	expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
-	expect(buttons[1]?.hasAttribute("disabled")).toBe(true);
-	expect(buttons[5]?.hasAttribute("disabled")).toBe(true);
-});
+		expect(buttons[3]?.textContent).toMatch(/Preview/i);
+		expect(buttons[4]?.textContent).toMatch(/Brief/i);
+		expect(buttons[5]?.textContent).toMatch(/Generate/i);
+		expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
+		expect(buttons[1]?.hasAttribute("disabled")).toBe(true);
+		expect(buttons[5]?.hasAttribute("disabled")).toBe(true);
+	});
 
 	it("advances upload → review → merge → preview → brief → generate", async () => {
 		const user = userEvent.setup();

@@ -287,8 +287,8 @@ export function GuidedFlow(props: {
 				<PhotoUploadStep
 					onPhotosConfirmed={handlePhotosConfirmed}
 					projectId={props.projectId}
-					taskId={props.taskId}
 					selectedPhotoIds={photos.map((photo) => photo.id)}
+					taskId={props.taskId}
 				/>
 			) : null}
 

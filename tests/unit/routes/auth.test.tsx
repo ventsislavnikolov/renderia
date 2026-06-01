@@ -35,7 +35,7 @@ describe("AuthPage", () => {
 		).toBeDefined();
 
 		await user.type(screen.getByLabelText(/^email$/i), "user@example.com");
-		await user.click(screen.getByRole("button", { name: /continue/i }));
+		await user.click(screen.getByRole("button", { name: /^continue$/i }));
 
 		await waitFor(() => {
 			expect(signInWithOtpMock).toHaveBeenCalledWith({
