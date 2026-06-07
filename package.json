@@ -1,6 +1,6 @@
 {
-  "name": "guided-renovation-workspace",
-  "version": "1.5.0",
+  "name": "renderia",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.2",
@@ -24,11 +24,6 @@
     "check": "npx ultracite check",
     "fix": "npx ultracite fix",
     "commitlint": "npx --no -- commitlint --edit"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
-      "pnpm dlx ultracite fix"
-    ]
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
@@ -82,7 +77,6 @@
     "dotenv-cli": "^11.0.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
-    "lint-staged": "^17.0.7",
     "playwright": "^1.60.0",
     "semantic-release": "^25.0.3",
     "semantic-release-ado": "^1.4.0",
