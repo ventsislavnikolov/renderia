@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	afterEach,
@@ -32,6 +32,7 @@ const {
 	fromMock,
 	listProjectPhotosMock,
 	createPhotoRecordMock,
+	deletePhotoMock,
 	getAuthHeadersMock,
 } = vi.hoisted(() => {
 	const upload = vi.fn();
@@ -45,6 +46,7 @@ const {
 		fromMock: vi.fn(() => ({ upload, remove, createSignedUrl })),
 		listProjectPhotosMock: vi.fn(),
 		createPhotoRecordMock: vi.fn(),
+		deletePhotoMock: vi.fn(),
 		getAuthHeadersMock: vi.fn(),
 	};
 });
@@ -59,6 +61,7 @@ vi.mock("../../../../src/lib/supabase/browser", () => ({
 vi.mock("../../../../src/server/photos", () => ({
 	listProjectPhotos: (...args: unknown[]) => listProjectPhotosMock(...args),
 	createPhotoRecord: (...args: unknown[]) => createPhotoRecordMock(...args),
+	deletePhoto: (...args: unknown[]) => deletePhotoMock(...args),
 }));
 
 vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
@@ -97,6 +100,7 @@ beforeEach(() => {
 	fromMock.mockClear();
 	listProjectPhotosMock.mockReset();
 	createPhotoRecordMock.mockReset();
+	deletePhotoMock.mockReset();
 	getAuthHeadersMock
 		.mockReset()
 		.mockResolvedValue({ Authorization: "Bearer test-token" });
@@ -139,12 +143,53 @@ describe("PhotoUploadStep", () => {
 			/>
 		);
 
-		const tile = await screen.findByRole("button", { name: /photo\.png/ });
+		// `pressed` filters to the selection toggle, excluding the new
+		// "Delete photo.png" button which isn't an aria-pressed control.
+		const tile = await screen.findByRole("button", {
+			name: /photo\.png/,
+			pressed: false,
+		});
 		expect(tile).toBeDefined();
 		expect(listProjectPhotosMock).toHaveBeenCalledWith({
 			data: { projectId: "p1", taskId: "t1" },
 			headers: { Authorization: "Bearer test-token" },
 		});
+	});
+
+	it("deletes a photo after confirming in the dialog", async () => {
+		const user = userEvent.setup();
+		const onPhotoDeleted = vi.fn();
+		// First load returns the photo; the post-delete refresh returns empty.
+		listProjectPhotosMock
+			.mockResolvedValueOnce([samplePhoto])
+			.mockResolvedValueOnce([]);
+		deletePhotoMock.mockResolvedValue(undefined);
+		render(
+			<PhotoUploadStep
+				onPhotoDeleted={onPhotoDeleted}
+				onPhotoSelected={vi.fn()}
+				projectId="p1"
+				selectedPhotoId={null}
+				taskId="t1"
+			/>
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: /delete photo\.png/i })
+		);
+
+		const dialog = await screen.findByRole("dialog");
+		await user.click(
+			within(dialog).getByRole("button", { name: /delete photo/i })
+		);
+
+		await waitFor(() =>
+			expect(deletePhotoMock).toHaveBeenCalledWith({
+				data: { projectId: "p1", taskId: "t1", photoId: "ph-1" },
+				headers: { Authorization: "Bearer test-token" },
+			})
+		);
+		expect(onPhotoDeleted).toHaveBeenCalledWith("ph-1");
 	});
 
 	it("uploads via userEvent.upload — guards against label-pattern refactors (MED-2)", async () => {

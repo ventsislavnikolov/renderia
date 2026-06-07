@@ -124,6 +124,13 @@ export const listPhotosSchema = z.object({
 });
 export type ListPhotosInput = z.infer<typeof listPhotosSchema>;
 
+export const deletePhotoSchema = z.object({
+	projectId: z.string().uuid(),
+	taskId: z.string().uuid(),
+	photoId: z.string().uuid(),
+});
+export type DeletePhotoInput = z.infer<typeof deletePhotoSchema>;
+
 /**
  * Optional per-call AI model selection. When omitted, the provider falls
  * back to its built-in default (currently Gemini 2.5 Flash for text — see

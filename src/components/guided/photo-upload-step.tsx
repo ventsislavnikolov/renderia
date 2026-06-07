@@ -1,14 +1,29 @@
+import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { formatRelativeTime } from "../../lib/format";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
 } from "../../lib/server-client/auth-headers";
 import { supabaseBrowser } from "../../lib/supabase/browser";
 import type { Tables } from "../../lib/types/database";
-import { createPhotoRecord, listProjectPhotos } from "../../server/photos";
+import {
+	createPhotoRecord,
+	deletePhoto,
+	listProjectPhotos,
+} from "../../server/photos";
 
 /**
  * Photo metadata row alias used internally — matches the Postgres `photos`
@@ -63,8 +78,14 @@ export function PhotoUploadStep(props: {
 	selectedPhotoIds?: string[];
 	onPhotoSelected?: (photo: PhotoRow) => void;
 	onPhotosConfirmed?: (photos: PhotoRow[]) => void;
+	onPhotoDeleted?: (photoId: string) => void;
 }) {
 	const [photos, setPhotos] = useState<PhotoRow[] | null>(null);
+	const [photoPendingDelete, setPhotoPendingDelete] = useState<PhotoRow | null>(
+		null
+	);
+	const [deleting, setDeleting] = useState(false);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [signedUrls, setSignedUrls] = useState<Map<string, string>>(
 		() => new Map()
 	);
@@ -257,6 +278,45 @@ export function PhotoUploadStep(props: {
 		}
 	}
 
+	async function confirmDeletePhoto() {
+		if (!photoPendingDelete) return;
+		const target = photoPendingDelete;
+		setDeleting(true);
+		setDeleteError(null);
+		try {
+			const headers = await getAuthHeaders();
+			await deletePhoto({
+				data: {
+					projectId: props.projectId,
+					taskId: props.taskId,
+					photoId: target.id,
+				},
+				headers,
+			});
+			if (cancelledRef.current) return;
+			setSelectedIds((prev) => {
+				const next = new Set(prev);
+				next.delete(target.id);
+				return next;
+			});
+			setAnnouncement("Photo deleted.");
+			setPhotoPendingDelete(null);
+			props.onPhotoDeleted?.(target.id);
+			await refresh();
+		} catch (error) {
+			if (cancelledRef.current) return;
+			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/sign-in");
+				return;
+			}
+			setDeleteError(
+				error instanceof Error ? error.message : "Failed to delete"
+			);
+		} finally {
+			if (!cancelledRef.current) setDeleting(false);
+		}
+	}
+
 	function isMultiSelectMode() {
 		return typeof props.onPhotosConfirmed === "function";
 	}
@@ -379,7 +439,7 @@ export function PhotoUploadStep(props: {
 							: photo.id === props.selectedPhotoId;
 						const url = signedUrls.get(photo.id);
 						return (
-							<li key={photo.id}>
+							<li className="relative" key={photo.id}>
 								<button
 									aria-pressed={isSelected}
 									className={cn(
@@ -407,10 +467,30 @@ export function PhotoUploadStep(props: {
 										<span className="break-words font-body font-medium text-[0.8125rem] text-foreground">
 											{photo.original_name}
 										</span>
-										<span className="font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.06em]">
+										<span className="flex items-center gap-1.5 font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.06em]">
 											{photo.content_type}
+											<span aria-hidden="true">·</span>
+											<span className="normal-case tracking-normal">
+												{formatRelativeTime(photo.created_at)}
+											</span>
 										</span>
 									</span>
+								</button>
+								<button
+									aria-label={`Delete ${photo.original_name}`}
+									className={cn(
+										"absolute top-2 right-2 inline-flex size-8 items-center justify-center rounded-md",
+										"border border-border bg-background/90 text-ink-muted backdrop-blur",
+										"transition-colors hover:border-destructive hover:text-destructive",
+										"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+									)}
+									onClick={() => {
+										setDeleteError(null);
+										setPhotoPendingDelete(photo);
+									}}
+									type="button"
+								>
+									<Trash2 aria-hidden="true" className="size-4" />
 								</button>
 							</li>
 						);
@@ -421,6 +501,57 @@ export function PhotoUploadStep(props: {
 			<output aria-live="polite" className="sr-only">
 				{announcement ?? ""}
 			</output>
+
+			<Dialog
+				onOpenChange={(open) => {
+					if (!open) {
+						setPhotoPendingDelete(null);
+						setDeleteError(null);
+					}
+				}}
+				open={photoPendingDelete !== null}
+			>
+				<DialogContent className="gap-0 overflow-hidden border-border bg-background p-0 shadow-2xl sm:max-w-[460px]">
+					<div className="grid gap-5 p-6">
+						<DialogHeader className="gap-1.5 pr-8">
+							<DialogTitle className="font-body font-semibold text-[1.125rem] tracking-tight">
+								Delete photo?
+							</DialogTitle>
+							<DialogDescription className="text-[0.875rem] leading-5">
+								This permanently removes
+								{photoPendingDelete
+									? ` “${photoPendingDelete.original_name}”`
+									: " this photo"}{" "}
+								from the room, along with any detected elements and previews
+								based on it. This can&apos;t be undone.
+							</DialogDescription>
+						</DialogHeader>
+						{deleteError ? (
+							<p
+								className="m-0 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 font-medium text-[0.875rem] text-destructive"
+								role="alert"
+							>
+								{deleteError}
+							</p>
+						) : null}
+						<DialogFooter>
+							<DialogClose asChild>
+								<Button disabled={deleting} type="button" variant="outline">
+									Cancel
+								</Button>
+							</DialogClose>
+							<Button
+								disabled={deleting}
+								onClick={confirmDeletePhoto}
+								type="button"
+								variant="destructive"
+							>
+								{deleting ? "Deleting…" : "Delete photo"}
+							</Button>
+						</DialogFooter>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

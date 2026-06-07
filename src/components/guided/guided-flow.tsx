@@ -223,6 +223,31 @@ export function GuidedFlow(props: {
 		setBriefId(null);
 	}
 
+	// Keep local flow state in sync after a photo is deleted on the server. The
+	// DB already cascades the removal; mirroring it here stops the autosave from
+	// re-inserting a now-deleted photo id and drops any state that referenced it.
+	function handlePhotoDeleted(photoId: string) {
+		setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
+		setRoomState((prev) => {
+			if (!prev) return prev;
+			const photoIds = prev.photoIds.filter((id) => id !== photoId);
+			return {
+				...prev,
+				photoIds,
+				reviewedPhotoIds: prev.reviewedPhotoIds.filter((id) => id !== photoId),
+				referencePhotoId:
+					prev.referencePhotoId === photoId ? null : prev.referencePhotoId,
+				appearances: prev.appearances.filter(
+					(appearance) => appearance.photoId !== photoId
+				),
+				previewApproved: photoIds.length === 0 ? false : prev.previewApproved,
+			};
+		});
+		if (preview && roomState?.referencePhotoId === photoId) {
+			setPreview(null);
+		}
+	}
+
 	return (
 		<section aria-label="Guided renovation flow" className="grid gap-10">
 			<nav
@@ -285,6 +310,7 @@ export function GuidedFlow(props: {
 
 			{step === "upload" ? (
 				<PhotoUploadStep
+					onPhotoDeleted={handlePhotoDeleted}
 					onPhotosConfirmed={handlePhotosConfirmed}
 					projectId={props.projectId}
 					selectedPhotoIds={photos.map((photo) => photo.id)}

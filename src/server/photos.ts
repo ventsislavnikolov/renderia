@@ -4,6 +4,8 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import {
 	type CreatePhotoInput,
 	createPhotoSchema,
+	type DeletePhotoInput,
+	deletePhotoSchema,
 	type ListPhotosInput,
 	listPhotosSchema,
 } from "../lib/renovation/schema";
@@ -91,6 +93,58 @@ export async function __createPhotoRecordHandler(args: {
 	return data;
 }
 
+/** @internal */
+export async function __deletePhotoHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: DeletePhotoInput;
+}) {
+	// Confirm the photo is actually linked to this task before deleting — keeps
+	// the action scoped to "remove from this room" and surfaces a clean error
+	// instead of silently no-op'ing on a stray id.
+	const link = await args.supabase
+		.from("task_photos")
+		.select("photo_id")
+		.eq("task_id", args.input.taskId)
+		.eq("project_id", args.input.projectId)
+		.eq("photo_id", args.input.photoId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (link.error) throw wrapSupabaseError(link.error);
+	if (!link.data) throw new Error("Photo not found");
+
+	// Grab the storage location before the row disappears so we can clean up the
+	// object afterwards.
+	const photo = await args.supabase
+		.from("photos")
+		.select("storage_bucket, storage_path")
+		.eq("id", args.input.photoId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (photo.error) throw wrapSupabaseError(photo.error);
+
+	// Deleting the photo row cascades to task_photos, room_object_appearances,
+	// protected_elements, and structural_previews, and nulls
+	// task_room_sets.reference_photo_id (all enforced by FK rules).
+	const deleted = await args.supabase
+		.from("photos")
+		.delete()
+		.eq("id", args.input.photoId)
+		.eq("owner_id", args.userId);
+	if (deleted.error) throw wrapSupabaseError(deleted.error);
+
+	// Best-effort storage cleanup. The metadata row is already gone, so a
+	// failure here only leaves an orphaned object — never block the user on it.
+	if (photo.data) {
+		const removal = await args.supabase.storage
+			.from(photo.data.storage_bucket)
+			.remove([photo.data.storage_path]);
+		if (removal.error) {
+			console.error("Failed to remove storage object", removal.error.message);
+		}
+	}
+}
+
 function readAuthToken(): string | undefined {
 	return readBearerToken(getRequestHeader("authorization"));
 }
@@ -107,4 +161,11 @@ export const createPhotoRecord = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createPhotoRecordHandler({ userId, supabase, input: data });
+	});
+
+export const deletePhoto = createServerFn({ method: "POST" })
+	.inputValidator(deletePhotoSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __deletePhotoHandler({ userId, supabase, input: data });
 	});
