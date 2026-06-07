@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/ventsislavnikolov/renderia/compare/v1.6.2...v1.7.0) (2026-06-07)
+
+
+### Performance Improvements
+
+* **workspace:** eliminate task-list re-fetch on project navigation ([de2229b](https://github.com/ventsislavnikolov/renderia/commit/de2229bdc9c5bf64d3263b668740cda421262483))
+
 ## [1.6.2](https://github.com/ventsislavnikolov/renderia/compare/v1.6.1...v1.6.2) (2026-06-07)
 
 
