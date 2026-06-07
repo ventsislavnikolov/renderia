@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/ventsislavnikolov/renderia/compare/v1.6.0...v1.6.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* **sidebar:** prevent remount on project navigation ([6115871](https://github.com/ventsislavnikolov/renderia/commit/611587107173b993fdbed0381cbe12cdffcc12c4))
+
 # [1.6.0](https://github.com/ventsislavnikolov/renderia/compare/v1.5.1...v1.6.0) (2026-06-07)
 
 
