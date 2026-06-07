@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listProjectsMock = vi.fn();
 const listProjectTasksMock = vi.fn();
 const signOutMock = vi.fn();
+const getUserMock = vi.fn();
 
 vi.mock("../../../src/lib/server-client/auth-headers", () => ({
 	getAuthHeaders: vi.fn(async () => ({ Authorization: "Bearer test" })),
@@ -22,6 +23,7 @@ vi.mock("../../../src/lib/supabase/browser", () => ({
 	supabaseBrowser: {
 		auth: {
 			signOut: (...args: unknown[]) => signOutMock(...args),
+			getUser: (...args: unknown[]) => getUserMock(...args),
 		},
 	},
 }));
@@ -81,6 +83,9 @@ describe("Sidebar", () => {
 		]);
 		listProjectTasksMock.mockResolvedValue([]);
 		signOutMock.mockResolvedValue(undefined);
+		getUserMock.mockResolvedValue({
+			data: { user: { email: "user@example.com" } },
+		});
 	});
 
 	it("renders wide rail with action items and project list", async () => {
@@ -95,5 +100,13 @@ describe("Sidebar", () => {
 		expect(screen.getByRole("button", { name: /^search$/i })).toBeDefined();
 
 		expect(await screen.findByRole("link", { name: /pleven/i })).toBeDefined();
+	});
+
+	it("renders the account menu trigger with the user's email", async () => {
+		renderSidebar("/projects");
+
+		expect(
+			await screen.findByRole("button", { name: /user@example\.com/i })
+		).toBeDefined();
 	});
 });
