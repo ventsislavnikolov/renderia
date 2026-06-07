@@ -1,12 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import {
-	ChevronsUpDown,
-	Folder,
-	FolderOpen,
-	LogOut,
-	Search,
-	SquarePen,
-} from "lucide-react";
+import { ChevronsUpDown, LogOut, Search, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -125,8 +118,8 @@ export function Sidebar() {
 						<div className="flex flex-col gap-0.5">
 							{[0, 1, 2].map((i) => (
 								<div className="flex items-center gap-3 px-3 py-2" key={i}>
-									<Skeleton className="size-5 shrink-0 rounded-sm" />
-									<Skeleton className="h-4 w-[120px]" />
+									<Skeleton className="size-1.5 shrink-0 rounded-full" />
+									<Skeleton className="h-3.5 w-[120px]" />
 								</div>
 							))}
 						</div>
@@ -342,44 +335,42 @@ function SidebarProjectEntry(props: {
 		};
 	}, [isActive, props.project.id]);
 
-	const projectClass = cn(
-		"flex items-center gap-3 rounded-lg px-3 py-2",
-		"font-body font-medium text-[0.9375rem] text-foreground",
-		"transition-colors hover:bg-background",
-		isActive && "bg-background font-semibold"
-	);
-
 	return (
 		<li>
 			<Link
-				className={projectClass}
+				className={cn(
+					"group flex items-center gap-2 rounded-md px-3 py-2",
+					"font-body font-medium text-[0.875rem] text-foreground",
+					"transition-colors hover:bg-background",
+					isActive
+						? "bg-background font-semibold"
+						: "text-ink-muted hover:text-foreground"
+				)}
 				params={{ projectId: props.project.id }}
 				to="/projects/$projectId"
 			>
-				{isActive ? (
-					<FolderOpen
-						aria-hidden="true"
-						className="size-5 shrink-0 text-ink-muted"
-					/>
-				) : (
-					<Folder
-						aria-hidden="true"
-						className="size-5 shrink-0 text-ink-muted"
-					/>
-				)}
+				<span
+					aria-hidden="true"
+					className={cn(
+						"size-1.5 shrink-0 rounded-full transition-colors",
+						isActive
+							? "bg-foreground"
+							: "bg-ink-subtle group-hover:bg-ink-muted"
+					)}
+				/>
 				<span className="flex-1 truncate">{props.project.name}</span>
 			</Link>
 			{isActive && tasksLoaded && tasks && tasks.length > 0 ? (
-				<ul className="m-0 ml-8 flex flex-col gap-0 border-border border-l py-1 pl-3">
+				<ul className="m-0 mt-0.5 flex flex-col gap-0 pl-6">
 					{tasks.slice(0, 6).map((task) => (
 						<li key={task.id}>
 							<Link
 								className={cn(
-									"flex items-center justify-between rounded-md px-2 py-1.5",
-									"font-body font-medium text-[0.875rem] text-ink-muted",
-									"transition-colors hover:bg-background hover:text-foreground",
-									task.id === props.activeTaskId &&
-										"bg-background font-semibold text-foreground"
+									"flex items-center justify-between rounded-md px-3 py-1.5",
+									"font-body text-[0.8125rem] transition-colors",
+									task.id === props.activeTaskId
+										? "font-medium text-foreground"
+										: "text-ink-muted hover:text-foreground"
 								)}
 								params={{
 									projectId: props.project.id,
@@ -389,7 +380,7 @@ function SidebarProjectEntry(props: {
 							>
 								<span className="flex-1 truncate">{task.title}</span>
 								{task.updated_at ? (
-									<span className="ml-2 shrink-0 text-[0.75rem] text-ink-subtle">
+									<span className="ml-2 shrink-0 text-[0.75rem] text-ink-subtle tabular-nums">
 										{formatRelativeTime(task.updated_at)}
 									</span>
 								) : null}
@@ -456,7 +447,10 @@ function SearchModal(props: {
 										params={{ projectId: project.id }}
 										to="/projects/$projectId"
 									>
-										<Folder className="size-4 shrink-0 text-ink-muted" />
+										<span
+											aria-hidden="true"
+											className="size-1.5 shrink-0 rounded-full bg-ink-subtle"
+										/>
 										<span className="truncate">{project.name}</span>
 									</Link>
 								</li>
