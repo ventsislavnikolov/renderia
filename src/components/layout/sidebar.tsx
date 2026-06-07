@@ -116,10 +116,29 @@ export function Sidebar() {
 
 					{projects === null ? (
 						<div className="flex flex-col gap-0.5">
-							{[0, 1, 2].map((i) => (
-								<div className="flex items-center gap-3 px-3 py-2" key={i}>
+							{/* active project skeleton with sub-tasks */}
+							<div className="rounded-md bg-background px-3 py-2">
+								<div className="flex items-center gap-2">
 									<Skeleton className="size-1.5 shrink-0 rounded-full" />
-									<Skeleton className="h-3.5 w-[120px]" />
+									<Skeleton className="h-3.5 w-[96px]" />
+								</div>
+							</div>
+							<div className="mt-0.5 flex flex-col gap-0 pl-6">
+								{[100, 140].map((w) => (
+									<div
+										className="flex items-center justify-between px-3 py-1.5"
+										key={w}
+									>
+										<Skeleton className="h-3 rounded" style={{ width: w }} />
+										<Skeleton className="ml-2 h-3 w-6 rounded" />
+									</div>
+								))}
+							</div>
+							{/* inactive project skeletons */}
+							{[80, 112].map((w) => (
+								<div className="flex items-center gap-2 px-3 py-2" key={w}>
+									<Skeleton className="size-1.5 shrink-0 rounded-full" />
+									<Skeleton className="h-3.5 rounded" style={{ width: w }} />
 								</div>
 							))}
 						</div>
