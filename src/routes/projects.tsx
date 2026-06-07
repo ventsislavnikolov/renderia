@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppShell } from "../components/layout/app-shell";
 import { supabaseBrowser } from "../lib/supabase/browser";
+import { WorkspaceProvider } from "../lib/workspace-context";
 
 export const Route = createFileRoute("/projects")({
 	ssr: false,
@@ -17,8 +18,10 @@ export const Route = createFileRoute("/projects")({
 
 function ProjectsLayout() {
 	return (
-		<AppShell>
-			<Outlet />
-		</AppShell>
+		<WorkspaceProvider>
+			<AppShell>
+				<Outlet />
+			</AppShell>
+		</WorkspaceProvider>
 	);
 }

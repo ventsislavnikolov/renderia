@@ -27,6 +27,7 @@ import {
 } from "../../lib/server-client/auth-headers";
 import { supabaseBrowser } from "../../lib/supabase/browser";
 import type { Tables } from "../../lib/types/database";
+import { useWorkspace } from "../../lib/workspace-context";
 import { listProjects } from "../../server/projects";
 import { listProjectTasks } from "../../server/tasks";
 
@@ -35,8 +36,8 @@ type TaskRow = Tables<"renovation_tasks">;
 
 export function Sidebar() {
 	const location = useLocation();
+	const { tasksMap, setAllTasks } = useWorkspace();
 	const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-	const [tasksMap, setTasksMap] = useState<Record<string, TaskRow[]>>({});
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [signingOut, setSigningOut] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -79,7 +80,7 @@ export function Sidebar() {
 					})
 				);
 				if (!cancelled) {
-					setTasksMap(Object.fromEntries(entries));
+					setAllTasks(Object.fromEntries(entries));
 				}
 			} catch (error) {
 				if (cancelled) return;
@@ -96,7 +97,7 @@ export function Sidebar() {
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [setAllTasks]);
 
 	const activeProjectId = extractProjectIdFromPath(location.pathname);
 	const activeTaskId = extractTaskIdFromPath(location.pathname);

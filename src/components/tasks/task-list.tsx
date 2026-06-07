@@ -21,6 +21,7 @@ import {
 	UNAUTHENTICATED_ERROR,
 } from "../../lib/server-client/auth-headers";
 import type { Tables } from "../../lib/types/database";
+import { useWorkspace } from "../../lib/workspace-context";
 import { createTask, listProjectTasks } from "../../server/tasks";
 
 type TaskRow = Tables<"renovation_tasks">;
@@ -32,7 +33,11 @@ type TaskRow = Tables<"renovation_tasks">;
  * "all tasks" overview.
  */
 export function TaskList(props: { projectId: string }) {
-	const [tasks, setTasks] = useState<TaskRow[] | null>(null);
+	const { tasksMap, setProjectTasks } = useWorkspace();
+	const hadCachedData = useRef(tasksMap[props.projectId] != null);
+	const [tasks, setTasks] = useState<TaskRow[] | null>(
+		() => tasksMap[props.projectId] ?? null
+	);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [createError, setCreateError] = useState<string | null>(null);
 	const [title, setTitle] = useState("");
@@ -56,6 +61,7 @@ export function TaskList(props: { projectId: string }) {
 			});
 			if (cancelledRef.current) return;
 			setTasks(rows);
+			setProjectTasks(props.projectId, rows);
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
@@ -65,11 +71,13 @@ export function TaskList(props: { projectId: string }) {
 			setLoadError(error instanceof Error ? error.message : "Failed to load");
 			setTasks([]);
 		}
-	}, [props.projectId]);
+	}, [props.projectId, setProjectTasks]);
 
 	useEffect(() => {
 		cancelledRef.current = false;
-		void refresh();
+		if (!hadCachedData.current) {
+			void refresh();
+		}
 		return () => {
 			cancelledRef.current = true;
 		};
