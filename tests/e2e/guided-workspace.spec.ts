@@ -100,7 +100,7 @@ const FAKE_DETECTION = [
 	},
 	{
 		label: "ceiling beam",
-		kind: "ceiling_line",
+		kind: "column_beam",
 		x: 0.4,
 		y: 0.08,
 		width: 0.5,
@@ -148,6 +148,14 @@ const FAKE_GENERATION = {
 			isFavorite: false,
 		},
 	],
+};
+
+const FAKE_PREVIEW = {
+	id: "66666666-6666-6666-6666-666666666666",
+	storagePath: `${USER_ID}/${TASK_ID}/preview.png`,
+	signedUrl:
+		"/storage/v1/object/structural-previews/fake-preview.png?token=fake",
+	status: "generated",
 };
 
 /**
@@ -231,11 +239,119 @@ type ProtectedElementMockRow = {
 	created_at: string;
 };
 
+type RoomAppearanceMock = {
+	id: string;
+	photoId: string;
+	label: string;
+	kind: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	confidence: number | null;
+	source: "ai" | "manual";
+	objectId: string | null;
+};
+
+type RoomObjectMock = {
+	id: string;
+	label: string;
+	kind: string;
+	preservationMode: "exact_preserve" | "keep_type_restyle";
+	appearanceIds: string[];
+	isPersisted: boolean;
+};
+
+type TaskRoomStateMock = {
+	photoIds: string[];
+	reviewedPhotoIds: string[];
+	referencePhotoId: string | null;
+	appearances: RoomAppearanceMock[];
+	objects: RoomObjectMock[];
+	previewApproved: boolean;
+};
+
 /** Track in-memory photos so the second list call sees the upload. */
 type PageState = {
 	photos: (typeof FAKE_PHOTO)[];
 	protectedElements: ProtectedElementMockRow[];
+	roomState: TaskRoomStateMock;
+	preview: typeof FAKE_PREVIEW | null;
 };
+
+function buildPageState(overrides: Partial<PageState> = {}): PageState {
+	return {
+		photos: [],
+		protectedElements: [],
+		roomState: {
+			photoIds: [],
+			reviewedPhotoIds: [],
+			referencePhotoId: null,
+			appearances: [],
+			objects: [],
+			previewApproved: false,
+		},
+		preview: null,
+		...overrides,
+	};
+}
+
+function objectIdFor(kind: string, label: string) {
+	return `${kind}:${label
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function reconcileObjects(appearances: RoomAppearanceMock[]): RoomObjectMock[] {
+	const groups = new Map<string, RoomAppearanceMock[]>();
+	for (const appearance of appearances) {
+		const objectId =
+			appearance.objectId ?? objectIdFor(appearance.kind, appearance.label);
+		const group = groups.get(objectId);
+		if (group) group.push({ ...appearance, objectId });
+		else groups.set(objectId, [{ ...appearance, objectId }]);
+	}
+	return Array.from(groups.entries()).map(([id, group]) => {
+		const first = group[0];
+		if (!first) throw new Error(`Missing appearance for ${id}`);
+		return {
+			id,
+			label: first.label.trim().toLowerCase(),
+			kind: first.kind,
+			preservationMode: "exact_preserve",
+			appearanceIds: group.map((entry) => entry.id),
+			isPersisted: true,
+		};
+	});
+}
+
+function buildReviewedRoomState(): TaskRoomStateMock {
+	const appearances = FAKE_DETECTION.map((box, index) => {
+		const objectId = objectIdFor(box.kind, box.label);
+		return {
+			id: `appearance-${index}`,
+			photoId: PHOTO_ID,
+			label: box.label,
+			kind: box.kind,
+			x: box.x,
+			y: box.y,
+			width: box.width,
+			height: box.height,
+			confidence: box.confidence ?? null,
+			source: "ai" as const,
+			objectId,
+		};
+	});
+	return {
+		photoIds: [PHOTO_ID],
+		reviewedPhotoIds: [PHOTO_ID],
+		referencePhotoId: PHOTO_ID,
+		appearances,
+		objects: reconcileObjects(appearances),
+		previewApproved: false,
+	};
+}
 
 /**
  * Register every network mock we need for the guided flow to operate without
@@ -316,7 +432,11 @@ async function installApiMocks(page: Page, state: PageState) {
 					body: JSON.stringify({ Key: FAKE_PHOTO.storage_path }),
 				});
 			}
-			return route.fulfill({ status: 200, body: "" });
+			return route.fulfill({
+				status: 200,
+				contentType: "image/png",
+				body: FIXTURE_BYTES,
+			});
 		}
 	);
 
@@ -361,6 +481,42 @@ async function installApiMocks(page: Page, state: PageState) {
 		}
 		if (fnId.includes("listProjectTasks")) {
 			return serializedResult([FAKE_TASK]);
+		}
+		if (fnId.includes("loadTaskRoomState")) {
+			return serializedResult({
+				roomState: state.roomState,
+				preview: state.preview,
+			});
+		}
+		if (fnId.includes("saveTaskRoomState")) {
+			const body = route.request().postDataJSON() as {
+				data?: { roomState?: TaskRoomStateMock };
+			} | null;
+			if (body?.data?.roomState) {
+				state.roomState = body.data.roomState;
+			}
+			return serializedResult({ ok: true });
+		}
+		if (fnId.includes("generateStructuralPreview")) {
+			const body = route.request().postDataJSON() as {
+				data?: { referencePhotoId?: string };
+			} | null;
+			state.preview = FAKE_PREVIEW;
+			state.roomState = {
+				...state.roomState,
+				referencePhotoId: body?.data?.referencePhotoId ?? PHOTO_ID,
+				previewApproved: false,
+			};
+			return serializedResult({ preview: FAKE_PREVIEW });
+		}
+		if (fnId.includes("approveStructuralPreview")) {
+			state.roomState = {
+				...state.roomState,
+				referencePhotoId: state.roomState.referencePhotoId ?? PHOTO_ID,
+				previewApproved: true,
+			};
+			state.preview = { ...FAKE_PREVIEW, status: "approved" };
+			return serializedResult({ ok: true });
 		}
 		if (fnId.includes("listProtectedElements")) {
 			return serializedResult(state.protectedElements);
@@ -441,15 +597,75 @@ async function installApiMocks(page: Page, state: PageState) {
 			body: FIXTURE_BYTES,
 		});
 	});
+	await page.route(
+		/\/storage\/v1\/object\/structural-previews\/.*/,
+		async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "image/png",
+				body: FIXTURE_BYTES,
+			});
+		}
+	);
+}
+
+async function selectSamplePhotoAndContinue(page: Page) {
+	await expect(
+		page.getByRole("heading", { name: /Upload a source photo/i })
+	).toBeVisible();
+	await page.getByRole("button", { name: /sample\.png/i }).click();
+	await page.getByRole("button", { name: /Continue with 1 photo/i }).click();
+	await expect(
+		page.getByRole("heading", { name: /Review each uploaded photo/i })
+	).toBeVisible();
+}
+
+async function reviewSamplePhotoAndContinue(page: Page) {
+	await page.getByRole("button", { name: /Detect all photos/i }).click();
+	await expect(
+		page.getByRole("button", { name: /Edit main window/i })
+	).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: /Edit ceiling beam/i })
+	).toBeVisible();
+	await page.getByRole("button", { name: /Mark this photo reviewed/i }).click();
+	await page.getByRole("button", { name: /Continue to merge review/i }).click();
+	await expect(
+		page.getByRole("heading", { name: /Merge room objects/i })
+	).toBeVisible();
+}
+
+async function approveStructuralPreviewAndContinue(page: Page) {
+	await page
+		.getByRole("button", { name: /Continue to structural preview/i })
+		.click();
+	await expect(
+		page.getByRole("heading", { name: /Approve the structural preview/i })
+	).toBeVisible();
+	await expect(page.getByLabel(/Reference photo angle/i)).toHaveValue(PHOTO_ID);
+	await page
+		.getByRole("button", { name: /Generate structural preview/i })
+		.click();
+	await expect(page.getByAltText(/Structural preview/i)).toBeVisible();
+	await page.getByRole("button", { name: /Approve preview/i }).click();
+	await expect(
+		page.getByRole("heading", { name: /Review the design brief/i })
+	).toBeVisible();
+}
+
+async function advanceToBriefStep(page: Page) {
+	await selectSamplePhotoAndContinue(page);
+	await reviewSamplePhotoAndContinue(page);
+	await approveStructuralPreviewAndContinue(page);
 }
 
 test.describe("guided renovation workspace", () => {
-	test("authenticated user sees the four-step stepper", async ({
+	test("authenticated user sees the six-step stepper", async ({
 		page,
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [], protectedElements: [] };
+		const state = buildPageState();
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
@@ -458,26 +674,29 @@ test.describe("guided renovation workspace", () => {
 			name: "Guided renovation steps",
 		});
 		await expect(stepper).toBeVisible();
-		for (const label of ["Upload", "Confirm", "Brief", "Generate"]) {
+		for (const label of [
+			"Upload",
+			"Review",
+			"Merge",
+			"Preview",
+			"Brief",
+			"Generate",
+		]) {
 			await expect(
 				stepper.getByRole("button", { name: new RegExp(label) })
 			).toBeVisible();
 		}
 	});
 
-	test("upload step advances to overlay confirm once a photo is selected", async ({
+	test("upload step advances to review once a photo is selected", async ({
 		page,
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [], protectedElements: [] };
+		const state = buildPageState();
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
-
-		await expect(
-			page.getByRole("heading", { name: /Upload a source photo/i })
-		).toBeVisible();
 
 		const fileInput = page.getByLabel(/Choose a photo to upload/i);
 		await fileInput.setInputFiles({
@@ -486,83 +705,54 @@ test.describe("guided renovation workspace", () => {
 			buffer: FIXTURE_BYTES,
 		});
 
-		await expect(
-			page.getByRole("heading", { name: /Confirm protected elements/i })
-		).toBeVisible();
+		await selectSamplePhotoAndContinue(page);
 	});
 
-	test("detect protected elements renders the bounding boxes", async ({
+	test("review step detects fixed objects and reaches merge review", async ({
 		page,
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [FAKE_PHOTO], protectedElements: [] };
+		const state = buildPageState({ photos: [FAKE_PHOTO] });
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
+		await selectSamplePhotoAndContinue(page);
+		await reviewSamplePhotoAndContinue(page);
 
-		// Jump straight to the overlay step by selecting the existing photo
-		// tile rather than uploading. This keeps the test focused on the
-		// detection UI rather than the upload happy-path (already covered).
-		await page.getByRole("button", { name: /sample\.png/ }).click();
-
-		const detectBtn = page.getByRole("button", {
-			name: /Detect protected elements/i,
-		});
-		await expect(detectBtn).toBeEnabled();
-		await detectBtn.click();
-
-		await expect(
-			page.getByRole("button", { name: /Toggle main window protection/i })
-		).toBeVisible();
-		await expect(
-			page.getByRole("button", { name: /Toggle ceiling beam protection/i })
-		).toBeVisible();
-		await expect(
-			page.getByRole("button", { name: /Confirm selection and continue/i })
-		).toBeVisible();
+		await expect(page.getByLabel(/Object label/i).first()).toHaveValue(
+			"main window"
+		);
 	});
 
-	test("persisted protected elements render on mount without a detect call", async ({
+	test("saved room state can be reopened without rerunning detection", async ({
 		page,
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = {
+		const state = buildPageState({
 			photos: [FAKE_PHOTO],
-			// Pre-seed so `listProtectedElements` returns rows on mount.
-			protectedElements: FAKE_DETECTION.map((el, index) => ({
-				id: `seeded-${index}`,
-				task_id: TASK_ID,
-				photo_id: PHOTO_ID,
-				project_id: PROJECT_ID,
-				label: el.label,
-				kind: el.kind,
-				x: el.x,
-				y: el.y,
-				width: el.width,
-				height: el.height,
-				confidence: el.confidence ?? null,
-				status: "suggested",
-				created_at: "2026-01-01T00:00:00Z",
-			})),
-		};
+			roomState: buildReviewedRoomState(),
+		});
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
-		await page.getByRole("button", { name: /sample\.png/ }).click();
+		await page.getByRole("button", { name: /^02 Review$/i }).click();
 
-		// Boxes render immediately — no detection click was needed.
 		await expect(
-			page.getByRole("button", { name: /Toggle main window protection/i })
+			page.getByRole("heading", { name: /Review each uploaded photo/i })
 		).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: /Toggle ceiling beam protection/i })
+			page.getByRole("button", { name: /Edit main window/i })
 		).toBeVisible();
-		// Detection button is in the "re-run" state because rows are already
-		// present.
 		await expect(
-			page.getByRole("button", { name: /Re-run detection/i })
+			page.getByRole("button", { name: /sample\.png Reviewed/i })
+		).toBeVisible();
+		await page
+			.getByRole("button", { name: /Continue to merge review/i })
+			.click();
+		await expect(
+			page.getByRole("heading", { name: /Merge room objects/i })
 		).toBeVisible();
 	});
 
@@ -571,21 +761,11 @@ test.describe("guided renovation workspace", () => {
 		context,
 	}) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [FAKE_PHOTO], protectedElements: [] };
+		const state = buildPageState({ photos: [FAKE_PHOTO] });
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
-		await page.getByRole("button", { name: /sample\.png/ }).click();
-		await page
-			.getByRole("button", { name: /Detect protected elements/i })
-			.click();
-		await page
-			.getByRole("button", { name: /Confirm selection and continue/i })
-			.click();
-
-		await expect(
-			page.getByRole("heading", { name: /Review the design brief/i })
-		).toBeVisible();
+		await advanceToBriefStep(page);
 		await page.getByRole("button", { name: /Generate brief/i }).click();
 
 		const textarea = page.getByLabel("Brief markdown");
@@ -600,17 +780,11 @@ test.describe("guided renovation workspace", () => {
 
 	test("generation step toggles favorites", async ({ page, context }) => {
 		await installFakeSession(context);
-		const state: PageState = { photos: [FAKE_PHOTO], protectedElements: [] };
+		const state = buildPageState({ photos: [FAKE_PHOTO] });
 		await installApiMocks(page, state);
 
 		await page.goto(TASK_URL);
-		await page.getByRole("button", { name: /sample\.png/ }).click();
-		await page
-			.getByRole("button", { name: /Detect protected elements/i })
-			.click();
-		await page
-			.getByRole("button", { name: /Confirm selection and continue/i })
-			.click();
+		await advanceToBriefStep(page);
 		await page.getByRole("button", { name: /Generate brief/i }).click();
 		// Wait for the textarea to be populated before continuing — otherwise
 		// the disabled-state guard on Continue may swallow our click.
