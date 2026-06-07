@@ -36,6 +36,7 @@ type TaskRow = Tables<"renovation_tasks">;
 export function Sidebar() {
 	const location = useLocation();
 	const [projects, setProjects] = useState<ProjectRow[] | null>(null);
+	const [tasksMap, setTasksMap] = useState<Record<string, TaskRow[]>>({});
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [signingOut, setSigningOut] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -52,16 +53,33 @@ export function Sidebar() {
 		};
 	}, []);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the rerun trigger by design
+	// Fetch projects once on mount — no re-fetch on navigation.
 	useEffect(() => {
 		let cancelled = false;
 		(async () => {
 			try {
 				const headers = await getAuthHeaders();
 				const rows = (await listProjects({ headers })) as ProjectRow[];
+				if (cancelled) return;
+				setProjects(rows);
+				setLoadError(null);
+				// Prefetch tasks for every project in parallel.
+				const entries = await Promise.all(
+					rows.map(async (project) => {
+						try {
+							const h = await getAuthHeaders();
+							const tasks = (await listProjectTasks({
+								data: { projectId: project.id },
+								headers: h,
+							})) as TaskRow[];
+							return [project.id, tasks] as const;
+						} catch {
+							return [project.id, [] as TaskRow[]] as const;
+						}
+					})
+				);
 				if (!cancelled) {
-					setProjects(rows);
-					setLoadError(null);
+					setTasksMap(Object.fromEntries(entries));
 				}
 			} catch (error) {
 				if (cancelled) return;
@@ -78,7 +96,7 @@ export function Sidebar() {
 		return () => {
 			cancelled = true;
 		};
-	}, [location.pathname]);
+	}, []);
 
 	const activeProjectId = extractProjectIdFromPath(location.pathname);
 	const activeTaskId = extractTaskIdFromPath(location.pathname);
@@ -170,6 +188,7 @@ export function Sidebar() {
 									activeTaskId={activeTaskId}
 									key={project.id}
 									project={project}
+									tasks={tasksMap[project.id]}
 								/>
 							))}
 						</ul>
@@ -325,40 +344,10 @@ function SidebarProjectEntry(props: {
 	project: ProjectRow;
 	activeProjectId: string | null;
 	activeTaskId: string | null;
+	tasks: TaskRow[] | undefined;
 }) {
 	const isActive = props.project.id === props.activeProjectId;
-	const [tasks, setTasks] = useState<TaskRow[] | null>(null);
-	const [tasksLoaded, setTasksLoaded] = useState(false);
-
-	useEffect(() => {
-		if (!isActive) {
-			setTasks(null);
-			setTasksLoaded(false);
-			return;
-		}
-		let cancelled = false;
-		(async () => {
-			try {
-				const headers = await getAuthHeaders();
-				const rows = (await listProjectTasks({
-					data: { projectId: props.project.id },
-					headers,
-				})) as TaskRow[];
-				if (!cancelled) {
-					setTasks(rows);
-					setTasksLoaded(true);
-				}
-			} catch {
-				if (!cancelled) {
-					setTasks([]);
-					setTasksLoaded(true);
-				}
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [isActive, props.project.id]);
+	const tasks = props.tasks;
 
 	return (
 		<li>
@@ -383,7 +372,7 @@ function SidebarProjectEntry(props: {
 				)}
 				<span className="flex-1 truncate">{props.project.name}</span>
 			</Link>
-			{isActive && tasksLoaded && tasks && tasks.length > 0 ? (
+			{isActive && tasks && tasks.length > 0 ? (
 				<ul className="m-0 mt-0.5 flex flex-col gap-0 pl-9">
 					{tasks.slice(0, 6).map((task) => (
 						<li key={task.id}>
