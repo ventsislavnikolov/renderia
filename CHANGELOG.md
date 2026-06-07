@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/ventsislavnikolov/renderia/compare/v1.5.0...v1.5.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* sync pnpm lockfile ([ad137e7](https://github.com/ventsislavnikolov/renderia/commit/ad137e7100380a776a61fb33cb2ecd9f9fee702e))
+
 # [1.5.0](https://github.com/ventsislavnikolov/renderia/compare/v1.4.0...v1.5.0) (2026-06-01)
 
 # [1.4.0](https://github.com/ventsislavnikolov/renderia/compare/v1.3.0...v1.4.0) (2026-05-30)
