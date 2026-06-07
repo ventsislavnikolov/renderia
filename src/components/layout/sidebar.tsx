@@ -1,8 +1,22 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Folder, FolderOpen, Search, SquarePen } from "lucide-react";
+import {
+	ChevronsUpDown,
+	Folder,
+	FolderOpen,
+	LogOut,
+	Search,
+	SquarePen,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +39,18 @@ export function Sidebar() {
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [signingOut, setSigningOut] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
+	const [userEmail, setUserEmail] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			const { data } = await supabaseBrowser.auth.getUser();
+			if (!cancelled) setUserEmail(data.user?.email ?? null);
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the rerun trigger by design
 	useEffect(() => {
@@ -132,15 +158,12 @@ export function Sidebar() {
 					) : null}
 				</ScrollArea>
 
-				<div className="pt-2">
-					<Button
-						className="h-10 w-full justify-start rounded-lg px-3 font-body font-medium text-[0.9375rem] text-ink-muted hover:bg-background hover:text-foreground"
-						disabled={signingOut}
-						onClick={handleSignOut}
-						variant="ghost"
-					>
-						{signingOut ? "Signing out..." : "Sign out"}
-					</Button>
+				<div className="border-border border-t pt-2">
+					<UserMenu
+						email={userEmail}
+						onSignOut={handleSignOut}
+						signingOut={signingOut}
+					/>
 				</div>
 			</aside>
 
@@ -150,6 +173,79 @@ export function Sidebar() {
 				projects={projects ?? []}
 			/>
 		</>
+	);
+}
+
+function getInitials(email: string | null): string {
+	if (!email) return "?";
+	const namePart = email.split("@")[0] ?? "";
+	const segments = namePart.split(/[.\-_+]/).filter(Boolean);
+	if (segments.length >= 2) {
+		return `${segments[0]?.[0] ?? ""}${segments[1]?.[0] ?? ""}`.toUpperCase();
+	}
+	return namePart.slice(0, 2).toUpperCase() || "?";
+}
+
+function UserMenu(props: {
+	email: string | null;
+	signingOut: boolean;
+	onSignOut: () => void;
+}) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					className={cn(
+						"flex w-full items-center gap-3 rounded-lg px-2 py-2",
+						"text-left transition-colors hover:bg-background",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					)}
+					type="button"
+				>
+					<span
+						aria-hidden="true"
+						className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground font-body font-semibold text-[0.75rem] text-background"
+					>
+						{getInitials(props.email)}
+					</span>
+					<span className="min-w-0 flex-1">
+						<span className="block truncate font-body font-medium text-[0.875rem] text-foreground">
+							{props.email ?? "Account"}
+						</span>
+					</span>
+					<ChevronsUpDown
+						aria-hidden="true"
+						className="size-4 shrink-0 text-ink-muted"
+					/>
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="start"
+				className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[220px]"
+				side="top"
+				sideOffset={8}
+			>
+				{props.email ? (
+					<>
+						<DropdownMenuLabel className="truncate font-normal text-ink-muted text-xs">
+							{props.email}
+						</DropdownMenuLabel>
+						<DropdownMenuSeparator />
+					</>
+				) : null}
+				<DropdownMenuItem
+					disabled={props.signingOut}
+					onSelect={(event) => {
+						event.preventDefault();
+						props.onSignOut();
+					}}
+					variant="destructive"
+				>
+					<LogOut className="size-4" />
+					{props.signingOut ? "Signing out..." : "Sign out"}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
