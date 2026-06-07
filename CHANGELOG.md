@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/ventsislavnikolov/renderia/compare/v1.6.1...v1.6.2) (2026-06-07)
+
+
+### Performance Improvements
+
+* **sidebar:** preload all projects and tasks on mount ([5d03810](https://github.com/ventsislavnikolov/renderia/commit/5d03810340a01f7a00a0d77e45a41d0b80e1b72f))
+
 ## [1.6.1](https://github.com/ventsislavnikolov/renderia/compare/v1.6.0...v1.6.1) (2026-06-07)
 
 
