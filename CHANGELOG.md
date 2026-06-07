@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/ventsislavnikolov/renderia/compare/v1.5.1...v1.6.0) (2026-06-07)
+
+
+### Features
+
+* **sidebar:** add ChatGPT-style user profile menu ([#20](https://github.com/ventsislavnikolov/renderia/issues/20)) ([42c67b3](https://github.com/ventsislavnikolov/renderia/commit/42c67b316df0c3d27124302379502d0504a2e373))
+
 ## [1.5.1](https://github.com/ventsislavnikolov/renderia/compare/v1.5.0...v1.5.1) (2026-06-07)
 
 
