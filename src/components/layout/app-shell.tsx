@@ -1,6 +1,17 @@
 import type { ReactNode } from "react";
 import { Sidebar } from "./sidebar";
 
+export function Breadcrumbs({ children }: { children: ReactNode }) {
+	return (
+		<nav
+			aria-label="Breadcrumb"
+			className="mb-6 flex items-center gap-2 font-medium text-[0.8125rem] text-ink-muted tracking-tight [&_[aria-current=page]]:font-semibold [&_[aria-current=page]]:text-foreground [&_a:hover]:border-foreground [&_a]:border-transparent [&_a]:border-b [&_a]:text-foreground [&_a]:no-underline [&_a]:transition-[border-color]"
+		>
+			{children}
+		</nav>
+	);
+}
+
 /**
  * Authenticated workspace shell.
  *

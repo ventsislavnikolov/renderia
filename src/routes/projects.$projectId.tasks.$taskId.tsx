@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuidedFlow } from "../components/guided/guided-flow";
-import { AppShell } from "../components/layout/app-shell";
+import { Breadcrumbs } from "../components/layout/app-shell";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -91,7 +91,8 @@ function TaskWorkspaceRoute() {
 	);
 
 	return (
-		<AppShell breadcrumbs={breadcrumbs}>
+		<>
+			<Breadcrumbs>{breadcrumbs}</Breadcrumbs>
 			<section className="grid gap-8">
 				<header className="grid gap-2">
 					<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
@@ -127,6 +128,6 @@ function TaskWorkspaceRoute() {
 					</div>
 				)}
 			</section>
-		</AppShell>
+		</>
 	);
 }

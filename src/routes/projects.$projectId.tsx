@@ -6,7 +6,7 @@ import {
 	useChildMatches,
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AppShell } from "../components/layout/app-shell";
+import { Breadcrumbs } from "../components/layout/app-shell";
 import { TaskList } from "../components/tasks/task-list";
 import {
 	getAuthHeaders,
@@ -91,9 +91,10 @@ function ProjectRoute() {
 	}
 
 	return (
-		<AppShell breadcrumbs={breadcrumbs}>
+		<>
+			<Breadcrumbs>{breadcrumbs}</Breadcrumbs>
 			{error ? <p role="alert">{error}</p> : null}
 			<TaskList projectId={projectId} />
-		</AppShell>
+		</>
 	);
 }
