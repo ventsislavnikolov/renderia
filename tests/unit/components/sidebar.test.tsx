@@ -37,6 +37,7 @@ vi.mock("../../../src/server/tasks", () => ({
 }));
 
 import { Sidebar } from "../../../src/components/layout/sidebar";
+import { WorkspaceProvider } from "../../../src/lib/workspace-context";
 
 function renderSidebar(initialPath = "/projects") {
 	const rootRoute = createRootRoute({ component: Outlet });
@@ -69,7 +70,11 @@ function renderSidebar(initialPath = "/projects") {
 		]),
 		history: createMemoryHistory({ initialEntries: [initialPath] }),
 	});
-	return render(<RouterProvider router={router} />);
+	return render(
+		<WorkspaceProvider>
+			<RouterProvider router={router} />
+		</WorkspaceProvider>
+	);
 }
 
 describe("Sidebar", () => {

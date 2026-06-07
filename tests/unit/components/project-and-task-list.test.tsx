@@ -32,6 +32,7 @@ vi.mock("../../../src/server/tasks", () => ({
 
 import { ProjectList } from "../../../src/components/projects/project-list";
 import { TaskList } from "../../../src/components/tasks/task-list";
+import { WorkspaceProvider } from "../../../src/lib/workspace-context";
 
 function renderWithRouter(component: React.ReactNode) {
 	const rootRoute = createRootRoute({ component: Outlet });
@@ -65,7 +66,11 @@ function renderWithRouter(component: React.ReactNode) {
 		history: createMemoryHistory({ initialEntries: ["/"] }),
 	});
 
-	return render(<RouterProvider router={router} />);
+	return render(
+		<WorkspaceProvider>
+			<RouterProvider router={router} />
+		</WorkspaceProvider>
+	);
 }
 
 describe("ProjectList", () => {

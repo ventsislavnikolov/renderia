@@ -21,24 +21,17 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import {
-	getAuthHeaders,
-	UNAUTHENTICATED_ERROR,
-} from "../../lib/server-client/auth-headers";
+import { formatRelativeTime } from "../../lib/format";
 import { supabaseBrowser } from "../../lib/supabase/browser";
 import type { Tables } from "../../lib/types/database";
 import { useWorkspace } from "../../lib/workspace-context";
-import { listProjects } from "../../server/projects";
-import { listProjectTasks } from "../../server/tasks";
 
 type ProjectRow = Tables<"projects">;
 type TaskRow = Tables<"renovation_tasks">;
 
 export function Sidebar() {
 	const location = useLocation();
-	const { tasksMap, setAllTasks } = useWorkspace();
-	const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-	const [loadError, setLoadError] = useState<string | null>(null);
+	const { projects, tasksMap, loadError } = useWorkspace();
 	const [signingOut, setSigningOut] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -53,51 +46,6 @@ export function Sidebar() {
 			cancelled = true;
 		};
 	}, []);
-
-	// Fetch projects once on mount — no re-fetch on navigation.
-	useEffect(() => {
-		let cancelled = false;
-		(async () => {
-			try {
-				const headers = await getAuthHeaders();
-				const rows = (await listProjects({ headers })) as ProjectRow[];
-				if (cancelled) return;
-				setProjects(rows);
-				setLoadError(null);
-				// Prefetch tasks for every project in parallel.
-				const entries = await Promise.all(
-					rows.map(async (project) => {
-						try {
-							const h = await getAuthHeaders();
-							const tasks = (await listProjectTasks({
-								data: { projectId: project.id },
-								headers: h,
-							})) as TaskRow[];
-							return [project.id, tasks] as const;
-						} catch {
-							return [project.id, [] as TaskRow[]] as const;
-						}
-					})
-				);
-				if (!cancelled) {
-					setAllTasks(Object.fromEntries(entries));
-				}
-			} catch (error) {
-				if (cancelled) return;
-				if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-					window.location.assign("/sign-in");
-					return;
-				}
-				setLoadError(
-					error instanceof Error ? error.message : "Failed to load projects"
-				);
-				setProjects([]);
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [setAllTasks]);
 
 	const activeProjectId = extractProjectIdFromPath(location.pathname);
 	const activeTaskId = extractTaskIdFromPath(location.pathname);
@@ -471,17 +419,6 @@ function SearchModal(props: {
 			</DialogContent>
 		</Dialog>
 	);
-}
-
-function formatRelativeTime(isoString: string): string {
-	const ms = Date.now() - new Date(isoString).getTime();
-	const minutes = Math.floor(ms / 60_000);
-	if (minutes < 1) return "now";
-	if (minutes < 60) return `${minutes}m`;
-	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours}h`;
-	const days = Math.floor(hours / 24);
-	return `${days}d`;
 }
 
 function extractProjectIdFromPath(pathname: string): string | null {

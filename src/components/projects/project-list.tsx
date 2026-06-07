@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Folder, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,23 +19,16 @@ import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
 } from "../../lib/server-client/auth-headers";
-import type { Tables } from "../../lib/types/database";
-import { createProject, listProjects } from "../../server/projects";
+import { useWorkspace } from "../../lib/workspace-context";
+import { createProject } from "../../server/projects";
 
 /**
- * Row shape returned by `listProjects`. Re-uses the canonical row type from
- * `src/lib/types/database.ts` so we never drift from the database schema.
- */
-type ProjectRow = Tables<"projects">;
-
-/**
- * Projects index: fetches the signed-in user's projects via the server fn
- * and renders a create form. Loading + error are exposed in the UI so a
- * blank dashboard isn't ambiguous.
+ * Projects index: reads the signed-in user's projects from the shared
+ * workspace context (loaded once by `AppShell`) and renders a create form.
+ * Loading + error are exposed in the UI so a blank dashboard isn't ambiguous.
  */
 export function ProjectList() {
-	const [projects, setProjects] = useState<ProjectRow[] | null>(null);
-	const [loadError, setLoadError] = useState<string | null>(null);
+	const { projects, loadError, refreshProjects } = useWorkspace();
 	const [createError, setCreateError] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
@@ -46,32 +39,12 @@ export function ProjectList() {
 	);
 	const cancelledRef = useRef(false);
 
-	const refresh = useCallback(async () => {
-		if (cancelledRef.current) return;
-		setLoadError(null);
-		try {
-			const headers = await getAuthHeaders();
-			const rows: ProjectRow[] = await listProjects({ headers });
-			if (cancelledRef.current) return;
-			setProjects(rows);
-		} catch (error) {
-			if (cancelledRef.current) return;
-			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
-				window.location.assign("/sign-in");
-				return;
-			}
-			setLoadError(error instanceof Error ? error.message : "Failed to load");
-			setProjects([]);
-		}
-	}, []);
-
 	useEffect(() => {
 		cancelledRef.current = false;
-		void refresh();
 		return () => {
 			cancelledRef.current = true;
 		};
-	}, [refresh]);
+	}, []);
 
 	useEffect(() => {
 		if (!createdAnnouncement) return;
@@ -95,7 +68,7 @@ export function ProjectList() {
 			if (cancelledRef.current) return;
 			setName("");
 			setDescription("");
-			await refresh();
+			await refreshProjects();
 			if (cancelledRef.current) return;
 			setCreateOpen(false);
 			setCreatedAnnouncement("Project created.");

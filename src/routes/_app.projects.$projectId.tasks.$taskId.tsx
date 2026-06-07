@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuidedFlow } from "../components/guided/guided-flow";
@@ -7,8 +7,8 @@ import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
 } from "../lib/server-client/auth-headers";
-import { supabaseBrowser } from "../lib/supabase/browser";
 import type { Tables } from "../lib/types/database";
+import { useWorkspace } from "../lib/workspace-context";
 import { listProjectTasks } from "../server/tasks";
 
 type TaskRow = Tables<"renovation_tasks">;
@@ -16,39 +16,41 @@ type TaskRow = Tables<"renovation_tasks">;
 /**
  * `/projects/:projectId/tasks/:taskId` — guided task workspace.
  *
- * Owns the route's auth guard and the lookup that resolves the task title
- * for the breadcrumb + guided flow header. The flow itself lives in
- * `GuidedFlow` so the route stays a thin glue layer.
+ * Auth lives in the `_app` layout. The task is resolved from the shared
+ * workspace context (prefetched by the shell) for an instant open; a direct
+ * fetch is the fallback only when the room isn't in the cache yet. The flow
+ * itself lives in `GuidedFlow` so the route stays a thin glue layer.
  */
-export const Route = createFileRoute("/projects/$projectId/tasks/$taskId")({
-	ssr: false,
-	beforeLoad: async () => {
-		const {
-			data: { session },
-		} = await supabaseBrowser.auth.getSession();
-		if (!session) {
-			throw redirect({ to: "/sign-in" });
-		}
-	},
-	component: TaskWorkspaceRoute,
-});
+export const Route = createFileRoute("/_app/projects/$projectId/tasks/$taskId")(
+	{
+		ssr: false,
+		component: TaskWorkspaceRoute,
+	}
+);
 
 function TaskWorkspaceRoute() {
 	const { projectId, taskId } = Route.useParams();
-	const [task, setTask] = useState<TaskRow | null>(null);
+	const { projects, tasksMap } = useWorkspace();
+	const cachedTask =
+		tasksMap[projectId]?.find((row) => row.id === taskId) ?? null;
+	const [task, setTask] = useState<TaskRow | null>(cachedTask);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
 
 	useEffect(() => {
 		cancelledRef.current = false;
+		if (cachedTask) {
+			setTask(cachedTask);
+			return () => {
+				cancelledRef.current = true;
+			};
+		}
 		(async () => {
 			try {
+				// Fallback for a cache miss (e.g. deep link before the shell's
+				// prefetch settles). `listProjectTasks` stands in until a
+				// dedicated `getTask` server fn exists.
 				const headers = await getAuthHeaders();
-				// We use `listProjectTasks` rather than a dedicated `getTask`
-				// because no such server fn exists yet — the list is bounded by
-				// project size for the MVP, and adding `getTask` is out of
-				// scope for this task. Swap in a single-row fetch once that
-				// server fn lands.
 				const rows: TaskRow[] = await listProjectTasks({
 					data: { projectId },
 					headers,
@@ -76,14 +78,16 @@ function TaskWorkspaceRoute() {
 		return () => {
 			cancelledRef.current = true;
 		};
-	}, [projectId, taskId]);
+	}, [projectId, taskId, cachedTask]);
+
+	const project = projects?.find((row) => row.id === projectId) ?? null;
 
 	const breadcrumbs = (
 		<>
 			<Link to="/projects">Projects</Link>
 			<span aria-hidden="true"> / </span>
 			<Link params={{ projectId }} to="/projects/$projectId">
-				Project
+				{project?.name ?? "Project"}
 			</Link>
 			<span aria-hidden="true"> / </span>
 			<span aria-current="page">{task?.title ?? "…"}</span>
@@ -114,6 +118,7 @@ function TaskWorkspaceRoute() {
 				) : null}
 				{task ? (
 					<GuidedFlow
+						key={taskId}
 						projectId={projectId}
 						taskId={taskId}
 						taskTitle={task.title}
