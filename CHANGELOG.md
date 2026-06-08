@@ -1,3 +1,11 @@
+## [1.7.1](https://github.com/ventsislavnikolov/renderia/compare/v1.7.0...v1.7.1) (2026-06-08)
+
+
+### Bug Fixes
+
+* **ci:** restore packageManager field for pnpm setup ([205f289](https://github.com/ventsislavnikolov/renderia/commit/205f2897ea755dfde156b03845f2745e68d04f97))
+* **test:** exclude .claude worktrees from vitest discovery ([ea0326a](https://github.com/ventsislavnikolov/renderia/commit/ea0326abc1923b775055c029009fe5a4a0c8979f))
+
 # [1.7.0](https://github.com/ventsislavnikolov/renderia/compare/v1.6.2...v1.7.0) (2026-06-07)
 
 
