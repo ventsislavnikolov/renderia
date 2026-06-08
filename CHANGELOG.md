@@ -1,3 +1,10 @@
+## [1.7.2](https://github.com/ventsislavnikolov/renderia/compare/v1.7.1...v1.7.2) (2026-06-08)
+
+
+### Bug Fixes
+
+* **e2e:** restore guided-workspace server-fn mocking and photo locator ([ebb11f4](https://github.com/ventsislavnikolov/renderia/commit/ebb11f410f9505974649a9f03f478a3898790f69))
+
 ## [1.7.1](https://github.com/ventsislavnikolov/renderia/compare/v1.7.0...v1.7.1) (2026-06-08)
 
 
