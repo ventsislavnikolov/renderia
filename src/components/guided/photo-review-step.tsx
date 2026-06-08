@@ -426,7 +426,7 @@ export function PhotoReviewStep(props: {
 					<h3 className="m-0 font-display text-foreground text-lg">
 						{activePhoto.original_name}
 					</h3>
-					<div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+					<div className="grid gap-3">
 						<div className="grid gap-3">
 							<div
 								className="relative overflow-hidden rounded border border-border bg-background"
@@ -482,49 +482,6 @@ export function PhotoReviewStep(props: {
 								Drag a box to move it. Drag the bottom-right handle to resize.
 								Selected object: {appearanceSummary}.
 							</p>
-						</div>
-						<div className="grid gap-3 rounded border border-border bg-popover p-4">
-							<h4 className="m-0 font-display text-base text-foreground">
-								Selection details
-							</h4>
-							{activeAppearance ? (
-								<>
-									<label className="grid gap-1 text-sm">
-										<span>Label</span>
-										<input
-											className="rounded border border-border bg-background px-3 py-2"
-											onChange={(event) =>
-												updateAppearance(activeAppearance.id, {
-													label: event.target.value,
-												})
-											}
-											value={activeAppearance.label}
-										/>
-									</label>
-									<label className="grid gap-1 text-sm">
-										<span>Kind</span>
-										<select
-											className="rounded border border-border bg-background px-3 py-2"
-											onChange={(event) =>
-												updateAppearance(activeAppearance.id, {
-													kind: event.target.value as RoomAppearance["kind"],
-												})
-											}
-											value={activeAppearance.kind}
-										>
-											{KIND_OPTIONS.map((kind) => (
-												<option key={kind} value={kind}>
-													{kind}
-												</option>
-											))}
-										</select>
-									</label>
-								</>
-							) : (
-								<p className="m-0 text-ink-muted text-sm">
-									Select a box or add one manually.
-								</p>
-							)}
 						</div>
 					</div>
 					{activeAppearances.length === 0 ? (
