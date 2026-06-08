@@ -150,21 +150,21 @@ function readAuthToken(): string | undefined {
 }
 
 export const listProjectPhotos = createServerFn({ method: "GET" })
-	.inputValidator(listPhotosSchema)
+	.validator(listPhotosSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listProjectPhotosHandler({ userId, supabase, input: data });
 	});
 
 export const createPhotoRecord = createServerFn({ method: "POST" })
-	.inputValidator(createPhotoSchema)
+	.validator(createPhotoSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createPhotoRecordHandler({ userId, supabase, input: data });
 	});
 
 export const deletePhoto = createServerFn({ method: "POST" })
-	.inputValidator(deletePhotoSchema)
+	.validator(deletePhotoSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __deletePhotoHandler({ userId, supabase, input: data });

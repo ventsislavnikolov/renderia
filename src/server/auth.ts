@@ -45,7 +45,7 @@ export async function __createDevLoginLinkHandler(
 }
 
 export const createDevLoginLink = createServerFn({ method: "POST" })
-	.inputValidator(createDevLoginLinkSchema)
+	.validator(createDevLoginLinkSchema)
 	.handler(async ({ data }) => {
 		const origin = getRequestHeader("origin");
 		if (!origin || !isLocalhostRedirect(origin)) {

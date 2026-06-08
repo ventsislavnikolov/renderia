@@ -484,21 +484,21 @@ function readAuthToken(): string | undefined {
 }
 
 export const loadTaskRoomState = createServerFn({ method: "POST" })
-	.inputValidator(loadTaskRoomStateSchema)
+	.validator(loadTaskRoomStateSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __loadTaskRoomStateHandler({ userId, supabase, input: data });
 	});
 
 export const saveTaskRoomState = createServerFn({ method: "POST" })
-	.inputValidator(saveTaskRoomStateSchema)
+	.validator(saveTaskRoomStateSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __saveTaskRoomStateHandler({ userId, supabase, input: data });
 	});
 
 export const generateStructuralPreview = createServerFn({ method: "POST" })
-	.inputValidator(createStructuralPreviewSchema)
+	.validator(createStructuralPreviewSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __generateStructuralPreviewHandler({
@@ -510,7 +510,7 @@ export const generateStructuralPreview = createServerFn({ method: "POST" })
 	});
 
 export const approveStructuralPreview = createServerFn({ method: "POST" })
-	.inputValidator(approveStructuralPreviewSchema)
+	.validator(approveStructuralPreviewSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __approveStructuralPreviewHandler({

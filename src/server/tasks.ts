@@ -153,21 +153,21 @@ function readAuthToken(): string | undefined {
 }
 
 export const listProjectTasks = createServerFn({ method: "GET" })
-	.inputValidator(listTasksSchema)
+	.validator(listTasksSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listProjectTasksHandler({ userId, supabase, input: data });
 	});
 
 export const createTask = createServerFn({ method: "POST" })
-	.inputValidator(createTaskSchema)
+	.validator(createTaskSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createTaskHandler({ userId, supabase, input: data });
 	});
 
 export const suggestTasksForProject = createServerFn({ method: "POST" })
-	.inputValidator(suggestTasksSchema)
+	.validator(suggestTasksSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __suggestTasksForProjectHandler({

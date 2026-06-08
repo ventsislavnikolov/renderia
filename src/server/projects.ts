@@ -143,21 +143,21 @@ export const listProjects = createServerFn({ method: "GET" }).handler(
 );
 
 export const createProject = createServerFn({ method: "POST" })
-	.inputValidator(createProjectSchema)
+	.validator(createProjectSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createProjectHandler({ userId, supabase, input: data });
 	});
 
 export const createProjectFromPrompt = createServerFn({ method: "POST" })
-	.inputValidator(createProjectFromPromptSchema)
+	.validator(createProjectFromPromptSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createProjectFromPromptHandler({ userId, supabase, input: data });
 	});
 
 export const getProject = createServerFn({ method: "GET" })
-	.inputValidator(getProjectSchema)
+	.validator(getProjectSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __getProjectHandler({ userId, supabase, input: data });

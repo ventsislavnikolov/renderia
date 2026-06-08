@@ -632,7 +632,7 @@ async function loadSourcePhoto(args: {
 }
 
 export const detectProtectedElements = createServerFn({ method: "POST" })
-	.inputValidator(detectProtectedElementsSchema)
+	.validator(detectProtectedElementsSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __detectProtectedElementsHandler({
@@ -644,7 +644,7 @@ export const detectProtectedElements = createServerFn({ method: "POST" })
 	});
 
 export const createDesignBrief = createServerFn({ method: "POST" })
-	.inputValidator(createDesignBriefSchema)
+	.validator(createDesignBriefSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createDesignBriefHandler({
@@ -656,14 +656,14 @@ export const createDesignBrief = createServerFn({ method: "POST" })
 	});
 
 export const loadLatestDesignBrief = createServerFn({ method: "POST" })
-	.inputValidator(loadLatestDesignBriefSchema)
+	.validator(loadLatestDesignBriefSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __loadLatestDesignBriefHandler({ userId, supabase, input: data });
 	});
 
 export const saveDesignBrief = createServerFn({ method: "POST" })
-	.inputValidator(saveDesignBriefSchema)
+	.validator(saveDesignBriefSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __saveDesignBriefHandler({
@@ -674,7 +674,7 @@ export const saveDesignBrief = createServerFn({ method: "POST" })
 	});
 
 export const generateRenovationImages = createServerFn({ method: "POST" })
-	.inputValidator(generateRenovationImagesSchema)
+	.validator(generateRenovationImagesSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __generateRenovationImagesHandler({
@@ -687,35 +687,35 @@ export const generateRenovationImages = createServerFn({ method: "POST" })
 	});
 
 export const listGeneratedImages = createServerFn({ method: "POST" })
-	.inputValidator(listGeneratedImagesSchema)
+	.validator(listGeneratedImagesSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listGeneratedImagesHandler({ userId, supabase, input: data });
 	});
 
 export const setImageFavorite = createServerFn({ method: "POST" })
-	.inputValidator(setImageFavoriteSchema)
+	.validator(setImageFavoriteSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __setImageFavoriteHandler({ userId, supabase, input: data });
 	});
 
 export const listProtectedElements = createServerFn({ method: "POST" })
-	.inputValidator(listProtectedElementsSchema)
+	.validator(listProtectedElementsSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listProtectedElementsHandler({ userId, supabase, input: data });
 	});
 
 export const saveDetectedElements = createServerFn({ method: "POST" })
-	.inputValidator(saveDetectedElementsSchema)
+	.validator(saveDetectedElementsSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __saveDetectedElementsHandler({ userId, supabase, input: data });
 	});
 
 export const updateProtectedElementStatus = createServerFn({ method: "POST" })
-	.inputValidator(updateProtectedElementStatusSchema)
+	.validator(updateProtectedElementStatusSchema)
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __updateProtectedElementStatusHandler({
