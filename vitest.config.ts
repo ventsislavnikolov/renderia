@@ -12,6 +12,11 @@ export default defineConfig({
 		// Playwright specs live under `tests/e2e/` and import from
 		// `@playwright/test`, which calls `test.describe()` outside of the
 		// Playwright runner — vitest would otherwise pick them up and crash.
-		exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
+		exclude: [
+			"**/node_modules/**",
+			"**/dist/**",
+			"**/.claude/**",
+			"**/tests/e2e/**",
+		],
 	},
 });
