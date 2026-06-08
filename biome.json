@@ -22,7 +22,9 @@
       "!**/.worktrees",
       "!**/.output",
       "!**/.tanstack",
-      "!**/.vercel"
+      "!**/.vercel",
+      "!**/test-results",
+      "!**/playwright-report"
     ]
   },
   "formatter": {

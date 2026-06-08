@@ -199,9 +199,17 @@ function buildServerFnHashMap(): Map<string, string> {
 		/var (\w+) = createServerFn\([^)]*\)(?:\.\w+\([^)]*\))*\.handler\(createSsrRpc\("([a-f0-9]{64})"\)\)/g;
 	const inlinePattern =
 		/createServerFn\([^)]*\)(?:\.\w+\([^)]*\))*\.handler\(createSsrRpc\("([a-f0-9]{64})"\)\)/g;
+	// Newer TanStack Start codegen emits handlers as
+	// `createServerRpc({ id: "<hash>", name: "<fnName>", ... })` instead of the
+	// inline `createSsrRpc("<hash>")` form, so map the explicit id → name too.
+	const serverRpcPattern =
+		/createServerRpc\(\{\s*id:\s*"([a-f0-9]{64})",\s*name:\s*"(\w+)"/g;
 	for (const file of files) {
 		if (!file.endsWith(".mjs")) continue;
 		const src = readFileSync(path.join(ssrDir, file), "utf8");
+		for (const match of src.matchAll(serverRpcPattern)) {
+			map.set(match[1] as string, match[2] as string);
+		}
 		for (const match of src.matchAll(pattern)) {
 			map.set(match[2] as string, match[1] as string);
 		}
@@ -613,7 +621,9 @@ async function selectSamplePhotoAndContinue(page: Page) {
 	await expect(
 		page.getByRole("heading", { name: /Upload a source photo/i })
 	).toBeVisible();
-	await page.getByRole("button", { name: /sample\.png/i }).click();
+	// Anchor on the filename so we hit the photo tile, not the
+	// `Delete sample.png` button that sits in the same card.
+	await page.getByRole("button", { name: /^sample\.png/i }).click();
 	await page.getByRole("button", { name: /Continue with 1 photo/i }).click();
 	await expect(
 		page.getByRole("heading", { name: /Review each uploaded photo/i })
