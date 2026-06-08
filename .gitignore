@@ -19,3 +19,8 @@ blob-report/
 playwright/.cache/
 .vercel
 .env*.local
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
