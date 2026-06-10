@@ -1,3 +1,16 @@
+# [1.8.0](https://github.com/ventsislavnikolov/renderia/compare/v1.7.2...v1.8.0) (2026-06-10)
+
+
+### Bug Fixes
+
+* **room-state:** persist review boxes across reloads ([b8c8f7d](https://github.com/ventsislavnikolov/renderia/commit/b8c8f7d6e78f1f4e2662835c9af6a5b9bcfdd054))
+
+
+### Features
+
+* **generation:** add version history for variations ([b1285c5](https://github.com/ventsislavnikolov/renderia/commit/b1285c59e4686934f948cfc3738b24d4a12a1c14))
+* **guided:** streamline photo review step ([ba75517](https://github.com/ventsislavnikolov/renderia/commit/ba755176c87bce584807e24aadef5f127ee8ea8a))
+
 ## [1.7.2](https://github.com/ventsislavnikolov/renderia/compare/v1.7.1...v1.7.2) (2026-06-08)
 
 
