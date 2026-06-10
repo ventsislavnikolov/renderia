@@ -631,7 +631,8 @@ async function selectSamplePhotoAndContinue(page: Page) {
 }
 
 async function reviewSamplePhotoAndContinue(page: Page) {
-	await page.getByRole("button", { name: /Detect all photos/i }).click();
+	// Single-photo tasks show the singular "Detect photo" label.
+	await page.getByRole("button", { name: /^Detect photo$/i }).click();
 	await expect(
 		page.getByRole("button", { name: /Edit main window/i })
 	).toBeVisible();
@@ -639,19 +640,16 @@ async function reviewSamplePhotoAndContinue(page: Page) {
 		page.getByRole("button", { name: /Edit ceiling beam/i })
 	).toBeVisible();
 	await page.getByRole("button", { name: /Mark this photo reviewed/i }).click();
-	await page.getByRole("button", { name: /Continue to merge review/i }).click();
-	await expect(
-		page.getByRole("heading", { name: /Merge room objects/i })
-	).toBeVisible();
-}
-
-async function approveStructuralPreviewAndContinue(page: Page) {
+	// Single-photo tasks skip the merge step and continue straight to preview.
 	await page
 		.getByRole("button", { name: /Continue to structural preview/i })
 		.click();
 	await expect(
 		page.getByRole("heading", { name: /Approve the structural preview/i })
 	).toBeVisible();
+}
+
+async function approveStructuralPreviewAndContinue(page: Page) {
 	await expect(page.getByLabel(/Reference photo angle/i)).toHaveValue(PHOTO_ID);
 	await page
 		.getByRole("button", { name: /Generate structural preview/i })
@@ -718,7 +716,7 @@ test.describe("guided renovation workspace", () => {
 		await selectSamplePhotoAndContinue(page);
 	});
 
-	test("review step detects fixed objects and reaches merge review", async ({
+	test("review step detects fixed objects and merge stays reachable", async ({
 		page,
 		context,
 	}) => {
@@ -730,6 +728,12 @@ test.describe("guided renovation workspace", () => {
 		await selectSamplePhotoAndContinue(page);
 		await reviewSamplePhotoAndContinue(page);
 
+		// Merge is skipped for single-photo tasks but remains reachable from
+		// the stepper for optional preservation-mode edits.
+		await page.getByRole("button", { name: /^03 Merge$/i }).click();
+		await expect(
+			page.getByRole("heading", { name: /Merge room objects/i })
+		).toBeVisible();
 		await expect(page.getByLabel(/Object label/i).first()).toHaveValue(
 			"main window"
 		);
@@ -759,10 +763,10 @@ test.describe("guided renovation workspace", () => {
 			page.getByRole("button", { name: /sample\.png Reviewed/i })
 		).toBeVisible();
 		await page
-			.getByRole("button", { name: /Continue to merge review/i })
+			.getByRole("button", { name: /Continue to structural preview/i })
 			.click();
 		await expect(
-			page.getByRole("heading", { name: /Merge room objects/i })
+			page.getByRole("heading", { name: /Approve the structural preview/i })
 		).toBeVisible();
 	});
 

@@ -72,6 +72,7 @@ export function GuidedFlow(props: {
 	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
 	const [styleRules, setStyleRules] = useState(DEFAULT_STYLE_RULES);
+	const [saveError, setSaveError] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
 	const hasLoadedRoomStateRef = useRef(false);
 
@@ -160,13 +161,20 @@ export function GuidedFlow(props: {
 					data: { taskId: props.taskId, roomState },
 					headers,
 				});
+				setSaveError(null);
 			} catch (caught) {
 				if (
 					caught instanceof Error &&
 					caught.message === UNAUTHENTICATED_ERROR
 				) {
 					window.location.assign("/sign-in");
+					return;
 				}
+				setSaveError(
+					caught instanceof Error
+						? caught.message
+						: "Failed to save room review state"
+				);
 			}
 		}, 250);
 		return () => window.clearTimeout(timer);
@@ -308,6 +316,13 @@ export function GuidedFlow(props: {
 				})}
 			</nav>
 
+			{saveError ? (
+				<p className="m-0 text-sm text-warning" role="alert">
+					Saving your review state failed: {saveError}. Recent changes may be
+					lost on refresh.
+				</p>
+			) : null}
+
 			{step === "upload" ? (
 				<PhotoUploadStep
 					onPhotoDeleted={handlePhotoDeleted}
@@ -320,7 +335,12 @@ export function GuidedFlow(props: {
 
 			{step === "review" && roomState ? (
 				<PhotoReviewStep
-					onContinue={() => setStep("merge")}
+					onContinue={() =>
+						// With one photo there are no cross-angle objects to merge, so
+						// jump straight to the preview. Merge stays reachable in the
+						// stepper for optional preservation-mode edits.
+						setStep(roomState.photoIds.length > 1 ? "merge" : "preview")
+					}
 					onInvalidatePreview={() => setPreview(null)}
 					onStateChange={setRoomState}
 					photos={photos}

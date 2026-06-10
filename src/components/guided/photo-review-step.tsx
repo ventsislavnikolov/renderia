@@ -6,6 +6,7 @@ import type {
 } from "@/lib/renovation/room-state";
 import {
 	autoAssignObjectIds,
+	clampAppearanceBox,
 	invalidatePreview,
 	reconcileRoomObjects,
 } from "@/lib/renovation/room-state";
@@ -140,7 +141,9 @@ export function PhotoReviewStep(props: {
 	const updateAppearance = useCallback(
 		(appearanceId: string, patch: Partial<RoomAppearance>) => {
 			const next = props.roomState.appearances.map((entry) =>
-				entry.id === appearanceId ? { ...entry, ...patch } : entry
+				entry.id === appearanceId
+					? clampAppearanceBox({ ...entry, ...patch })
+					: entry
 			);
 			props.onInvalidatePreview();
 			props.onStateChange(upsertState(props.roomState, next));
@@ -245,21 +248,22 @@ export function PhotoReviewStep(props: {
 								}>;
 						  };
 					const boxes = Array.isArray(response) ? response : response.data;
-					return boxes.map(
-						(box): RoomAppearance => ({
+					return boxes.map((box): RoomAppearance => {
+						const clamped = clampAppearanceBox(box);
+						return {
 							id: randomAppearanceId(photo.id),
 							photoId: photo.id,
 							label: box.label,
 							kind: box.kind,
-							x: box.x,
-							y: box.y,
-							width: box.width,
-							height: box.height,
+							x: clamped.x,
+							y: clamped.y,
+							width: clamped.width,
+							height: clamped.height,
 							confidence: box.confidence ?? null,
 							source: "ai",
 							objectId: null,
-						})
-					);
+						};
+					});
 				})
 			);
 			const manual = props.roomState.appearances.filter(
@@ -311,13 +315,10 @@ export function PhotoReviewStep(props: {
 		props.onStateChange(upsertState(props.roomState, next));
 	}
 
-	function markReviewed() {
-		if (!activePhoto) return;
-		const reviewedPhotoIds = props.roomState.reviewedPhotoIds.includes(
-			activePhoto.id
-		)
-			? props.roomState.reviewedPhotoIds
-			: [...props.roomState.reviewedPhotoIds, activePhoto.id];
+	function toggleReviewed(photoId: string) {
+		const reviewedPhotoIds = props.roomState.reviewedPhotoIds.includes(photoId)
+			? props.roomState.reviewedPhotoIds.filter((id) => id !== photoId)
+			: [...props.roomState.reviewedPhotoIds, photoId];
 		props.onStateChange(
 			upsertState(
 				props.roomState,
@@ -364,14 +365,23 @@ export function PhotoReviewStep(props: {
 
 	return (
 		<div className="grid gap-6 border border-border bg-surface p-10 max-md:p-6">
-			<header className="grid gap-2">
-				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
-					2. Review each uploaded photo
-				</h2>
-				<p className="m-0 max-w-[68ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
-					Run AI detection across all uploaded photos, then review each angle.
-					You can add, edit, or remove fixed elements manually before merge.
-				</p>
+			<header className="flex flex-wrap items-start justify-between gap-4">
+				<div className="grid gap-2">
+					<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
+						2. Review each uploaded photo
+					</h2>
+					<p className="m-0 max-w-[68ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
+						Run AI detection across all uploaded photos, then review each angle.
+						You can add, edit, or remove fixed elements manually before merge.
+					</p>
+				</div>
+				{allReviewed ? (
+					<Button onClick={props.onContinue} type="button">
+						{props.photos.length > 1
+							? "Continue to merge review"
+							: "Continue to structural preview"}
+					</Button>
+				) : null}
 			</header>
 
 			<div className="flex flex-wrap items-center gap-3">
@@ -380,19 +390,15 @@ export function PhotoReviewStep(props: {
 					onClick={() => void runBatchDetection()}
 					type="button"
 				>
-					{detecting ? "Detecting…" : "Detect all photos"}
+					{detecting
+						? "Detecting…"
+						: props.photos.length > 1
+							? "Detect all photos"
+							: "Detect photo"}
 				</Button>
 				<Button onClick={addManualAppearance} type="button" variant="outline">
 					Add manual object
 				</Button>
-				<Button onClick={markReviewed} type="button" variant="outline">
-					Mark this photo reviewed
-				</Button>
-				{allReviewed ? (
-					<Button onClick={props.onContinue} type="button">
-						Continue to merge review
-					</Button>
-				) : null}
 				{error ? (
 					<p className="m-0 text-sm text-warning" role="alert">
 						{error}
@@ -400,23 +406,35 @@ export function PhotoReviewStep(props: {
 				) : null}
 			</div>
 
-			<div className="flex flex-wrap gap-3">
+			<div className="grid gap-3">
 				{props.photos.map((photo) => {
 					const reviewed = props.roomState.reviewedPhotoIds.includes(photo.id);
 					return (
-						<button
-							className="rounded border border-border px-3 py-2 text-left text-sm"
+						<div
+							className="flex flex-wrap items-center justify-between gap-3 rounded border border-border px-3 py-2"
 							key={photo.id}
-							onClick={() => setActivePhotoId(photo.id)}
-							type="button"
 						>
-							<div className="font-medium text-foreground">
-								{photo.original_name}
-							</div>
-							<div className="text-ink-muted">
-								{reviewed ? "Reviewed" : "Needs review"}
-							</div>
-						</button>
+							<button
+								className="flex-1 cursor-pointer self-stretch text-left text-sm"
+								onClick={() => setActivePhotoId(photo.id)}
+								type="button"
+							>
+								<div className="font-medium text-foreground">
+									{photo.original_name}
+								</div>
+								<div className="text-ink-muted">
+									{reviewed ? "Reviewed" : "Needs review"}
+								</div>
+							</button>
+							<Button
+								onClick={() => toggleReviewed(photo.id)}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								{reviewed ? "Mark as needs review" : "Mark this photo reviewed"}
+							</Button>
+						</div>
 					);
 				})}
 			</div>
