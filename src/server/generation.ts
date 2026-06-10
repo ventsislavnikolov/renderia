@@ -16,9 +16,11 @@ import {
 	type GenerateRenovationImagesInput,
 	generateRenovationImagesSchema,
 	type ListGeneratedImagesInput,
+	type ListGenerationJobsInput,
 	type ListProtectedElementsInput,
 	type LoadLatestDesignBriefInput,
 	listGeneratedImagesSchema,
+	listGenerationJobsSchema,
 	listProtectedElementsSchema,
 	loadLatestDesignBriefSchema,
 	type SaveDesignBriefInput,
@@ -446,23 +448,25 @@ export async function __listGeneratedImagesHandler(args: {
 	supabase: SupabaseScoped;
 	input: ListGeneratedImagesInput;
 }): Promise<{ jobId: string | null; images: GeneratedImagePayload[] }> {
-	const latestJob = await args.supabase
+	let jobQuery = args.supabase
 		.from("generation_jobs")
 		.select("id")
 		.eq("task_id", args.input.taskId)
 		.eq("owner_id", args.userId)
-		.eq("status", "succeeded")
-		.order("completed_at", { ascending: false })
-		.order("created_at", { ascending: false })
-		.limit(1)
-		.maybeSingle();
-	if (latestJob.error) throw wrapSupabaseError(latestJob.error);
-	if (!latestJob.data) return { jobId: null, images: [] };
+		.eq("status", "succeeded");
+	jobQuery = args.input.jobId
+		? jobQuery.eq("id", args.input.jobId)
+		: jobQuery
+				.order("completed_at", { ascending: false })
+				.order("created_at", { ascending: false });
+	const job = await jobQuery.limit(1).maybeSingle();
+	if (job.error) throw wrapSupabaseError(job.error);
+	if (!job.data) return { jobId: null, images: [] };
 
 	const rows = await args.supabase
 		.from("generated_images")
 		.select("id, storage_bucket, storage_path, variation_index, is_favorite")
-		.eq("job_id", latestJob.data.id)
+		.eq("job_id", job.data.id)
 		.eq("owner_id", args.userId)
 		.order("variation_index", { ascending: true });
 	if (rows.error) throw wrapSupabaseError(rows.error);
@@ -482,7 +486,40 @@ export async function __listGeneratedImagesHandler(args: {
 		});
 	}
 
-	return { jobId: String(latestJob.data.id), images };
+	return { jobId: String(job.data.id), images };
+}
+
+/**
+ * Every succeeded generation batch for a task, newest first. `version` is
+ * the chronological batch number (oldest = 1) so the UI can label history
+ * entries stably even as new batches are added.
+ */
+/** @internal */
+export async function __listGenerationJobsHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: ListGenerationJobsInput;
+}): Promise<{
+	jobs: Array<{ id: string; version: number; createdAt: string }>;
+}> {
+	const rows = await args.supabase
+		.from("generation_jobs")
+		.select("id, created_at")
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.eq("status", "succeeded")
+		.order("created_at", { ascending: true });
+	if (rows.error) throw wrapSupabaseError(rows.error);
+
+	return {
+		jobs: (rows.data ?? [])
+			.map((row, index) => ({
+				id: String(row.id),
+				version: index + 1,
+				createdAt: String(row.created_at),
+			}))
+			.reverse(),
+	};
 }
 
 /** @internal */
@@ -691,6 +728,13 @@ export const listGeneratedImages = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listGeneratedImagesHandler({ userId, supabase, input: data });
+	});
+
+export const listGenerationJobs = createServerFn({ method: "POST" })
+	.validator(listGenerationJobsSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __listGenerationJobsHandler({ userId, supabase, input: data });
 	});
 
 export const setImageFavorite = createServerFn({ method: "POST" })

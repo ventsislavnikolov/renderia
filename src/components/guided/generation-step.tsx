@@ -11,6 +11,7 @@ import {
 import {
 	generateRenovationImages,
 	listGeneratedImages,
+	listGenerationJobs,
 	setImageFavorite,
 } from "../../server/generation";
 import { DebugPanel } from "./debug-panel";
@@ -28,7 +29,24 @@ type GeneratedImage = {
 	isFavorite: boolean;
 };
 
+/** One succeeded generation batch; `version` counts from the oldest batch. */
+type GenerationJob = {
+	id: string;
+	version: number;
+	createdAt: string;
+};
+
 const VARIATION_COUNT = 4;
+
+function jobLabel(job: GenerationJob) {
+	const stamp = new Date(job.createdAt).toLocaleString(undefined, {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+	return `Version ${job.version} — ${stamp}`;
+}
 
 /**
  * Step 4 of the guided flow: kick off generation and render the variations.
@@ -48,6 +66,8 @@ export function GenerationStep(props: {
 	photoId?: string | null;
 }) {
 	const [images, setImages] = useState<GeneratedImage[] | null>(null);
+	const [jobs, setJobs] = useState<GenerationJob[]>([]);
+	const [activeJobId, setActiveJobId] = useState<string | null>(null);
 	const [debug, setDebug] = useState<ProviderDebug | null>(null);
 	const [generating, setGenerating] = useState(false);
 	const [loading, setLoading] = useState(true);
@@ -60,6 +80,42 @@ export function GenerationStep(props: {
 			cancelledRef.current = true;
 		};
 	}, []);
+
+	async function refreshJobs(
+		headers: Awaited<ReturnType<typeof getAuthHeaders>>
+	) {
+		const result = await listGenerationJobs({
+			data: { taskId: props.taskId },
+			headers,
+		});
+		if (!cancelledRef.current) setJobs(result.jobs);
+		return result.jobs;
+	}
+
+	async function showJob(job: GenerationJob) {
+		if (job.id === activeJobId) return;
+		setError(null);
+		setActiveJobId(job.id);
+		try {
+			const headers = await getAuthHeaders();
+			const batch = await listGeneratedImages({
+				data: { taskId: props.taskId, jobId: job.id },
+				headers,
+			});
+			if (cancelledRef.current) return;
+			setImages(batch.images);
+			setDebug(null);
+		} catch (caught) {
+			if (cancelledRef.current) return;
+			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/sign-in");
+				return;
+			}
+			setError(
+				caught instanceof Error ? caught.message : "Failed to load variations"
+			);
+		}
+	}
 
 	async function runGeneration() {
 		if (props.prompt.trim().length === 0) {
@@ -85,7 +141,9 @@ export function GenerationStep(props: {
 			};
 			if (cancelledRef.current) return;
 			setImages(response.data.images);
+			setActiveJobId(response.data.jobId);
 			setDebug(response.debug ?? null);
+			await refreshJobs(headers);
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
@@ -119,6 +177,8 @@ export function GenerationStep(props: {
 				if (cancelledRef.current) return;
 				if (existing.images.length >= VARIATION_COUNT) {
 					setImages(existing.images);
+					setActiveJobId(existing.jobId);
+					await refreshJobs(headers);
 					return;
 				}
 				if (props.prompt.trim().length > 0) {
@@ -221,6 +281,27 @@ export function GenerationStep(props: {
 							? "Re-generate variations"
 							: "Generate variations"}
 				</Button>
+				{jobs.length > 1 ? (
+					<label className="flex items-center gap-2 text-sm">
+						<span className="text-ink-muted">History</span>
+						<select
+							className="rounded border border-border bg-background px-3 py-2"
+							onChange={(event) => {
+								const job = jobs.find(
+									(entry) => entry.id === event.target.value
+								);
+								if (job) void showJob(job);
+							}}
+							value={activeJobId ?? jobs[0]?.id}
+						>
+							{jobs.map((job) => (
+								<option key={job.id} value={job.id}>
+									{jobLabel(job)}
+								</option>
+							))}
+						</select>
+					</label>
+				) : null}
 				{error ? (
 					<p
 						className="m-0 flex items-center gap-2 font-medium text-[0.9375rem] text-warning"

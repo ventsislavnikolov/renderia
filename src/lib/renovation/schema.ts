@@ -206,10 +206,22 @@ export type GenerateRenovationImagesInput = z.infer<
  */
 export const listGeneratedImagesSchema = z.object({
 	taskId: z.string().uuid(),
+	// When provided, return that specific batch instead of the newest one so
+	// the UI can browse generation history.
+	jobId: z.string().uuid().nullable().optional(),
 });
 export type ListGeneratedImagesInput = z.infer<
 	typeof listGeneratedImagesSchema
 >;
+
+/**
+ * Inputs for `listGenerationJobs`. Returns every succeeded generation batch
+ * for a task (newest first) so the UI can offer version history.
+ */
+export const listGenerationJobsSchema = z.object({
+	taskId: z.string().uuid(),
+});
+export type ListGenerationJobsInput = z.infer<typeof listGenerationJobsSchema>;
 
 /**
  * Inputs for `setImageFavorite` server fn. The image id alone is enough —

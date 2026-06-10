@@ -12,10 +12,12 @@ vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
 const generateMock = vi.fn();
 const setFavoriteMock = vi.fn();
 const listImagesMock = vi.fn();
+const listJobsMock = vi.fn();
 
 vi.mock("../../../../src/server/generation", () => ({
 	generateRenovationImages: (...args: unknown[]) => generateMock(...args),
 	listGeneratedImages: (...args: unknown[]) => listImagesMock(...args),
+	listGenerationJobs: (...args: unknown[]) => listJobsMock(...args),
 	setImageFavorite: (...args: unknown[]) => setFavoriteMock(...args),
 }));
 
@@ -41,6 +43,7 @@ describe("GenerationStep", () => {
 		// mount" assertions. Tests that exercise the rehydrate path override
 		// this with a non-empty resolved value.
 		listImagesMock.mockReset().mockResolvedValue({ jobId: null, images: [] });
+		listJobsMock.mockReset().mockResolvedValue({ jobs: [] });
 	});
 
 	it("calls generateRenovationImages on mount and renders the returned variations", async () => {
@@ -169,6 +172,54 @@ describe("GenerationStep", () => {
 				.getAllByRole("button", { name: /Favorite/i })[0]
 				?.getAttribute("aria-pressed")
 		).toBe("true");
+	});
+
+	it("offers version history and loads an older batch on selection", async () => {
+		const user = userEvent.setup();
+		listImagesMock.mockReset().mockResolvedValueOnce({
+			jobId: "job-2",
+			images: [makeImage(0), makeImage(1), makeImage(2), makeImage(3)],
+		});
+		listJobsMock.mockReset().mockResolvedValue({
+			jobs: [
+				{ id: "job-2", version: 2, createdAt: "2026-06-10T12:00:00.000Z" },
+				{ id: "job-1", version: 1, createdAt: "2026-06-09T12:00:00.000Z" },
+			],
+		});
+		render(
+			<GenerationStep
+				brief="# Brief"
+				briefId={null}
+				prompt="PRESERVE EXACTLY"
+				taskId={TASK_ID}
+			/>
+		);
+		const select = await screen.findByLabelText(/History/i);
+		expect(select).toHaveValue("job-2");
+
+		listImagesMock.mockResolvedValueOnce({
+			jobId: "job-1",
+			images: [
+				{
+					id: "old-0",
+					storagePath: "user-1/job-1-0.png",
+					signedUrl: "https://signed/old-0.png",
+					variationIndex: 0,
+					isFavorite: false,
+				},
+			],
+		});
+		await user.selectOptions(select, "job-1");
+		await waitFor(() => {
+			expect(listImagesMock).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					data: { taskId: TASK_ID, jobId: "job-1" },
+				})
+			);
+		});
+		const imgs = await screen.findAllByRole("img");
+		expect(imgs).toHaveLength(1);
+		expect(generateMock).not.toHaveBeenCalled();
 	});
 
 	it("renders an alert with a Try again button when generation fails", async () => {
