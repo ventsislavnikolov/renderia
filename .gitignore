@@ -24,3 +24,5 @@ playwright/.cache/
 .flaskenv*
 !.env.project
 !.env.vault
+# Supabase CLI artifacts
+supabase/.temp/
