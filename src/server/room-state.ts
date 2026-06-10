@@ -4,7 +4,10 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { buildStructuralPreviewPrompt } from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import type { RenovationAiProvider } from "../lib/ai/types";
-import type { TaskRoomState } from "../lib/renovation/room-state";
+import {
+	clampAppearanceBox,
+	type TaskRoomState,
+} from "../lib/renovation/room-state";
 import {
 	type ApproveStructuralPreviewInput,
 	approveStructuralPreviewSchema,
@@ -309,22 +312,25 @@ export async function __saveTaskRoomStateHandler(args: {
 		const appearanceInsert = await args.supabase
 			.from("room_object_appearances")
 			.insert(
-				args.input.roomState.appearances.map((entry) => ({
-					id: entry.id,
-					owner_id: args.userId,
-					project_id: task.project_id,
-					task_id: args.input.taskId,
-					photo_id: entry.photoId,
-					room_object_id: entry.objectId,
-					label: entry.label,
-					kind: entry.kind,
-					x: entry.x,
-					y: entry.y,
-					width: entry.width,
-					height: entry.height,
-					confidence: entry.confidence,
-					source: entry.source,
-				}))
+				args.input.roomState.appearances.map((entry) => {
+					const box = clampAppearanceBox(entry);
+					return {
+						id: entry.id,
+						owner_id: args.userId,
+						project_id: task.project_id,
+						task_id: args.input.taskId,
+						photo_id: entry.photoId,
+						room_object_id: entry.objectId,
+						label: entry.label,
+						kind: entry.kind,
+						x: box.x,
+						y: box.y,
+						width: box.width,
+						height: box.height,
+						confidence: entry.confidence,
+						source: entry.source,
+					};
+				})
 			);
 		if (appearanceInsert.error) throw wrapSupabaseError(appearanceInsert.error);
 	}

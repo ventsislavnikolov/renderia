@@ -134,6 +134,25 @@ export function reconcileRoomObjects(
 	});
 }
 
+/**
+ * Keep a bounding box inside the unit square. The database enforces
+ * `x + width <= 1` (and the y/height pair), so an AI-detected box that
+ * hangs past the photo edge would otherwise reject the whole save.
+ */
+export function clampAppearanceBox<
+	T extends Pick<RoomAppearance, "x" | "y" | "width" | "height">,
+>(box: T): T {
+	const x = Math.min(Math.max(box.x, 0), 0.99);
+	const y = Math.min(Math.max(box.y, 0), 0.99);
+	return {
+		...box,
+		x,
+		y,
+		width: Math.min(Math.max(box.width, 0.01), 1 - x),
+		height: Math.min(Math.max(box.height, 0.01), 1 - y),
+	};
+}
+
 export function invalidatePreview(state: TaskRoomState): TaskRoomState {
 	return { ...state, previewApproved: false };
 }

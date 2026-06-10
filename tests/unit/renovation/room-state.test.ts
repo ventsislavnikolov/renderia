@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildInitialRoomState,
+	clampAppearanceBox,
 	getReferenceProtectedElements,
 	pickReferencePhotoId,
 	type RoomAppearance,
@@ -24,6 +25,40 @@ function appearance(
 		objectId: overrides.objectId ?? null,
 	};
 }
+
+describe("clampAppearanceBox", () => {
+	it("keeps an in-bounds box unchanged", () => {
+		expect(
+			clampAppearanceBox({ x: 0.1, y: 0.2, width: 0.3, height: 0.4 })
+		).toStrictEqual({ x: 0.1, y: 0.2, width: 0.3, height: 0.4 });
+	});
+
+	it("shrinks a box that hangs past the right and bottom edges", () => {
+		const clamped = clampAppearanceBox({
+			x: 0.9,
+			y: 0.9,
+			width: 0.3,
+			height: 0.3,
+		});
+		expect(clamped.x + clamped.width).toBeLessThanOrEqual(1);
+		expect(clamped.y + clamped.height).toBeLessThanOrEqual(1);
+	});
+
+	it("forces degenerate and negative values into the unit square", () => {
+		const clamped = clampAppearanceBox({
+			x: -0.2,
+			y: 1.4,
+			width: 0,
+			height: -1,
+		});
+		expect(clamped.x).toBeGreaterThanOrEqual(0);
+		expect(clamped.y).toBeLessThan(1);
+		expect(clamped.width).toBeGreaterThan(0);
+		expect(clamped.height).toBeGreaterThan(0);
+		expect(clamped.x + clamped.width).toBeLessThanOrEqual(1);
+		expect(clamped.y + clamped.height).toBeLessThanOrEqual(1);
+	});
+});
 
 describe("room-state helpers", () => {
 	it("builds an initial state for a 1-4 photo room set", () => {
