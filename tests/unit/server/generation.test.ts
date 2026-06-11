@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RenovationAiProvider } from "../../../src/lib/ai/types";
 import {
 	__createDesignBriefHandler,
+	__describeGeneratedImagesHandler,
 	__detectProtectedElementsHandler,
 	__generateRenovationImagesHandler,
 	__listProtectedElementsHandler,
@@ -23,6 +24,7 @@ function buildMockProvider(): RenovationAiProvider & {
 	detectProtectedElements: ReturnType<typeof vi.fn>;
 	createDesignBrief: ReturnType<typeof vi.fn>;
 	generateRenovationImages: ReturnType<typeof vi.fn>;
+	listRoomContents: ReturnType<typeof vi.fn>;
 } {
 	const provider = {
 		suggestTasks: vi.fn().mockResolvedValue({ value: [] }),
@@ -51,11 +53,16 @@ function buildMockProvider(): RenovationAiProvider & {
 			],
 			debug: { ...SAMPLE_DEBUG, model: "gpt-image-2" },
 		}),
+		listRoomContents: vi.fn().mockResolvedValue({
+			value: ["beige sofa", "oak coffee table"],
+			debug: SAMPLE_DEBUG,
+		}),
 	};
 	return provider as unknown as RenovationAiProvider & {
 		detectProtectedElements: ReturnType<typeof vi.fn>;
 		createDesignBrief: ReturnType<typeof vi.fn>;
 		generateRenovationImages: ReturnType<typeof vi.fn>;
+		listRoomContents: ReturnType<typeof vi.fn>;
 	};
 }
 
@@ -1116,5 +1123,103 @@ describe("updateProtectedElementStatusHandler", () => {
 				},
 			})
 		).rejects.toThrow("Not authorized");
+	});
+});
+
+describe("describeGeneratedImagesHandler", () => {
+	function buildDescribeSupabaseStub(rows: Row[]) {
+		const selectChain: Record<string, (...args: unknown[]) => unknown> = {};
+		selectChain.eq = vi.fn(() => selectChain);
+		selectChain.order = vi.fn(() =>
+			Promise.resolve({ data: rows, error: null })
+		);
+
+		const updateChain: Record<string, (...args: unknown[]) => unknown> = {};
+		let updateEqCalls = 0;
+		updateChain.eq = vi.fn(() => {
+			updateEqCalls += 1;
+			if (updateEqCalls % 2 === 0) return Promise.resolve({ error: null });
+			return updateChain;
+		});
+
+		const imagesChain = {
+			select: vi.fn(() => selectChain),
+			update: vi.fn(() => updateChain),
+		};
+		const createSignedUrlMock = vi.fn(async (path: string) => ({
+			data: { signedUrl: `https://signed/${path}` },
+			error: null,
+		}));
+
+		return {
+			supabase: {
+				from: vi.fn(() => imagesChain),
+				storage: {
+					from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock })),
+				},
+			} as unknown as Parameters<
+				typeof __describeGeneratedImagesHandler
+			>[0]["supabase"],
+			imagesChain,
+			createSignedUrlMock,
+		};
+	}
+
+	it("describes only images without a stored list and persists the result", async () => {
+		const stub = buildDescribeSupabaseStub([
+			{
+				id: "img-1",
+				storage_bucket: "generated-outputs",
+				storage_path: "user-1/job-1-0.png",
+				notes: JSON.stringify(["existing rug"]),
+			},
+			{
+				id: "img-2",
+				storage_bucket: "generated-outputs",
+				storage_path: "user-1/job-1-1.png",
+				notes: null,
+			},
+		]);
+		const provider = buildMockProvider();
+
+		const result = await __describeGeneratedImagesHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			provider,
+			input: { taskId: "t1", jobId: "job-1" },
+		});
+
+		expect(result.contents).toEqual({
+			"img-1": ["existing rug"],
+			"img-2": ["beige sofa", "oak coffee table"],
+		});
+		// Only the undescribed image hit the provider.
+		expect(provider.listRoomContents).toHaveBeenCalledTimes(1);
+		expect(stub.imagesChain.update).toHaveBeenCalledWith({
+			notes: JSON.stringify(["beige sofa", "oak coffee table"]),
+		});
+	});
+
+	it("skips images whose vision call fails instead of failing the batch", async () => {
+		const stub = buildDescribeSupabaseStub([
+			{
+				id: "img-1",
+				storage_bucket: "generated-outputs",
+				storage_path: "user-1/job-1-0.png",
+				notes: null,
+			},
+		]);
+		const provider = buildMockProvider();
+		provider.listRoomContents.mockRejectedValueOnce(new Error("vision down"));
+
+		const result = await __describeGeneratedImagesHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			provider,
+			input: { taskId: "t1", jobId: "job-1" },
+		});
+
+		expect(result.contents).toEqual({});
+		expect(stub.imagesChain.update).not.toHaveBeenCalled();
 	});
 });

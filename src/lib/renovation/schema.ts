@@ -279,6 +279,19 @@ export const listGenerationJobsSchema = z.object({
 export type ListGenerationJobsInput = z.infer<typeof listGenerationJobsSchema>;
 
 /**
+ * Inputs for `describeGeneratedImages`. Runs a vision pass over every image
+ * in the batch that doesn't have a contents list yet, persists the lists,
+ * and returns them all keyed by image id.
+ */
+export const describeGeneratedImagesSchema = z.object({
+	taskId: z.string().uuid(),
+	jobId: z.string().uuid(),
+});
+export type DescribeGeneratedImagesInput = z.infer<
+	typeof describeGeneratedImagesSchema
+>;
+
+/**
  * Inputs for `setImageFavorite` server fn. The image id alone is enough —
  * the handler enforces ownership via the `owner_id` filter on the row.
  */

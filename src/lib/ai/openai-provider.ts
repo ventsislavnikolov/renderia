@@ -149,6 +149,10 @@ const detectionResponseSchema = z.object({
 	elements: z.array(boundingBoxSchema),
 });
 
+const roomContentsResponseSchema = z.object({
+	items: z.array(z.string().min(1).max(80)).max(30),
+});
+
 const tasksResponseSchema = z.object({
 	tasks: z.array(suggestedTaskSchema),
 });
@@ -335,6 +339,45 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 					supportingPhotoCount: input.supportingPhotoCount,
 				}),
 			},
+		};
+	},
+
+	async listRoomContents(input) {
+		const selection = input.model ?? DEFAULT_TEXT_MODEL;
+		const promptText = [
+			"List every piece of furniture and notable decor visible in this interior render.",
+			"Rules:",
+			"- One entry per distinct item; merge duplicates into one entry with a count (e.g. 'two framed prints').",
+			"- Short lowercase noun phrases with the key material/color (e.g. 'white 4-drawer dresser', 'light oak coffee table').",
+			"- Include rugs, curtains, lamps, plants, and wall art; skip walls, floors, ceilings, windows, doors, and radiators.",
+			"- Order by visual prominence, most prominent first.",
+			'Return an object { items: ["...", ...] }.',
+		].join("\n");
+
+		const startedAt = Date.now();
+		const result = await generateObject({
+			model: resolveTextModel(selection),
+			schema: roomContentsResponseSchema,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: promptText },
+						{ type: "image", image: new URL(input.imageUrl) },
+					],
+				},
+			],
+		});
+		const durationMs = Date.now() - startedAt;
+
+		return {
+			value: result.object.items,
+			debug: buildDebug({
+				modelId: selection.model,
+				prompt: promptText,
+				object: result.object,
+				durationMs,
+			}),
 		};
 	},
 

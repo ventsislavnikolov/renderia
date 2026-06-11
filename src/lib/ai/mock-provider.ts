@@ -72,4 +72,15 @@ export const mockRenovationProvider: RenovationAiProvider = {
 			})),
 		};
 	},
+	async listRoomContents() {
+		return {
+			value: [
+				"beige fabric sofa",
+				"light oak coffee table",
+				"jute rug",
+				"white table lamp",
+				"potted olive tree",
+			],
+		};
+	},
 };

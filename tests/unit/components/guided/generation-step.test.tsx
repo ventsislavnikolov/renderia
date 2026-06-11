@@ -13,8 +13,10 @@ const generateMock = vi.fn();
 const setFavoriteMock = vi.fn();
 const listImagesMock = vi.fn();
 const listJobsMock = vi.fn();
+const describeMock = vi.fn();
 
 vi.mock("../../../../src/server/generation", () => ({
+	describeGeneratedImages: (...args: unknown[]) => describeMock(...args),
 	generateRenovationImages: (...args: unknown[]) => generateMock(...args),
 	listGeneratedImages: (...args: unknown[]) => listImagesMock(...args),
 	listGenerationJobs: (...args: unknown[]) => listJobsMock(...args),
@@ -51,6 +53,7 @@ describe("GenerationStep", () => {
 		// this with a non-empty resolved value.
 		listImagesMock.mockReset().mockResolvedValue({ jobId: null, images: [] });
 		listJobsMock.mockReset().mockResolvedValue({ jobs: [] });
+		describeMock.mockReset().mockResolvedValue({ contents: {} });
 	});
 
 	it("calls generateRenovationImages on mount and renders the returned variations", async () => {
@@ -237,6 +240,47 @@ describe("GenerationStep", () => {
 		});
 		const imgs = await screen.findAllByRole("img");
 		expect(imgs).toHaveLength(1);
+		expect(generateMock).not.toHaveBeenCalled();
+	});
+
+	it("describes rehydrated images and lists the room contents under the card", async () => {
+		listImagesMock.mockReset().mockResolvedValueOnce({
+			jobId: "job-1",
+			images: [
+				{ ...makeImage(0), contents: null },
+				{ ...makeImage(1), contents: ["existing rug"] },
+				{ ...makeImage(2), contents: null },
+				{ ...makeImage(3), contents: null },
+			],
+		});
+		describeMock.mockResolvedValueOnce({
+			contents: {
+				"img-0": ["beige sofa", "oak coffee table"],
+				"img-1": ["existing rug"],
+				"img-2": ["jute rug"],
+				"img-3": ["floor lamp"],
+			},
+		});
+
+		render(
+			<GenerationStep
+				brief="# Brief"
+				briefId={null}
+				projectId="33333333-3333-3333-3333-333333333333"
+				prompt="PRESERVE EXACTLY"
+				taskId={TASK_ID}
+			/>
+		);
+
+		expect(
+			await screen.findByText(/beige sofa, oak coffee table/)
+		).toBeInTheDocument();
+		expect(screen.getByText(/jute rug/)).toBeInTheDocument();
+		expect(describeMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: { taskId: TASK_ID, jobId: "job-1" },
+			})
+		);
 		expect(generateMock).not.toHaveBeenCalled();
 	});
 

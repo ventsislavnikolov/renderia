@@ -228,6 +228,26 @@ describe("openAiRenovationProvider", () => {
 		});
 	});
 
+	describe("listRoomContents", () => {
+		it("returns the items list and attaches the render as an image part", async () => {
+			generateObjectMock.mockResolvedValueOnce({
+				object: { items: ["beige sofa", "oak coffee table"] },
+			});
+
+			const result = await openAiRenovationProvider.listRoomContents({
+				imageUrl: "https://example/render.png",
+				model: { provider: "openai", model: "gpt-5.5" },
+			});
+
+			expect(result.value).toEqual(["beige sofa", "oak coffee table"]);
+			expect(callText(0)).toContain("furniture");
+			expect(callImages(0).map((u) => u.href)).toEqual([
+				"https://example/render.png",
+			]);
+			expect(result.debug?.model).toBe("gpt-5.5");
+		});
+	});
+
 	describe("createDesignBrief", () => {
 		it("returns markdown plus a prompt with PRESERVE EXACTLY and never hits the network", async () => {
 			const result = await openAiRenovationProvider.createDesignBrief({

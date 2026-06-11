@@ -9,6 +9,7 @@ import {
 	UNAUTHENTICATED_ERROR,
 } from "../../lib/server-client/auth-headers";
 import {
+	describeGeneratedImages,
 	generateRenovationImages,
 	listGeneratedImages,
 	listGenerationJobs,
@@ -28,6 +29,8 @@ type GeneratedImage = {
 	signedUrl: string;
 	variationIndex: number;
 	isFavorite: boolean;
+	/** Vision-derived furniture/decor list, null until described. */
+	contents: string[] | null;
 };
 
 /** One succeeded generation batch; `version` counts from the oldest batch. */
@@ -86,6 +89,42 @@ export function GenerationStep(props: {
 		};
 	}, []);
 
+	const [describing, setDescribing] = useState(false);
+
+	/**
+	 * Fill in the room-contents list for any image in the batch that doesn't
+	 * have one yet. Results are persisted server-side, so this is a no-op
+	 * round-trip once every image is described. Failures stay silent — the
+	 * list is a nice-to-have under the render, never a blocker.
+	 */
+	async function describeBatch(jobId: string, batch: GeneratedImage[]) {
+		if (batch.every((image) => image.contents !== null)) return;
+		setDescribing(true);
+		try {
+			const headers = await getAuthHeaders();
+			const described = await describeGeneratedImages({
+				data: { taskId: props.taskId, jobId },
+				headers,
+			});
+			if (cancelledRef.current) return;
+			setImages(
+				(prev) =>
+					prev?.map((image) =>
+						described.contents[image.id]
+							? { ...image, contents: described.contents[image.id] ?? null }
+							: image
+					) ?? prev
+			);
+		} catch (caught) {
+			if (cancelledRef.current) return;
+			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/sign-in");
+			}
+		} finally {
+			if (!cancelledRef.current) setDescribing(false);
+		}
+	}
+
 	async function refreshJobs(
 		headers: Awaited<ReturnType<typeof getAuthHeaders>>
 	) {
@@ -110,6 +149,7 @@ export function GenerationStep(props: {
 			if (cancelledRef.current) return;
 			setImages(batch.images);
 			setDebug(null);
+			void describeBatch(job.id, batch.images);
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
@@ -153,6 +193,7 @@ export function GenerationStep(props: {
 			setActiveJobId(response.data.jobId);
 			setDebug(response.debug ?? null);
 			await refreshJobs(headers);
+			void describeBatch(response.data.jobId, response.data.images);
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
@@ -188,6 +229,9 @@ export function GenerationStep(props: {
 					setImages(existing.images);
 					setActiveJobId(existing.jobId);
 					await refreshJobs(headers);
+					if (existing.jobId) {
+						void describeBatch(existing.jobId, existing.images);
+					}
 					return;
 				}
 				if (props.prompt.trim().length > 0) {
@@ -357,7 +401,7 @@ export function GenerationStep(props: {
 				<div className="grid gap-6 md:grid-cols-2">
 					{images.map((image) => (
 						<article
-							className="generation-card grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
+							className="generation-card grid min-h-[360px] grid-rows-[1fr_auto_auto] overflow-hidden border border-border bg-popover"
 							key={image.id}
 						>
 							<img
@@ -389,6 +433,18 @@ export function GenerationStep(props: {
 									{image.isFavorite ? "Favorite" : "Mark favorite"}
 								</Button>
 							</div>
+							{image.contents && image.contents.length > 0 ? (
+								<p className="m-0 border-border border-t px-5 py-3 text-[0.8125rem] text-ink-muted leading-relaxed">
+									<span className="font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.06em]">
+										In this room:{" "}
+									</span>
+									{image.contents.join(", ")}
+								</p>
+							) : describing ? (
+								<p className="m-0 border-border border-t px-5 py-3 text-[0.8125rem] text-ink-muted italic">
+									Listing room contents…
+								</p>
+							) : null}
 						</article>
 					))}
 				</div>

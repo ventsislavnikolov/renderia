@@ -91,6 +91,16 @@ export type GeneratedImageResult = {
 };
 
 /**
+ * Inputs for `listRoomContents` — a vision pass over one generated variation
+ * that names every visible furniture/decor item so the UI can show a
+ * contents list under the image.
+ */
+export type ListRoomContentsInput = {
+	imageUrl: string;
+	model?: ModelSelection;
+};
+
+/**
  * Debug payload attached to provider responses when running outside production.
  *
  * The server function decides whether to forward this to the client based on
@@ -127,4 +137,7 @@ export type RenovationAiProvider = {
 	generateRenovationImages(
 		input: GenerateRenovationImagesInput
 	): Promise<ProviderResult<GeneratedImageResult[]>>;
+	listRoomContents(
+		input: ListRoomContentsInput
+	): Promise<ProviderResult<string[]>>;
 };

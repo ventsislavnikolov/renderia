@@ -12,7 +12,9 @@ import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
 	type CreateDesignBriefInput,
 	createDesignBriefSchema,
+	type DescribeGeneratedImagesInput,
 	type DetectProtectedElementsInput,
+	describeGeneratedImagesSchema,
 	detectProtectedElementsSchema,
 	type GenerateRenovationImagesInput,
 	generateRenovationImagesSchema,
@@ -268,7 +270,30 @@ export type GeneratedImagePayload = {
 	signedUrl: string;
 	variationIndex: number;
 	isFavorite: boolean;
+	/** Vision-derived furniture/decor list, null until described. */
+	contents: string[] | null;
 };
+
+/**
+ * The `generated_images.notes` column stores the room-contents list as a
+ * JSON string array. Anything else (legacy free text, corrupt data) reads
+ * back as null so the UI simply re-describes the image.
+ */
+function parseContentsNotes(notes: unknown): string[] | null {
+	if (typeof notes !== "string" || notes.length === 0) return null;
+	try {
+		const parsed: unknown = JSON.parse(notes);
+		if (
+			Array.isArray(parsed) &&
+			parsed.every((entry) => typeof entry === "string")
+		) {
+			return parsed;
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
 
 /**
  * Resolve the active provider's name (for the `provider` column on the job
@@ -417,6 +442,7 @@ export async function __generateRenovationImagesHandler(args: {
 				signedUrl: signed.data.signedUrl,
 				variationIndex: Number(inserted.data.variation_index),
 				isFavorite: Boolean(inserted.data.is_favorite),
+				contents: null,
 			});
 		}
 
@@ -488,7 +514,9 @@ export async function __listGeneratedImagesHandler(args: {
 
 	const rows = await args.supabase
 		.from("generated_images")
-		.select("id, storage_bucket, storage_path, variation_index, is_favorite")
+		.select(
+			"id, storage_bucket, storage_path, variation_index, is_favorite, notes"
+		)
 		.eq("job_id", job.data.id)
 		.eq("owner_id", args.userId)
 		.order("variation_index", { ascending: true });
@@ -506,10 +534,66 @@ export async function __listGeneratedImagesHandler(args: {
 			signedUrl: signed.data.signedUrl,
 			variationIndex: Number(row.variation_index),
 			isFavorite: Boolean(row.is_favorite),
+			contents: parseContentsNotes(row.notes),
 		});
 	}
 
 	return { jobId: String(job.data.id), images };
+}
+
+/**
+ * Vision pass over a generation batch: every image without a persisted
+ * contents list gets one (stored as a JSON array in `notes`), and the full
+ * id → contents map for the batch is returned. Per-image provider failures
+ * are skipped rather than failing the batch — the UI can retry by calling
+ * again.
+ */
+/** @internal */
+export async function __describeGeneratedImagesHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	provider: RenovationAiProvider;
+	input: DescribeGeneratedImagesInput;
+}): Promise<{ contents: Record<string, string[]> }> {
+	const rows = await args.supabase
+		.from("generated_images")
+		.select("id, storage_bucket, storage_path, notes")
+		.eq("job_id", args.input.jobId)
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.order("variation_index", { ascending: true });
+	if (rows.error) throw wrapSupabaseError(rows.error);
+
+	const contents: Record<string, string[]> = {};
+	for (const row of rows.data ?? []) {
+		const existing = parseContentsNotes(row.notes);
+		if (existing) {
+			contents[String(row.id)] = existing;
+			continue;
+		}
+
+		const signed = await args.supabase.storage
+			.from(String(row.storage_bucket))
+			.createSignedUrl(String(row.storage_path), SIGNED_URL_TTL_SECONDS);
+		if (signed.error || !signed.data?.signedUrl) continue;
+
+		try {
+			const result = await args.provider.listRoomContents({
+				imageUrl: signed.data.signedUrl,
+			});
+			const updated = await args.supabase
+				.from("generated_images")
+				.update({ notes: JSON.stringify(result.value) })
+				.eq("id", row.id)
+				.eq("owner_id", args.userId);
+			if (updated.error) throw wrapSupabaseError(updated.error);
+			contents[String(row.id)] = result.value;
+		} catch (err) {
+			console.error("listRoomContents failed for image", row.id, err);
+		}
+	}
+
+	return { contents };
 }
 
 /**
@@ -818,6 +902,18 @@ export const listGenerationJobs = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listGenerationJobsHandler({ userId, supabase, input: data });
+	});
+
+export const describeGeneratedImages = createServerFn({ method: "POST" })
+	.validator(describeGeneratedImagesSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __describeGeneratedImagesHandler({
+			userId,
+			supabase,
+			provider: getRenovationAiProvider(),
+			input: data,
+		});
 	});
 
 export const setImageFavorite = createServerFn({ method: "POST" })
