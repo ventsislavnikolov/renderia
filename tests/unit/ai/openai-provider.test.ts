@@ -348,6 +348,62 @@ describe("openAiRenovationProvider", () => {
 			expect(imagesGenerateMock).not.toHaveBeenCalled();
 		});
 
+		it("passes furniture references as additional edit-mode input images", async () => {
+			vi.stubEnv("OPENAI_API_KEY", "sk-test");
+			imagesEditMock.mockResolvedValueOnce({
+				data: [{ b64_json: "EDITED" }],
+			});
+
+			await openAiRenovationProvider.generateRenovationImages({
+				sourceImage: {
+					base64: Buffer.from("source").toString("base64"),
+					contentType: "image/png",
+					filename: "source.png",
+				},
+				referenceImages: [
+					{
+						base64: Buffer.from("dresser").toString("base64"),
+						contentType: "image/png",
+						filename: "furniture-1.png",
+						label: "white dresser",
+					},
+				],
+				prompts: ["preserve the room"],
+			});
+
+			const editCall = imagesEditMock.mock.calls[0]?.[0] as {
+				image: Array<{ filename: string }>;
+			};
+			expect(Array.isArray(editCall.image)).toBe(true);
+			expect(editCall.image).toHaveLength(2);
+			expect(editCall.image[0]).toMatchObject({ filename: "source.png" });
+			expect(editCall.image[1]).toMatchObject({
+				filename: "furniture-1.png",
+			});
+		});
+
+		it("ignores furniture references in text-to-image mode", async () => {
+			vi.stubEnv("OPENAI_API_KEY", "sk-test");
+			imagesGenerateMock.mockResolvedValueOnce({
+				data: [{ b64_json: "AAA" }],
+			});
+
+			await openAiRenovationProvider.generateRenovationImages({
+				referenceImages: [
+					{
+						base64: Buffer.from("dresser").toString("base64"),
+						contentType: "image/png",
+						filename: "furniture-1.png",
+						label: "white dresser",
+					},
+				],
+				prompts: ["render the room"],
+			});
+
+			expect(imagesGenerateMock).toHaveBeenCalledTimes(1);
+			expect(imagesEditMock).not.toHaveBeenCalled();
+		});
+
 		it("returns an empty array when the SDK omits the data field", async () => {
 			vi.stubEnv("OPENAI_API_KEY", "sk-test");
 			imagesGenerateMock.mockResolvedValueOnce({});

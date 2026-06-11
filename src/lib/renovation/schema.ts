@@ -132,6 +132,53 @@ export const deletePhotoSchema = z.object({
 export type DeletePhotoInput = z.infer<typeof deletePhotoSchema>;
 
 /**
+ * Furniture reference images: a per-project library of furniture pieces the
+ * user wants the AI to include in generated variations. The browser uploads
+ * the (optionally cropped) image to the `furniture-references` bucket first,
+ * then registers it here.
+ */
+export const createFurnitureItemSchema = z.object({
+	projectId: z.string().uuid(),
+	storagePath: z
+		.string()
+		.min(1)
+		.max(512)
+		.regex(/^[a-f0-9-]+\/[A-Za-z0-9._-]+$/),
+	originalName: z.string().min(1).max(255),
+	contentType: z.string().regex(/^image\/(png|jpeg|webp)$/),
+	label: z.string().min(1).max(120),
+	source: z.enum(["product", "photo"]),
+});
+export type CreateFurnitureItemInput = z.infer<
+	typeof createFurnitureItemSchema
+>;
+
+export const listFurnitureItemsSchema = z.object({
+	projectId: z.string().uuid(),
+	// When provided, the response marks which items are selected for this task.
+	taskId: z.string().uuid().nullable().optional(),
+});
+export type ListFurnitureItemsInput = z.infer<typeof listFurnitureItemsSchema>;
+
+export const deleteFurnitureItemSchema = z.object({
+	projectId: z.string().uuid(),
+	furnitureItemId: z.string().uuid(),
+});
+export type DeleteFurnitureItemInput = z.infer<
+	typeof deleteFurnitureItemSchema
+>;
+
+export const MAX_FURNITURE_PER_GENERATION = 8;
+
+export const setTaskFurnitureSchema = z.object({
+	taskId: z.string().uuid(),
+	furnitureItemIds: z
+		.array(z.string().uuid())
+		.max(MAX_FURNITURE_PER_GENERATION),
+});
+export type SetTaskFurnitureInput = z.infer<typeof setTaskFurnitureSchema>;
+
+/**
  * Optional per-call AI model selection. When omitted, the provider falls
  * back to its built-in default (currently Gemini 2.5 Flash for text — see
  * `DEFAULT_TEXT_MODEL` in `src/lib/ai/models.ts`). The schema is
@@ -194,6 +241,14 @@ export const generateRenovationImagesSchema = z.object({
 	 * uses image-edit mode so the renovation preserves the source room.
 	 */
 	photoId: z.string().uuid().nullable().optional(),
+	/**
+	 * Furniture reference items to include in the render. Requires `photoId`
+	 * (image-edit mode) — the references ride along as extra input images.
+	 */
+	furnitureItemIds: z
+		.array(z.string().uuid())
+		.max(MAX_FURNITURE_PER_GENERATION)
+		.optional(),
 });
 export type GenerateRenovationImagesInput = z.infer<
 	typeof generateRenovationImagesSchema

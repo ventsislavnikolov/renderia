@@ -15,6 +15,7 @@ import {
 	setImageFavorite,
 } from "../../server/generation";
 import { DebugPanel } from "./debug-panel";
+import { FurniturePicker } from "./furniture-picker";
 
 /**
  * Variation cards rendered after a successful generation call. Each entry is
@@ -59,6 +60,7 @@ function jobLabel(job: GenerationJob) {
  * mirrored optimistically so the UI doesn't wait on the round-trip.
  */
 export function GenerationStep(props: {
+	projectId: string;
 	taskId: string;
 	briefId: string | null;
 	brief: string;
@@ -66,6 +68,9 @@ export function GenerationStep(props: {
 	photoId?: string | null;
 }) {
 	const [images, setImages] = useState<GeneratedImage[] | null>(null);
+	const [selectedFurnitureIds, setSelectedFurnitureIds] = useState<string[]>(
+		[]
+	);
 	const [jobs, setJobs] = useState<GenerationJob[]>([]);
 	const [activeJobId, setActiveJobId] = useState<string | null>(null);
 	const [debug, setDebug] = useState<ProviderDebug | null>(null);
@@ -133,6 +138,10 @@ export function GenerationStep(props: {
 					prompt: props.prompt,
 					count: VARIATION_COUNT,
 					photoId: props.photoId ?? null,
+					furnitureItemIds:
+						props.photoId && selectedFurnitureIds.length > 0
+							? selectedFurnitureIds
+							: undefined,
 				},
 				headers,
 			})) as {
@@ -268,6 +277,13 @@ export function GenerationStep(props: {
 					</pre>
 				</details>
 			)}
+
+			<FurniturePicker
+				disabled={generating}
+				onSelectionChange={setSelectedFurnitureIds}
+				projectId={props.projectId}
+				taskId={props.taskId}
+			/>
 
 			<div className="flex flex-wrap items-center gap-4">
 				<Button

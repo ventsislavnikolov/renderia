@@ -354,12 +354,33 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 					{ type: sourceImage.contentType }
 				)
 			: null;
+		// Furniture references become additional input images on the same edit
+		// call — gpt-image edit mode accepts an image array, with the first
+		// image treated as the primary subject. Only meaningful with a source
+		// photo; text-to-image mode has no slot for them.
+		const referenceFiles = sourceFile
+			? await Promise.all(
+					(input.referenceImages ?? []).map((reference) =>
+						toFile(
+							Buffer.from(reference.base64, "base64"),
+							reference.filename,
+							{
+								type: reference.contentType,
+							}
+						)
+					)
+				)
+			: [];
+		const editImage =
+			sourceFile && referenceFiles.length > 0
+				? [sourceFile, ...referenceFiles]
+				: sourceFile;
 		const responses = await Promise.all(
 			input.prompts.map((prompt) =>
-				sourceFile
+				editImage
 					? client.images.edit({
 							model: IMAGE_MODEL,
-							image: sourceFile,
+							image: editImage,
 							prompt,
 							n: 1,
 							size: "auto",
@@ -390,6 +411,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 					{
 						mode: sourceImage ? "edit" : "generate",
 						variations: input.prompts.length,
+						referenceImages: referenceFiles.length,
 						images: images.map((_, i) => ({ index: i })),
 					},
 					null,

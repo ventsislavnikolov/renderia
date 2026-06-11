@@ -567,6 +567,89 @@ export type Database = {
 					},
 				];
 			};
+			furniture_items: {
+				Row: {
+					id: string;
+					owner_id: string;
+					project_id: string;
+					storage_bucket: "furniture-references";
+					storage_path: string;
+					original_name: string;
+					content_type: string;
+					label: string;
+					source: "product" | "photo";
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					owner_id: string;
+					project_id: string;
+					storage_bucket?: "furniture-references";
+					storage_path: string;
+					original_name: string;
+					content_type: string;
+					label: string;
+					source: "product" | "photo";
+					created_at?: string;
+				};
+				Update: {
+					id?: string;
+					owner_id?: string;
+					project_id?: string;
+					storage_bucket?: "furniture-references";
+					storage_path?: string;
+					original_name?: string;
+					content_type?: string;
+					label?: string;
+					source?: "product" | "photo";
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "furniture_items_project_id_owner_id_fkey";
+						columns: ["project_id", "owner_id"];
+						referencedRelation: "projects";
+						referencedColumns: ["id", "owner_id"];
+					},
+				];
+			};
+			task_furniture: {
+				Row: {
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					furniture_item_id: string;
+					created_at: string;
+				};
+				Insert: {
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					furniture_item_id: string;
+					created_at?: string;
+				};
+				Update: {
+					owner_id?: string;
+					project_id?: string;
+					task_id?: string;
+					furniture_item_id?: string;
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "task_furniture_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+					{
+						foreignKeyName: "task_furniture_furniture_item_id_owner_id_project_id_fkey";
+						columns: ["furniture_item_id", "owner_id", "project_id"];
+						referencedRelation: "furniture_items";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+				];
+			};
 			structural_previews: {
 				Row: {
 					id: string;

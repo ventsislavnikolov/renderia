@@ -278,6 +278,27 @@ export function buildStructuralPreviewPrompt(input: {
 }
 
 /**
+ * Prompt section describing furniture reference images that accompany the
+ * source photo in image-edit mode. The first input image is always the room;
+ * every following image is one furniture piece the design must include.
+ * Appended to each variation prompt by the generation server fn so adding
+ * furniture never requires regenerating the design brief.
+ */
+export function buildFurnitureReferenceSection(labels: string[]): string {
+	if (labels.length === 0) return "";
+	return [
+		"FURNITURE TO INCLUDE (mandatory):",
+		"- Input images after the first are furniture references, NOT room geometry. Only the first image defines the room.",
+		...labels.map(
+			(label, index) =>
+				`- Reference image ${index + 2}: ${sanitizePromptField(label)}. This exact piece must appear in the room, prominently and recognizably, matching its real shape, color, and material.`
+		),
+		"- Place each referenced piece naturally within the room layout. Do not duplicate a referenced piece multiple times.",
+		"- Do not copy backgrounds, walls, floors, or other objects from the reference images.",
+	].join("\n");
+}
+
+/**
  * Expand the base prompt into N per-variation prompts. Each variation
  * appends the concept-specific directive from `VARIATION_CONCEPTS` so the
  * provider can be called N times with different concept text but identical

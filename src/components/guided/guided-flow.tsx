@@ -400,6 +400,7 @@ export function GuidedFlow(props: {
 					brief={brief}
 					briefId={briefId}
 					photoId={roomState.referencePhotoId}
+					projectId={props.projectId}
 					prompt={prompt}
 					taskId={props.taskId}
 				/>

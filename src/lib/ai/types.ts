@@ -64,6 +64,18 @@ export type GenerateRenovationImagesInput = {
 		filename: string;
 	};
 	/**
+	 * Furniture reference images that ride along with the source photo in
+	 * image-edit mode. Each shows one furniture piece that must appear in the
+	 * output; the prompt explains how the model should treat them. Ignored in
+	 * pure text-to-image mode (no `sourceImage`).
+	 */
+	referenceImages?: Array<{
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+		label: string;
+	}>;
+	/**
 	 * One prompt per variation. The provider produces exactly
 	 * `prompts.length` images, one per entry. Callers expand a single base
 	 * prompt into N concept-specific prompts via

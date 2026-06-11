@@ -5,6 +5,7 @@ import { OPENAI_IMAGE_MODEL } from "../lib/ai/openai-provider";
 import {
 	buildConceptVariationPrompts,
 	buildDesignPrompt,
+	buildFurnitureReferenceSection,
 } from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
@@ -322,6 +323,21 @@ export async function __generateRenovationImagesHandler(args: {
 		throw new Error("Source photo not found or unavailable");
 	}
 
+	// Furniture references ride along as extra input images on the same edit
+	// call, so they only make sense when a source photo anchors the room.
+	const furnitureItemIds = args.input.furnitureItemIds ?? [];
+	if (furnitureItemIds.length > 0 && !sourceImage) {
+		throw new Error("Furniture references require a source photo");
+	}
+	const furnitureReferences =
+		furnitureItemIds.length > 0
+			? await loadFurnitureReferences({
+					supabase: args.supabase,
+					userId: args.userId,
+					furnitureItemIds,
+				})
+			: [];
+
 	const model = activeImageModel(args.providerName);
 	const jobInsert = await args.supabase
 		.from("generation_jobs")
@@ -340,12 +356,19 @@ export async function __generateRenovationImagesHandler(args: {
 	const jobId = jobInsert.data.id;
 
 	try {
+		const furnitureSection = buildFurnitureReferenceSection(
+			furnitureReferences.map((reference) => reference.label)
+		);
 		const prompts = buildConceptVariationPrompts(
 			args.input.prompt,
 			clampedCount
+		).map((prompt) =>
+			furnitureSection ? `${prompt}\n\n${furnitureSection}` : prompt
 		);
 		const providerResult = await args.provider.generateRenovationImages({
 			sourceImage,
+			referenceImages:
+				furnitureReferences.length > 0 ? furnitureReferences : undefined,
 			prompts,
 		});
 
@@ -666,6 +689,66 @@ async function loadSourcePhoto(args: {
 		contentType,
 		filename: row.data.original_name || "source.png",
 	};
+}
+
+/**
+ * Load the bytes for the selected furniture reference items. Every requested
+ * id must resolve to an owned row with downloadable bytes — a silently
+ * dropped reference would produce a generation that looks successful while
+ * missing furniture the user explicitly selected.
+ */
+async function loadFurnitureReferences(args: {
+	supabase: SupabaseScoped;
+	userId: string;
+	furnitureItemIds: string[];
+}): Promise<
+	Array<{
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+		label: string;
+	}>
+> {
+	const rows = await args.supabase
+		.from("furniture_items")
+		.select("id, label, storage_bucket, storage_path, content_type")
+		.in("id", args.furnitureItemIds)
+		.eq("owner_id", args.userId);
+	if (rows.error) throw wrapSupabaseError(rows.error);
+	if ((rows.data ?? []).length !== args.furnitureItemIds.length) {
+		throw new Error("Furniture item not found");
+	}
+
+	const rowById = new Map(
+		(rows.data ?? []).map((row) => [String(row.id), row])
+	);
+	const references: Array<{
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+		label: string;
+	}> = [];
+	for (const furnitureItemId of args.furnitureItemIds) {
+		const row = rowById.get(furnitureItemId);
+		if (!row) throw new Error("Furniture item not found");
+		const download = await args.supabase.storage
+			.from(row.storage_bucket)
+			.download(row.storage_path);
+		if (download.error || !download.data) {
+			throw new Error(`Furniture image unavailable: ${row.label}`);
+		}
+		const contentType = EDITABLE_IMAGE_TYPES.has(row.content_type)
+			? (row.content_type as "image/png" | "image/jpeg" | "image/webp")
+			: "image/png";
+		const buffer = Buffer.from(await download.data.arrayBuffer());
+		references.push({
+			base64: buffer.toString("base64"),
+			contentType,
+			filename: `furniture-${references.length + 1}.png`,
+			label: String(row.label),
+		});
+	}
+	return references;
 }
 
 export const detectProtectedElements = createServerFn({ method: "POST" })
