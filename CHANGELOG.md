@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/ventsislavnikolov/renderia/compare/v1.8.0...v1.9.0) (2026-06-11)
+
+
+### Features
+
+* **generation:** add furniture reference images ([88e3724](https://github.com/ventsislavnikolov/renderia/commit/88e372402d805ac19462d7a34122049c2efd95fe))
+* **generation:** list room contents under each variation ([0cb2340](https://github.com/ventsislavnikolov/renderia/commit/0cb2340e91399b1ea086417d2f4a53cee2867865))
+
 # [1.8.0](https://github.com/ventsislavnikolov/renderia/compare/v1.7.2...v1.8.0) (2026-06-10)
 
 
