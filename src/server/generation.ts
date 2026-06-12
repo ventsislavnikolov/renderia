@@ -41,6 +41,7 @@ import {
 	wrapSupabaseError,
 } from "../lib/supabase/server";
 import type { Database } from "../lib/types/database";
+import { normalizeImageToPng } from "./image-normalize";
 
 /**
  * Server functions for detection, brief, and image generation.
@@ -823,10 +824,19 @@ async function loadSourcePhoto(args: {
 		.download(row.data.storage_path);
 	if (download.error || !download.data) return;
 
+	const buffer = Buffer.from(await download.data.arrayBuffer());
+	const normalized = await normalizeImageToPng(buffer);
+	if (normalized) {
+		return {
+			base64: normalized.toString("base64"),
+			contentType: "image/png" as const,
+			filename: "source.png",
+		};
+	}
+
 	const contentType = EDITABLE_IMAGE_TYPES.has(row.data.content_type)
 		? (row.data.content_type as "image/png" | "image/jpeg" | "image/webp")
 		: "image/png";
-	const buffer = Buffer.from(await download.data.arrayBuffer());
 	return {
 		base64: buffer.toString("base64"),
 		contentType,
@@ -880,12 +890,15 @@ async function loadFurnitureReferences(args: {
 		if (download.error || !download.data) {
 			throw new Error(`Furniture image unavailable: ${row.label}`);
 		}
-		const contentType = EDITABLE_IMAGE_TYPES.has(row.content_type)
-			? (row.content_type as "image/png" | "image/jpeg" | "image/webp")
-			: "image/png";
 		const buffer = Buffer.from(await download.data.arrayBuffer());
+		const normalized = await normalizeImageToPng(buffer);
+		const contentType = normalized
+			? ("image/png" as const)
+			: EDITABLE_IMAGE_TYPES.has(row.content_type)
+				? (row.content_type as "image/png" | "image/jpeg" | "image/webp")
+				: "image/png";
 		references.push({
-			base64: buffer.toString("base64"),
+			base64: (normalized ?? buffer).toString("base64"),
 			contentType,
 			filename: `furniture-${references.length + 1}.png`,
 			label: String(row.label),

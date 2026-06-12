@@ -24,6 +24,7 @@ import {
 	wrapSupabaseError,
 } from "../lib/supabase/server";
 import type { Database, Tables } from "../lib/types/database";
+import { normalizeImageToPng } from "./image-normalize";
 
 type SupabaseScoped = SupabaseClient<Database>;
 const PREVIEW_BUCKET = "structural-previews" as const;
@@ -72,10 +73,19 @@ async function loadSourcePhoto(args: {
 		.download(row.data.storage_path);
 	if (download.error || !download.data) return;
 
+	const buffer = Buffer.from(await download.data.arrayBuffer());
+	const normalized = await normalizeImageToPng(buffer);
+	if (normalized) {
+		return {
+			base64: normalized.toString("base64"),
+			contentType: "image/png" as const,
+			filename: "source.png",
+		};
+	}
+
 	const contentType = EDITABLE_IMAGE_TYPES.has(row.data.content_type)
 		? (row.data.content_type as "image/png" | "image/jpeg" | "image/webp")
 		: "image/png";
-	const buffer = Buffer.from(await download.data.arrayBuffer());
 	return {
 		base64: buffer.toString("base64"),
 		contentType,
