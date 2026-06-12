@@ -19,7 +19,8 @@ import {
 import type { Database } from "../lib/types/database";
 
 /**
- * Server functions for the per-project furniture reference library.
+ * Server functions for the account-wide Furniture Library. Items belong to
+ * the owner only — any item is a candidate for any task's generation run.
  *
  * Image bytes are uploaded directly from the browser to the
  * `furniture-references` bucket (same flow as source photos); these fns only
@@ -45,20 +46,10 @@ export async function __createFurnitureItemHandler(args: {
 	supabase: SupabaseScoped;
 	input: CreateFurnitureItemInput;
 }) {
-	const parent = await args.supabase
-		.from("projects")
-		.select("id")
-		.eq("id", args.input.projectId)
-		.eq("owner_id", args.userId)
-		.maybeSingle();
-	if (parent.error) throw wrapSupabaseError(parent.error);
-	if (!parent.data) throw new Error("Project not found");
-
 	const { data, error } = await args.supabase
 		.from("furniture_items")
 		.insert({
 			owner_id: args.userId,
-			project_id: args.input.projectId,
 			storage_path: args.input.storagePath,
 			original_name: args.input.originalName,
 			content_type: args.input.contentType,
@@ -83,7 +74,6 @@ export async function __listFurnitureItemsHandler(args: {
 			"id, label, source, original_name, storage_bucket, storage_path, created_at"
 		)
 		.eq("owner_id", args.userId)
-		.eq("project_id", args.input.projectId)
 		.order("created_at", { ascending: true });
 	if (rows.error) throw wrapSupabaseError(rows.error);
 
@@ -128,7 +118,6 @@ export async function __deleteFurnitureItemHandler(args: {
 		.from("furniture_items")
 		.select("storage_bucket, storage_path")
 		.eq("id", args.input.furnitureItemId)
-		.eq("project_id", args.input.projectId)
 		.eq("owner_id", args.userId)
 		.maybeSingle();
 	if (item.error) throw wrapSupabaseError(item.error);

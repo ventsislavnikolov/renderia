@@ -64,14 +64,14 @@ async function cropImageToBlob(image: HTMLImageElement, box: CropBox) {
 }
 
 /**
- * Per-project furniture reference library, rendered inside the generation
- * step. Users add furniture from product images (used as-is) or phone photos
- * (a draggable crop box marks which piece counts), then tick which items to
+ * Account-wide Furniture Library, rendered inside the generation step. Users
+ * add furniture from product images (used as-is) or phone photos (a
+ * draggable crop box marks which piece counts), then tick which items to
  * include — the selection persists per task and rides into generation as
- * extra reference images.
+ * extra reference images. Every item in the account is offered, whichever
+ * project it was added from.
  */
 export function FurniturePicker(props: {
-	projectId: string;
 	taskId: string;
 	disabled?: boolean;
 	onSelectionChange: (ids: string[]) => void;
@@ -107,7 +107,7 @@ export function FurniturePicker(props: {
 		try {
 			const headers = await getAuthHeaders();
 			const result = await listFurnitureItems({
-				data: { projectId: props.projectId, taskId: props.taskId },
+				data: { taskId: props.taskId },
 				headers,
 			});
 			if (cancelledRef.current) return;
@@ -122,7 +122,7 @@ export function FurniturePicker(props: {
 			);
 			setItems([]);
 		}
-	}, [props.projectId, props.taskId, props.onSelectionChange, handleAuthError]);
+	}, [props.taskId, props.onSelectionChange, handleAuthError]);
 
 	useEffect(() => {
 		cancelledRef.current = false;
@@ -261,7 +261,7 @@ export function FurniturePicker(props: {
 		try {
 			const headers = await getAuthHeaders();
 			await deleteFurnitureItem({
-				data: { projectId: props.projectId, furnitureItemId: item.id },
+				data: { furnitureItemId: item.id },
 				headers,
 			});
 			if (cancelledRef.current) return;
@@ -314,7 +314,6 @@ export function FurniturePicker(props: {
 			const headers = await getAuthHeaders();
 			const created = await createFurnitureItem({
 				data: {
-					projectId: props.projectId,
 					storagePath,
 					originalName: sanitizeFilename(pendingFile.name),
 					contentType,
@@ -412,7 +411,7 @@ export function FurniturePicker(props: {
 
 			{items && items.length === 0 ? (
 				<p className="m-0 text-ink-muted text-sm">
-					No furniture saved for this project yet.
+					No furniture in your library yet.
 				</p>
 			) : null}
 

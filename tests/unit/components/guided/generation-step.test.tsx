@@ -68,7 +68,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Test"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY"
 				taskId={TASK_ID}
 			/>
@@ -112,7 +111,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Test"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY"
 				taskId={TASK_ID}
 			/>
@@ -142,7 +140,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Brief"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY abc"
 				taskId={TASK_ID}
 			/>
@@ -153,13 +150,7 @@ describe("GenerationStep", () => {
 
 	it("warns and skips the network call when no prompt is supplied", async () => {
 		render(
-			<GenerationStep
-				brief=""
-				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
-				prompt=""
-				taskId={TASK_ID}
-			/>
+			<GenerationStep brief="" briefId={null} prompt="" taskId={TASK_ID} />
 		);
 		// Wait for the on-mount listGeneratedImages to settle (empty), at which
 		// point the missing-brief warning replaces the loading state.
@@ -178,7 +169,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Brief"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY"
 				taskId={TASK_ID}
 			/>
@@ -210,7 +200,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Brief"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY"
 				taskId={TASK_ID}
 			/>
@@ -266,7 +255,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Brief"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY"
 				taskId={TASK_ID}
 			/>
@@ -290,7 +278,6 @@ describe("GenerationStep", () => {
 			<GenerationStep
 				brief="# Brief"
 				briefId={null}
-				projectId="33333333-3333-3333-3333-333333333333"
 				prompt="PRESERVE EXACTLY"
 				taskId={TASK_ID}
 			/>

@@ -15,20 +15,12 @@ type Row = Record<string, unknown>;
  * `createSignedUrl`/`remove` are plain mocks the assertions can inspect.
  */
 function buildSupabaseStub(opts: {
-	projectsResult?: { data: Row | null; error: unknown };
 	tasksResult?: { data: Row | null; error: unknown };
 	itemsListResult?: { data: Row[] | null; error: unknown };
 	itemSingleResult?: { data: Row | null; error: unknown };
 	linksResult?: { data: Row[] | null; error: unknown };
 	insertResult?: { data: Row | null; error: unknown };
 }) {
-	const projectsChain: Record<string, (...args: unknown[]) => unknown> = {};
-	projectsChain.select = vi.fn(() => projectsChain);
-	projectsChain.eq = vi.fn(() => projectsChain);
-	projectsChain.maybeSingle = vi.fn(() =>
-		Promise.resolve(opts.projectsResult ?? { data: { id: "p1" }, error: null })
-	);
-
 	const tasksChain: Record<string, (...args: unknown[]) => unknown> = {};
 	tasksChain.select = vi.fn(() => tasksChain);
 	tasksChain.eq = vi.fn(() => tasksChain);
@@ -77,7 +69,6 @@ function buildSupabaseStub(opts: {
 	const remove = vi.fn(() => Promise.resolve({ data: null, error: null }));
 
 	const fromMock = vi.fn((table: string) => {
-		if (table === "projects") return projectsChain;
 		if (table === "renovation_tasks") return tasksChain;
 		if (table === "task_furniture") return linksChain;
 		return itemsChain;
@@ -91,7 +82,6 @@ function buildSupabaseStub(opts: {
 			typeof __listFurnitureItemsHandler
 		>[0]["supabase"],
 		fromMock,
-		projectsChain,
 		tasksChain,
 		itemsChain,
 		linksChain,
@@ -101,9 +91,9 @@ function buildSupabaseStub(opts: {
 }
 
 describe("createFurnitureItemHandler", () => {
-	it("verifies project ownership then inserts with the auth-derived owner", async () => {
+	it("inserts with the auth-derived owner and no project scoping", async () => {
 		const created = { id: "f1", label: "white dresser" };
-		const { supabase, itemsChain } = buildSupabaseStub({
+		const { supabase, fromMock, itemsChain } = buildSupabaseStub({
 			insertResult: { data: created, error: null },
 		});
 
@@ -111,7 +101,6 @@ describe("createFurnitureItemHandler", () => {
 			userId: "user-1",
 			supabase,
 			input: {
-				projectId: "p1",
 				storagePath: "user-1/dresser.png",
 				originalName: "dresser.png",
 				contentType: "image/png",
@@ -121,41 +110,21 @@ describe("createFurnitureItemHandler", () => {
 		});
 
 		expect(result).toEqual(created);
-		expect(itemsChain.insert).toHaveBeenCalledWith(
-			expect.objectContaining({
-				owner_id: "user-1",
-				project_id: "p1",
-				label: "white dresser",
-				source: "product",
-			})
-		);
-	});
-
-	it("rejects when the project is not owned", async () => {
-		const { supabase } = buildSupabaseStub({
-			projectsResult: { data: null, error: null },
+		expect(fromMock).not.toHaveBeenCalledWith("projects");
+		expect(itemsChain.insert).toHaveBeenCalledWith({
+			owner_id: "user-1",
+			storage_path: "user-1/dresser.png",
+			original_name: "dresser.png",
+			content_type: "image/png",
+			label: "white dresser",
+			source: "product",
 		});
-
-		await expect(
-			__createFurnitureItemHandler({
-				userId: "user-1",
-				supabase,
-				input: {
-					projectId: "p1",
-					storagePath: "user-1/dresser.png",
-					originalName: "dresser.png",
-					contentType: "image/png",
-					label: "dresser",
-					source: "product",
-				},
-			})
-		).rejects.toThrow("Project not found");
 	});
 });
 
 describe("listFurnitureItemsHandler", () => {
-	it("returns items with signed URLs and per-task selection flags", async () => {
-		const { supabase } = buildSupabaseStub({
+	it("returns every item the user owns, with signed URLs and per-task selection flags", async () => {
+		const { supabase, itemsChain } = buildSupabaseStub({
 			itemsListResult: {
 				data: [
 					{
@@ -185,7 +154,7 @@ describe("listFurnitureItemsHandler", () => {
 		const result = await __listFurnitureItemsHandler({
 			userId: "user-1",
 			supabase,
-			input: { projectId: "p1", taskId: "t1" },
+			input: { taskId: "t1" },
 		});
 
 		expect(result.items).toHaveLength(2);
@@ -195,6 +164,9 @@ describe("listFurnitureItemsHandler", () => {
 			signedUrl: "https://signed/url",
 		});
 		expect(result.items[1]).toMatchObject({ id: "f2", selected: true });
+		// Account-wide library: the only filter on the items query is ownership.
+		expect(itemsChain.eq).toHaveBeenCalledTimes(1);
+		expect(itemsChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
 	});
 });
 
@@ -213,10 +185,14 @@ describe("deleteFurnitureItemHandler", () => {
 		await __deleteFurnitureItemHandler({
 			userId: "user-1",
 			supabase,
-			input: { projectId: "p1", furnitureItemId: "f1" },
+			input: { furnitureItemId: "f1" },
 		});
 
 		expect(itemsChain.delete).toHaveBeenCalled();
+		expect(itemsChain.eq).not.toHaveBeenCalledWith(
+			"project_id",
+			expect.anything()
+		);
 		expect(remove).toHaveBeenCalledWith(["user-1/dresser.png"]);
 	});
 
@@ -229,7 +205,7 @@ describe("deleteFurnitureItemHandler", () => {
 			__deleteFurnitureItemHandler({
 				userId: "user-1",
 				supabase,
-				input: { projectId: "p1", furnitureItemId: "missing" },
+				input: { furnitureItemId: "missing" },
 			})
 		).rejects.toThrow("Furniture item not found");
 	});

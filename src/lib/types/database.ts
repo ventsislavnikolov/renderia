@@ -571,7 +571,6 @@ export type Database = {
 				Row: {
 					id: string;
 					owner_id: string;
-					project_id: string;
 					storage_bucket: "furniture-references";
 					storage_path: string;
 					original_name: string;
@@ -583,7 +582,6 @@ export type Database = {
 				Insert: {
 					id?: string;
 					owner_id: string;
-					project_id: string;
 					storage_bucket?: "furniture-references";
 					storage_path: string;
 					original_name: string;
@@ -595,7 +593,6 @@ export type Database = {
 				Update: {
 					id?: string;
 					owner_id?: string;
-					project_id?: string;
 					storage_bucket?: "furniture-references";
 					storage_path?: string;
 					original_name?: string;
@@ -604,14 +601,7 @@ export type Database = {
 					source?: "product" | "photo";
 					created_at?: string;
 				};
-				Relationships: [
-					{
-						foreignKeyName: "furniture_items_project_id_owner_id_fkey";
-						columns: ["project_id", "owner_id"];
-						referencedRelation: "projects";
-						referencedColumns: ["id", "owner_id"];
-					},
-				];
+				Relationships: [];
 			};
 			task_furniture: {
 				Row: {
@@ -643,10 +633,10 @@ export type Database = {
 						referencedColumns: ["id", "owner_id", "project_id"];
 					},
 					{
-						foreignKeyName: "task_furniture_furniture_item_id_owner_id_project_id_fkey";
-						columns: ["furniture_item_id", "owner_id", "project_id"];
+						foreignKeyName: "task_furniture_furniture_item_id_owner_id_fkey";
+						columns: ["furniture_item_id", "owner_id"];
 						referencedRelation: "furniture_items";
-						referencedColumns: ["id", "owner_id", "project_id"];
+						referencedColumns: ["id", "owner_id"];
 					},
 				];
 			};

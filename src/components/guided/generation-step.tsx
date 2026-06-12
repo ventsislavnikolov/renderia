@@ -63,7 +63,6 @@ function jobLabel(job: GenerationJob) {
  * mirrored optimistically so the UI doesn't wait on the round-trip.
  */
 export function GenerationStep(props: {
-	projectId: string;
 	taskId: string;
 	briefId: string | null;
 	brief: string;
@@ -325,7 +324,6 @@ export function GenerationStep(props: {
 			<FurniturePicker
 				disabled={generating}
 				onSelectionChange={setSelectedFurnitureIds}
-				projectId={props.projectId}
 				taskId={props.taskId}
 			/>
 

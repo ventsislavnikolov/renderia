@@ -132,13 +132,13 @@ export const deletePhotoSchema = z.object({
 export type DeletePhotoInput = z.infer<typeof deletePhotoSchema>;
 
 /**
- * Furniture reference images: a per-project library of furniture pieces the
- * user wants the AI to include in generated variations. The browser uploads
- * the (optionally cropped) image to the `furniture-references` bucket first,
- * then registers it here.
+ * Furniture reference images: the account-wide library of furniture pieces
+ * the user wants the AI to include in generated variations. Items belong to
+ * the owner, not a project — any item can be attached to any task. The
+ * browser uploads the (optionally cropped) image to the
+ * `furniture-references` bucket first, then registers it here.
  */
 export const createFurnitureItemSchema = z.object({
-	projectId: z.string().uuid(),
 	storagePath: z
 		.string()
 		.min(1)
@@ -154,14 +154,12 @@ export type CreateFurnitureItemInput = z.infer<
 >;
 
 export const listFurnitureItemsSchema = z.object({
-	projectId: z.string().uuid(),
 	// When provided, the response marks which items are selected for this task.
 	taskId: z.string().uuid().nullable().optional(),
 });
 export type ListFurnitureItemsInput = z.infer<typeof listFurnitureItemsSchema>;
 
 export const deleteFurnitureItemSchema = z.object({
-	projectId: z.string().uuid(),
 	furnitureItemId: z.string().uuid(),
 });
 export type DeleteFurnitureItemInput = z.infer<

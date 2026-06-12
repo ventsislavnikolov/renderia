@@ -45,7 +45,6 @@ vi.mock("../../../../src/lib/supabase/browser", () => ({
 
 import { FurniturePicker } from "../../../../src/components/guided/furniture-picker";
 
-const PROJECT_ID = "11111111-1111-1111-1111-111111111111";
 const TASK_ID = "22222222-2222-2222-2222-222222222222";
 
 function item(id: string, label: string, selected = false) {
@@ -68,17 +67,13 @@ describe("FurniturePicker", () => {
 		setTaskFurnitureMock.mockReset().mockResolvedValue({ ok: true });
 	});
 
-	it("lists the project's furniture and reports the persisted selection", async () => {
+	it("lists the account's furniture library and reports the persisted selection", async () => {
 		listItemsMock.mockResolvedValue({
 			items: [item("f1", "dresser"), item("f2", "sofa", true)],
 		});
 		const onSelectionChange = vi.fn();
 		render(
-			<FurniturePicker
-				onSelectionChange={onSelectionChange}
-				projectId={PROJECT_ID}
-				taskId={TASK_ID}
-			/>
+			<FurniturePicker onSelectionChange={onSelectionChange} taskId={TASK_ID} />
 		);
 
 		expect(await screen.findByText("dresser")).toBeInTheDocument();
@@ -86,7 +81,7 @@ describe("FurniturePicker", () => {
 		expect(onSelectionChange).toHaveBeenCalledWith(["f2"]);
 		expect(listItemsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				data: { projectId: PROJECT_ID, taskId: TASK_ID },
+				data: { taskId: TASK_ID },
 			})
 		);
 	});
@@ -98,11 +93,7 @@ describe("FurniturePicker", () => {
 		});
 		const onSelectionChange = vi.fn();
 		render(
-			<FurniturePicker
-				onSelectionChange={onSelectionChange}
-				projectId={PROJECT_ID}
-				taskId={TASK_ID}
-			/>
+			<FurniturePicker onSelectionChange={onSelectionChange} taskId={TASK_ID} />
 		);
 
 		const checkboxes = await screen.findAllByRole("checkbox", {
@@ -126,18 +117,14 @@ describe("FurniturePicker", () => {
 		});
 		const onSelectionChange = vi.fn();
 		render(
-			<FurniturePicker
-				onSelectionChange={onSelectionChange}
-				projectId={PROJECT_ID}
-				taskId={TASK_ID}
-			/>
+			<FurniturePicker onSelectionChange={onSelectionChange} taskId={TASK_ID} />
 		);
 
 		await user.click(await screen.findByRole("button", { name: /Delete/i }));
 		await waitFor(() => {
 			expect(deleteItemMock).toHaveBeenCalledWith(
 				expect.objectContaining({
-					data: { projectId: PROJECT_ID, furnitureItemId: "f1" },
+					data: { furnitureItemId: "f1" },
 				})
 			);
 		});
@@ -149,14 +136,8 @@ describe("FurniturePicker", () => {
 		const user = userEvent.setup();
 		listItemsMock.mockResolvedValue({ items: [] });
 		createItemMock.mockResolvedValue({ id: "f-new" });
-		render(
-			<FurniturePicker
-				onSelectionChange={vi.fn()}
-				projectId={PROJECT_ID}
-				taskId={TASK_ID}
-			/>
-		);
-		await screen.findByText(/No furniture saved/i);
+		render(<FurniturePicker onSelectionChange={vi.fn()} taskId={TASK_ID} />);
+		await screen.findByText(/No furniture in your library yet/i);
 
 		const file = new File(["bytes"], "dresser photo.png", {
 			type: "image/png",
@@ -175,7 +156,6 @@ describe("FurniturePicker", () => {
 			expect(createItemMock).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: expect.objectContaining({
-						projectId: PROJECT_ID,
 						label: "white dresser",
 						source: "product",
 						contentType: "image/png",
@@ -190,14 +170,8 @@ describe("FurniturePicker", () => {
 		// drag-and-drop, which is exactly the path this error guards.
 		const user = userEvent.setup({ applyAccept: false });
 		listItemsMock.mockResolvedValue({ items: [] });
-		render(
-			<FurniturePicker
-				onSelectionChange={vi.fn()}
-				projectId={PROJECT_ID}
-				taskId={TASK_ID}
-			/>
-		);
-		await screen.findByText(/No furniture saved/i);
+		render(<FurniturePicker onSelectionChange={vi.fn()} taskId={TASK_ID} />);
+		await screen.findByText(/No furniture in your library yet/i);
 
 		const file = new File(["bytes"], "IMG_9196.HEIC", { type: "image/heic" });
 		const input = screen.getByLabelText(/Add furniture image/i);
