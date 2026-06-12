@@ -647,6 +647,65 @@ export async function __setImageFavoriteHandler(args: {
 	return data;
 }
 
+export type FavoriteImagePayload = {
+	id: string;
+	signedUrl: string;
+	variationIndex: number;
+	/** Vision-derived furniture/decor list, null until described. */
+	contents: string[] | null;
+	createdAt: string;
+	taskId: string;
+	taskTitle: string;
+	projectId: string;
+	projectName: string;
+};
+
+/**
+ * Every favorited image across the user's projects, newest first. Joins
+ * through `renovation_tasks` to `projects` so the favorites page can label
+ * each image with its project without extra round-trips. Images whose
+ * signed URL fails to mint are skipped, matching `listGeneratedImages`.
+ */
+/** @internal */
+export async function __listFavoriteImagesHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+}): Promise<{ images: FavoriteImagePayload[] }> {
+	const rows = await args.supabase
+		.from("generated_images")
+		.select(
+			"id, storage_bucket, storage_path, variation_index, notes, created_at, renovation_tasks(id, title, projects(id, name))"
+		)
+		.eq("owner_id", args.userId)
+		.eq("is_favorite", true)
+		.order("created_at", { ascending: false });
+	if (rows.error) throw wrapSupabaseError(rows.error);
+
+	const images: FavoriteImagePayload[] = [];
+	for (const row of rows.data ?? []) {
+		const task = row.renovation_tasks;
+		const project = task?.projects;
+		if (!(task && project)) continue;
+		const signed = await args.supabase.storage
+			.from(String(row.storage_bucket))
+			.createSignedUrl(String(row.storage_path), SIGNED_URL_TTL_SECONDS);
+		if (signed.error || !signed.data?.signedUrl) continue;
+		images.push({
+			id: String(row.id),
+			signedUrl: signed.data.signedUrl,
+			variationIndex: Number(row.variation_index),
+			contents: parseContentsNotes(row.notes),
+			createdAt: String(row.created_at),
+			taskId: String(task.id),
+			taskTitle: String(task.title),
+			projectId: String(project.id),
+			projectName: String(project.name),
+		});
+	}
+
+	return { images };
+}
+
 /**
  * Row shape returned to the overlay-confirm UI. We snake_case the column
  * names so the React component can pass the rows straight back to
@@ -922,6 +981,13 @@ export const setImageFavorite = createServerFn({ method: "POST" })
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __setImageFavoriteHandler({ userId, supabase, input: data });
 	});
+
+export const listFavoriteImages = createServerFn({ method: "GET" }).handler(
+	async () => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __listFavoriteImagesHandler({ userId, supabase });
+	}
+);
 
 export const listProtectedElements = createServerFn({ method: "POST" })
 	.validator(listProtectedElementsSchema)

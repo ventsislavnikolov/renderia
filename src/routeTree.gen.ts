@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
+import { Route as AppFavoritesRouteImport } from './routes/_app.favorites'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app.projects.index'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app.projects.$projectId'
 import { Route as AppProjectsProjectIdTasksTaskIdRouteImport } from './routes/_app.projects.$projectId.tasks.$taskId'
@@ -42,6 +43,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppFavoritesRoute = AppFavoritesRouteImport.update({
+  id: '/favorites',
+  path: '/favorites',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRoute
   '/sign-in': typeof SignInRoute
+  '/favorites': typeof AppFavoritesRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/projects/': typeof AppProjectsIndexRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/sign-in': typeof SignInRoute
+  '/favorites': typeof AppFavoritesRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/': typeof AppIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/sign-in': typeof SignInRoute
+  '/_app/favorites': typeof AppFavoritesRoute
   '/auth_/callback': typeof AuthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/sign-in'
+    | '/favorites'
     | '/auth/callback'
     | '/projects/$projectId'
     | '/projects/'
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/sign-in'
+    | '/favorites'
     | '/auth/callback'
     | '/'
     | '/projects/$projectId'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/auth'
     | '/sign-in'
+    | '/_app/favorites'
     | '/auth_/callback'
     | '/_app/'
     | '/_app/projects/$projectId'
@@ -163,6 +175,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/favorites': {
+      id: '/_app/favorites'
+      path: '/favorites'
+      fullPath: '/favorites'
+      preLoaderRoute: typeof AppFavoritesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projects/': {
       id: '/_app/projects/'
       path: '/projects'
@@ -199,12 +218,14 @@ const AppProjectsProjectIdRouteWithChildren =
   AppProjectsProjectIdRoute._addFileChildren(AppProjectsProjectIdRouteChildren)
 
 interface AppRouteChildren {
+  AppFavoritesRoute: typeof AppFavoritesRoute
   AppIndexRoute: typeof AppIndexRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppFavoritesRoute: AppFavoritesRoute,
   AppIndexRoute: AppIndexRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
   AppProjectsIndexRoute: AppProjectsIndexRoute,

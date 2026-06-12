@@ -6,6 +6,7 @@ import {
 	LogOut,
 	Search,
 	SquarePen,
+	Star,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -80,6 +81,11 @@ export function Sidebar() {
 						icon={<Search className="size-5" />}
 						label="Search"
 						onClick={() => setSearchOpen(true)}
+					/>
+					<SidebarActionLink
+						icon={<Star className="size-5" />}
+						label="Favorites"
+						to="/favorites"
 					/>
 				</nav>
 
