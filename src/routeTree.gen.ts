@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
+import { Route as AppFurnitureRouteImport } from './routes/_app.furniture'
 import { Route as AppFavoritesRouteImport } from './routes/_app.favorites'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app.projects.index'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app.projects.$projectId'
@@ -43,6 +44,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppFurnitureRoute = AppFurnitureRouteImport.update({
+  id: '/furniture',
+  path: '/furniture',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppFavoritesRoute = AppFavoritesRouteImport.update({
   id: '/favorites',
   path: '/favorites',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/sign-in': typeof SignInRoute
   '/favorites': typeof AppFavoritesRoute
+  '/furniture': typeof AppFurnitureRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
   '/projects/': typeof AppProjectsIndexRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/sign-in': typeof SignInRoute
   '/favorites': typeof AppFavoritesRoute
+  '/furniture': typeof AppFurnitureRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/': typeof AppIndexRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/sign-in': typeof SignInRoute
   '/_app/favorites': typeof AppFavoritesRoute
+  '/_app/furniture': typeof AppFurnitureRoute
   '/auth_/callback': typeof AuthCallbackRoute
   '/_app/': typeof AppIndexRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRouteWithChildren
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/sign-in'
     | '/favorites'
+    | '/furniture'
     | '/auth/callback'
     | '/projects/$projectId'
     | '/projects/'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/sign-in'
     | '/favorites'
+    | '/furniture'
     | '/auth/callback'
     | '/'
     | '/projects/$projectId'
@@ -124,6 +135,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/sign-in'
     | '/_app/favorites'
+    | '/_app/furniture'
     | '/auth_/callback'
     | '/_app/'
     | '/_app/projects/$projectId'
@@ -175,6 +187,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/furniture': {
+      id: '/_app/furniture'
+      path: '/furniture'
+      fullPath: '/furniture'
+      preLoaderRoute: typeof AppFurnitureRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/favorites': {
       id: '/_app/favorites'
       path: '/favorites'
@@ -219,6 +238,7 @@ const AppProjectsProjectIdRouteWithChildren =
 
 interface AppRouteChildren {
   AppFavoritesRoute: typeof AppFavoritesRoute
+  AppFurnitureRoute: typeof AppFurnitureRoute
   AppIndexRoute: typeof AppIndexRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRouteWithChildren
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
@@ -226,6 +246,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppFavoritesRoute: AppFavoritesRoute,
+  AppFurnitureRoute: AppFurnitureRoute,
   AppIndexRoute: AppIndexRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRouteWithChildren,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
@@ -242,12 +263,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

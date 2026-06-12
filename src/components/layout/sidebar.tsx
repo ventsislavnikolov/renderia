@@ -5,6 +5,7 @@ import {
 	FolderOpen,
 	LogOut,
 	Search,
+	Sofa,
 	SquarePen,
 	Star,
 } from "lucide-react";
@@ -86,6 +87,11 @@ export function Sidebar() {
 						icon={<Star className="size-5" />}
 						label="Favorites"
 						to="/favorites"
+					/>
+					<SidebarActionLink
+						icon={<Sofa className="size-5" />}
+						label="Furniture"
+						to="/furniture"
 					/>
 				</nav>
 

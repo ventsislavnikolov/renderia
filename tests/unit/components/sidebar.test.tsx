@@ -107,6 +107,22 @@ describe("Sidebar", () => {
 		expect(await screen.findByRole("link", { name: /pleven/i })).toBeDefined();
 	});
 
+	it("links to the Furniture library after Favorites", async () => {
+		renderSidebar("/projects");
+
+		const furniture = await screen.findByRole("link", {
+			name: /^furniture$/i,
+		});
+		expect(furniture).toHaveAttribute("href", "/furniture");
+
+		const labels = screen
+			.getAllByRole("link")
+			.map((link) => link.textContent?.trim());
+		expect(labels.indexOf("Furniture")).toBeGreaterThan(
+			labels.indexOf("Favorites")
+		);
+	});
+
 	it("renders the account menu trigger with the user's email", async () => {
 		renderSidebar("/projects");
 
