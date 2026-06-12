@@ -1,3 +1,11 @@
+# [1.10.0](https://github.com/ventsislavnikolov/renderia/compare/v1.9.0...v1.10.0) (2026-06-12)
+
+
+### Features
+
+* **favorites:** add favorites page with project labels ([fbd1f0c](https://github.com/ventsislavnikolov/renderia/commit/fbd1f0cdd6cea591169625daed86f35ffe9f7ce5))
+* **preview:** keep structural previews per photo angle ([1b917db](https://github.com/ventsislavnikolov/renderia/commit/1b917dbe2aad6f6e937b8f55bdc8ae81abe64a9b))
+
 # [1.9.0](https://github.com/ventsislavnikolov/renderia/compare/v1.8.0...v1.9.0) (2026-06-11)
 
 
