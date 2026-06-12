@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/ventsislavnikolov/renderia/compare/v1.10.0...v1.10.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* **generation:** normalize photos to PNG before image edits ([a65fcc6](https://github.com/ventsislavnikolov/renderia/commit/a65fcc6d3598940a8d57ba6c92980ab0a0dee52f))
+
 # [1.10.0](https://github.com/ventsislavnikolov/renderia/compare/v1.9.0...v1.10.0) (2026-06-12)
 
 
