@@ -32,7 +32,7 @@ function buildSupabaseStub(opts?: {
 	taskPhotosResult?: { data: Row[] | null; error: unknown };
 	appearancesResult?: { data: Row[] | null; error: unknown };
 	objectsResult?: { data: Row[] | null; error: unknown };
-	previewResult?: { data: Row | null; error: unknown };
+	previewResult?: { data: Row[] | null; error: unknown };
 	roomSetInsertResult?: { data: Row | null; error: unknown };
 	previewInsertResult?: { data: Row | null; error: unknown };
 	updateResult?: { data: Row | null; error: unknown };
@@ -195,17 +195,18 @@ function buildSupabaseStub(opts?: {
 		{};
 	previewSelectChain.select = vi.fn(() => previewSelectChain);
 	previewSelectChain.eq = vi.fn(() => previewSelectChain);
-	previewSelectChain.order = vi.fn(() => previewSelectChain);
-	previewSelectChain.limit = vi.fn(() => previewSelectChain);
-	previewSelectChain.maybeSingle = vi.fn(() =>
+	previewSelectChain.order = vi.fn(() =>
 		Promise.resolve(
 			opts?.previewResult ?? {
-				data: {
-					id: "preview-1",
-					storage_bucket: "structural-previews",
-					storage_path: "user-1/preview-1.png",
-					status: "approved",
-				},
+				data: [
+					{
+						id: "preview-1",
+						storage_bucket: "structural-previews",
+						storage_path: "user-1/preview-1.png",
+						status: "approved",
+						reference_photo_id: "photo-2",
+					},
+				],
 				error: null,
 			}
 		)
@@ -221,6 +222,7 @@ function buildSupabaseStub(opts?: {
 					storage_bucket: "structural-previews",
 					storage_path: "user-1/preview-2.png",
 					status: "generated",
+					reference_photo_id: "photo-2",
 				},
 				error: null,
 			}
@@ -305,7 +307,7 @@ function buildSupabaseStub(opts?: {
 }
 
 describe("room-state server handlers", () => {
-	it("loads the persisted room state, task photos, objects, appearances, and latest preview", async () => {
+	it("loads the persisted room state, task photos, objects, appearances, and latest preview per angle", async () => {
 		const stub = buildSupabaseStub();
 
 		const result = await __loadTaskRoomStateHandler({
@@ -319,7 +321,49 @@ describe("room-state server handlers", () => {
 		expect(result.roomState.referencePhotoId).toBe("photo-2");
 		expect(result.roomState.previewApproved).toBe(true);
 		expect(result.roomState.objects).toHaveLength(1);
-		expect(result.preview?.signedUrl).toContain("preview-1.png");
+		expect(result.previews["photo-2"]?.signedUrl).toContain("preview-1.png");
+		expect(result.previews["photo-2"]?.referencePhotoId).toBe("photo-2");
+	});
+
+	it("keeps only the newest preview per reference photo angle", async () => {
+		const stub = buildSupabaseStub({
+			previewResult: {
+				data: [
+					{
+						id: "preview-3",
+						storage_bucket: "structural-previews",
+						storage_path: "user-1/preview-3.png",
+						status: "generated",
+						reference_photo_id: "photo-1",
+					},
+					{
+						id: "preview-2",
+						storage_bucket: "structural-previews",
+						storage_path: "user-1/preview-2.png",
+						status: "superseded",
+						reference_photo_id: "photo-1",
+					},
+					{
+						id: "preview-1",
+						storage_bucket: "structural-previews",
+						storage_path: "user-1/preview-1.png",
+						status: "approved",
+						reference_photo_id: "photo-2",
+					},
+				],
+				error: null,
+			},
+		});
+
+		const result = await __loadTaskRoomStateHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			input: { taskId: "task-1" },
+		});
+
+		expect(Object.keys(result.previews)).toHaveLength(2);
+		expect(result.previews["photo-1"]?.id).toBe("preview-3");
+		expect(result.previews["photo-2"]?.id).toBe("preview-1");
 	});
 
 	it("saves the task room state by replacing task photo metadata, appearances, and objects", async () => {

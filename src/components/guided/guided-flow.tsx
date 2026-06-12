@@ -67,7 +67,8 @@ export function GuidedFlow(props: {
 	const [step, setStep] = useState<StepId>("upload");
 	const [photos, setPhotos] = useState<PhotoRow[]>([]);
 	const [roomState, setRoomState] = useState<TaskRoomState | null>(null);
-	const [preview, setPreview] = useState<PreviewImage | null>(null);
+	// Latest structural preview per reference photo angle, keyed by photo id.
+	const [previews, setPreviews] = useState<Record<string, PreviewImage>>({});
 	const [brief, setBrief] = useState("");
 	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
@@ -126,7 +127,7 @@ export function GuidedFlow(props: {
 				})) as PhotoRow[];
 				if (cancelledRef.current) return;
 				setRoomState(loadedRoom.roomState);
-				setPreview(loadedRoom.preview);
+				setPreviews(loadedRoom.previews);
 				hasLoadedRoomStateRef.current = true;
 				setPhotos(
 					projectPhotos.filter((photo) =>
@@ -218,7 +219,7 @@ export function GuidedFlow(props: {
 				objects: [],
 				previewApproved: false,
 			});
-			setPreview(null);
+			setPreviews({});
 			setBrief("");
 			setBriefId(null);
 			setPrompt("");
@@ -251,9 +252,11 @@ export function GuidedFlow(props: {
 				previewApproved: photoIds.length === 0 ? false : prev.previewApproved,
 			};
 		});
-		if (preview && roomState?.referencePhotoId === photoId) {
-			setPreview(null);
-		}
+		setPreviews((prev) => {
+			if (!(photoId in prev)) return prev;
+			const { [photoId]: _removed, ...rest } = prev;
+			return rest;
+		});
 	}
 
 	return (
@@ -341,7 +344,7 @@ export function GuidedFlow(props: {
 						// stepper for optional preservation-mode edits.
 						setStep(roomState.photoIds.length > 1 ? "merge" : "preview")
 					}
-					onInvalidatePreview={() => setPreview(null)}
+					onInvalidatePreview={() => setPreviews({})}
 					onStateChange={setRoomState}
 					photos={photos}
 					roomState={roomState}
@@ -353,7 +356,7 @@ export function GuidedFlow(props: {
 			{step === "merge" && roomState ? (
 				<RoomMergeStep
 					onContinue={() => setStep("preview")}
-					onInvalidatePreview={() => setPreview(null)}
+					onInvalidatePreview={() => setPreviews({})}
 					onStateChange={setRoomState}
 					photos={photos}
 					roomState={roomState}
@@ -362,11 +365,13 @@ export function GuidedFlow(props: {
 
 			{step === "preview" && roomState ? (
 				<LayoutPreviewStep
-					initialPreview={preview}
 					onApproved={() => setStep("brief")}
-					onPreviewChange={setPreview}
+					onPreviewGenerated={(photoId, image) =>
+						setPreviews((prev) => ({ ...prev, [photoId]: image }))
+					}
 					onStateChange={setRoomState}
 					photos={photos}
+					previews={previews}
 					roomState={roomState}
 					taskId={props.taskId}
 					taskTitle={props.taskTitle}

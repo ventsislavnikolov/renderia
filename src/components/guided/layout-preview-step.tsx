@@ -26,16 +26,18 @@ export function LayoutPreviewStep(props: {
 	taskTitle: string;
 	photos: PhotoRow[];
 	roomState: TaskRoomState;
-	initialPreview: PreviewImage | null;
+	/** Latest preview per reference photo angle, keyed by photo id. */
+	previews: Record<string, PreviewImage>;
 	onStateChange: (next: TaskRoomState) => void;
-	onPreviewChange: (next: PreviewImage | null) => void;
+	onPreviewGenerated: (photoId: string, image: PreviewImage) => void;
 	onApproved: () => void;
 }) {
-	const [preview, setPreview] = useState<PreviewImage | null>(
-		props.initialPreview
-	);
 	const [generating, setGenerating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	const preview = props.roomState.referencePhotoId
+		? (props.previews[props.roomState.referencePhotoId] ?? null)
+		: null;
 
 	const persistedObjects = useMemo(
 		() => props.roomState.objects.filter((entry) => entry.isPersisted),
@@ -50,12 +52,9 @@ export function LayoutPreviewStep(props: {
 		props.onStateChange({ ...props.roomState, referencePhotoId: suggested });
 	}, [props.onStateChange, props.photos, props.roomState]);
 
-	useEffect(() => {
-		setPreview(props.initialPreview);
-	}, [props.initialPreview]);
-
 	async function generatePreview() {
-		if (!props.roomState.referencePhotoId) return;
+		const photoId = props.roomState.referencePhotoId;
+		if (!photoId) return;
 		setGenerating(true);
 		setError(null);
 		try {
@@ -64,7 +63,7 @@ export function LayoutPreviewStep(props: {
 				data: {
 					taskId: props.taskId,
 					taskTitle: props.taskTitle,
-					referencePhotoId: props.roomState.referencePhotoId,
+					referencePhotoId: photoId,
 					roomState: props.roomState,
 				},
 				headers,
@@ -73,8 +72,7 @@ export function LayoutPreviewStep(props: {
 			};
 			const image = response.preview;
 			if (!image) throw new Error("Preview generation returned no image");
-			setPreview(image);
-			props.onPreviewChange(image);
+			props.onPreviewGenerated(photoId, image);
 			props.onStateChange({ ...props.roomState, previewApproved: false });
 		} catch (caught) {
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
@@ -128,8 +126,6 @@ export function LayoutPreviewStep(props: {
 				<select
 					className="rounded border border-border bg-background px-3 py-2"
 					onChange={(event) => {
-						setPreview(null);
-						props.onPreviewChange(null);
 						props.onStateChange({
 							...props.roomState,
 							referencePhotoId: event.target.value,
@@ -141,9 +137,14 @@ export function LayoutPreviewStep(props: {
 					{props.photos.map((photo) => (
 						<option key={photo.id} value={photo.id}>
 							{photo.original_name}
+							{props.previews[photo.id] ? " — preview ready" : ""}
 						</option>
 					))}
 				</select>
+				<span className="text-ink-muted text-xs">
+					Each angle keeps its latest generated preview — switch angles to
+					compare before approving one.
+				</span>
 			</label>
 
 			<div className="flex flex-wrap items-center gap-3">
@@ -152,7 +153,11 @@ export function LayoutPreviewStep(props: {
 					onClick={() => void generatePreview()}
 					type="button"
 				>
-					{generating ? "Generating preview…" : "Generate structural preview"}
+					{generating
+						? "Generating preview…"
+						: preview
+							? "Re-generate preview"
+							: "Generate structural preview"}
 				</Button>
 				{preview ? (
 					<Button onClick={approvePreview} type="button">

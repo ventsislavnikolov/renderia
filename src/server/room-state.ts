@@ -35,6 +35,7 @@ type StructuralPreviewPayload = {
 	storagePath: string;
 	signedUrl: string;
 	status: string;
+	referencePhotoId: string;
 };
 
 async function requireOwnedTask(args: {
@@ -95,6 +96,7 @@ async function signPreviewRow(args: {
 		storagePath: args.row.storage_path,
 		signedUrl: signed.data.signedUrl,
 		status: args.row.status,
+		referencePhotoId: args.row.reference_photo_id,
 	};
 }
 
@@ -104,7 +106,8 @@ export async function __loadTaskRoomStateHandler(args: {
 	input: LoadTaskRoomStateInput;
 }): Promise<{
 	roomState: TaskRoomState;
-	preview: StructuralPreviewPayload | null;
+	/** Latest preview per reference photo angle, keyed by photo id. */
+	previews: Record<string, StructuralPreviewPayload>;
 }> {
 	await requireOwnedTask({
 		supabase: args.supabase,
@@ -146,21 +149,27 @@ export async function __loadTaskRoomStateHandler(args: {
 		.order("created_at", { ascending: true });
 	if (appearances.error) throw wrapSupabaseError(appearances.error);
 
-	let latestPreview: StructuralPreviewPayload | null = null;
+	// Newest-first so the first row seen per reference photo is its latest
+	// preview; older generations stay in the table as history.
 	const previewQuery = await args.supabase
 		.from("structural_previews")
-		.select("id, storage_bucket, storage_path, status, created_at")
+		.select(
+			"id, storage_bucket, storage_path, status, reference_photo_id, created_at"
+		)
 		.eq("task_id", args.input.taskId)
 		.eq("owner_id", args.userId)
-		.order("created_at", { ascending: false })
-		.limit(1)
-		.maybeSingle();
+		.order("created_at", { ascending: false });
 	if (previewQuery.error) throw wrapSupabaseError(previewQuery.error);
-	if (previewQuery.data) {
-		latestPreview = await signPreviewRow({
+
+	const previews: Record<string, StructuralPreviewPayload> = {};
+	for (const row of previewQuery.data ?? []) {
+		const photoId = String(row.reference_photo_id);
+		if (previews[photoId]) continue;
+		const signed = await signPreviewRow({
 			supabase: args.supabase,
-			row: previewQuery.data as Tables<"structural_previews">,
+			row: row as Tables<"structural_previews">,
 		});
+		if (signed) previews[photoId] = signed;
 	}
 
 	return {
@@ -198,7 +207,7 @@ export async function __loadTaskRoomStateHandler(args: {
 				isPersisted: Boolean(row.is_persisted),
 			})),
 		},
-		preview: latestPreview,
+		previews,
 	};
 }
 
@@ -392,7 +401,7 @@ export async function __generateStructuralPreviewHandler(args: {
 			room_state_snapshot: args.input.roomState,
 			status: "generated",
 		})
-		.select("id, storage_bucket, storage_path, status")
+		.select("id, storage_bucket, storage_path, status, reference_photo_id")
 		.single();
 	if (inserted.error) throw wrapSupabaseError(inserted.error);
 
