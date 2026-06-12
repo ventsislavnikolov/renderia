@@ -166,6 +166,19 @@ export type DeleteFurnitureItemInput = z.infer<
 	typeof deleteFurnitureItemSchema
 >;
 
+/**
+ * Inputs for `extractFurnitureCandidate` — the Link Import preview step.
+ * Deliberately a plain bounded string: the handler parses the URL itself so
+ * that an unusable link surfaces as its actionable "public http(s) product
+ * pages" message instead of a generic validation error.
+ */
+export const extractFurnitureCandidateSchema = z.object({
+	url: z.string().min(1).max(2048),
+});
+export type ExtractFurnitureCandidateInput = z.infer<
+	typeof extractFurnitureCandidateSchema
+>;
+
 export const MAX_FURNITURE_PER_GENERATION = 8;
 
 export const setTaskFurnitureSchema = z.object({
