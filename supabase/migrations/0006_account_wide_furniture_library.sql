@@ -14,6 +14,10 @@ alter table public.task_furniture
   foreign key (furniture_item_id, owner_id)
   references public.furniture_items (id, owner_id) on delete cascade;
 
+-- Drop the policy before the column it references — the existing policy's
+-- check depends on project_id, so the column drop fails while it exists.
+drop policy "furniture items owner access" on public.furniture_items;
+
 drop index public.furniture_items_owner_project_idx;
 
 alter table public.furniture_items
@@ -28,8 +32,6 @@ alter table public.furniture_items
 create index furniture_items_owner_idx on public.furniture_items (owner_id);
 
 -- RLS still restricts to the owner; only the project-existence check goes.
-drop policy "furniture items owner access" on public.furniture_items;
-
 create policy "furniture items owner access"
   on public.furniture_items
   for all
