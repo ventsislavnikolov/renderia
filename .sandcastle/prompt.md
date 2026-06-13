@@ -2,7 +2,7 @@
 
 ## Open issues
 
-Use the official Linear MCP server (https://mcp.linear.app/mcp) to find actionable Linear issues with the "Sandcastle" label in triage, backlog, unstarted, or started states. If the "Sandcastle" label does not exist, create it with the Linear MCP tools before listing issues.
+!`gh issue list --repo ventsislavnikolov/renderia --state open --label Sandcastle --json number,title,labels,milestone,body --limit 100`
 
 ## Recent RALPH commits (last 10)
 
@@ -35,14 +35,14 @@ Pick the highest-priority open issue that is not blocked by another open issue.
    - List key decisions made
    - List files changed
    - Note any blockers for the next iteration
-6. **Close** — close the issue with the Linear MCP tools to add a "Completed by Sandcastle" comment and move the issue to the `LINEAR_DONE_STATE` value, defaulting to "Done" explaining what was done.
+6. **Close** — close the issue on GitHub with `gh issue close <number> --repo ventsislavnikolov/renderia --comment "Completed by Sandcastle: <what was done>"`.
 
 ## Rules
 
 - Work on **one issue per iteration**. Do not attempt multiple issues in a single iteration.
 - Do not close an issue until you have committed the fix and verified tests pass.
 - Do not leave commented-out code or TODO comments in committed code.
-- If you are blocked (missing context, failing tests you cannot fix, external dependency), leave a comment on the issue and move on — do not close it.
+- If you are blocked (missing context, failing tests you cannot fix, external dependency), leave a comment with `gh issue comment <number> --repo ventsislavnikolov/renderia --body "<reason>"` and move on — do not close it.
 
 # Done
 

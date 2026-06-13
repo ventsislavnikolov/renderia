@@ -1,14 +1,13 @@
 FROM node:22-bookworm
 
-# Install system dependencies
+# Install system dependencies. gh is the backlog manager — the agent lists and
+# closes GitHub issues with it (authenticated via GH_TOKEN from .sandcastle/.env).
 RUN apt-get update && apt-get install -y \
   git \
   curl \
   jq \
+  gh \
   && rm -rf /var/lib/apt/lists/*
-
-# Linear uses the official remote MCP server.
-# Configure your agent with https://mcp.linear.app/mcp before running Sandcastle.
 
 # Install pnpm as a real global binary — the corepack shim re-downloads at
 # runtime (root's build cache is invisible to the runtime UID) and dies on
