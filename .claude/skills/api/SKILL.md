@@ -30,6 +30,7 @@ Server functions, business logic, AI provider integration, and database schema.
 - Images sent to the edit API go through `normalizeImageToPng` (sharp is lazily imported — never import it at module scope).
 - AI calls go through `getRenovationAiProvider()`; new capabilities are methods on `RenovationAiProvider`, implemented in both `openai-provider.ts` and `mock-provider.ts`.
 - Migrations are append-only numbered files; update RLS policies and bucket config in the same migration as the tables they protect.
+- In a migration, drop dependent objects before what they depend on: drop a policy/view/index before the column it references, drop a foreign key before the unique constraint it points at. Postgres aborts a `drop column`/`drop constraint` if anything still references it. Tests mock Supabase, so ordering bugs only surface when the DDL hits real Postgres — get the order right in the file.
 
 ## Anti-patterns (do NOT do)
 
@@ -38,6 +39,7 @@ Server functions, business logic, AI provider integration, and database schema.
 - Importing native/node-only modules at module scope in `src/server/**` — these files are evaluated by the client bundle; lazy-import inside the handler.
 - Returning provider debug payloads unconditionally — instead, use `attachDebugIfDev`.
 - Hand-editing `src/lib/types/database.ts` — regenerate from the schema.
+- Dropping a column/constraint while a policy, view, or FK still references it — drop the dependent object first (a green test suite won't catch this; the DDL only fails against real Postgres).
 
 ## Acceptance checklist
 
