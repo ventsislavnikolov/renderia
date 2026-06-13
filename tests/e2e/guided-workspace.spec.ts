@@ -491,9 +491,15 @@ async function installApiMocks(page: Page, state: PageState) {
 			return serializedResult([FAKE_TASK]);
 		}
 		if (fnId.includes("loadTaskRoomState")) {
+			// Server returns previews keyed by reference photo id (per-angle),
+			// not a single preview. Mirror that shape so the preview step renders.
+			const previews =
+				state.preview && state.roomState.referencePhotoId
+					? { [state.roomState.referencePhotoId]: state.preview }
+					: {};
 			return serializedResult({
 				roomState: state.roomState,
-				preview: state.preview,
+				previews,
 			});
 		}
 		if (fnId.includes("saveTaskRoomState")) {
