@@ -1,10 +1,16 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import {
 	type ExtractFurnitureCandidateInput,
 	extractFurnitureCandidateSchema,
+	type ImportFurnitureItemInput,
+	importFurnitureItemSchema,
 } from "../lib/renovation/schema";
 import { readBearerToken, requireAuthedSupabase } from "../lib/supabase/server";
+import type { Database } from "../lib/types/database";
+import { __createFurnitureItemHandler } from "./furniture";
+import { normalizeImageToPng } from "./image-normalize";
 import {
 	extractProductCandidate,
 	type ProductExtractionCandidate,
@@ -29,7 +35,17 @@ const ROBOTS_PRODUCT_TOKEN = "RenderiaLinkImport";
 
 export const MAX_IMPORT_PAGE_BYTES = 2 * 1024 * 1024;
 
+/** Reference Image download cap — mirrors the bucket's 10 MB upload limit. */
+export const MAX_IMPORT_IMAGE_BYTES = 10 * 1024 * 1024;
+
+const FURNITURE_BUCKET = "furniture-references" as const;
+
 const FETCH_TIMEOUT_MS = 15_000;
+
+const IMAGE_INVALID_MESSAGE =
+	"That photo couldn't be imported. Pick another photo or add the item manually.";
+const IMAGE_UNREACHABLE_MESSAGE =
+	"The photo couldn't be downloaded. Pick another photo or add the item manually.";
 
 const INVALID_URL_MESSAGE =
 	"Only public http(s) product pages can be imported. Check the link or add the item manually.";
@@ -266,4 +282,113 @@ export const extractFurnitureCandidate = createServerFn({ method: "POST" })
 			readBearerToken(getRequestHeader("authorization"))
 		);
 		return __extractFurnitureCandidateHandler({ input: data });
+	});
+
+function buildImageRequestInit(): RequestInit {
+	return {
+		headers: {
+			"User-Agent": FURNITURE_IMPORT_USER_AGENT,
+			Accept: "image/avif,image/webp,image/png,image/jpeg,*/*",
+		},
+		redirect: "follow",
+		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+	};
+}
+
+/** Read a binary response body into a Buffer, aborting past `maxBytes`. */
+async function readBytesCapped(
+	response: Response,
+	maxBytes: number
+): Promise<Buffer> {
+	const declaredLength = Number(response.headers.get("content-length"));
+	if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+		throw new Error(IMAGE_INVALID_MESSAGE);
+	}
+	const buffer = Buffer.from(await response.arrayBuffer());
+	if (buffer.byteLength > maxBytes) {
+		throw new Error(IMAGE_INVALID_MESSAGE);
+	}
+	return buffer;
+}
+
+/**
+ * Link Import confirm half: download the one photo the user picked as the
+ * Reference Image, normalise it to a clean PNG (Renderia stores its own copy —
+ * never hotlinks), upload it to the furniture bucket, and insert the item row
+ * with its Source Link and edited metadata. Reuses the same fetch hygiene as
+ * the page fetch (honest UA, public hosts only, size cap).
+ */
+/** @internal */
+export async function __importFurnitureItemHandler(args: {
+	userId: string;
+	supabase: SupabaseClient<Database>;
+	input: ImportFurnitureItemInput;
+	fetchImpl?: typeof fetch;
+}): Promise<{ id: string }> {
+	const fetchImpl = args.fetchImpl ?? fetch;
+	const photo = parsePublicHttpUrl(args.input.photoUrl);
+
+	let response: Response;
+	try {
+		response = await fetchImpl(photo.href, buildImageRequestInit());
+	} catch {
+		throw new Error(IMAGE_UNREACHABLE_MESSAGE);
+	}
+	if (!response.ok) {
+		throw new Error(IMAGE_UNREACHABLE_MESSAGE);
+	}
+	const downloaded = await readBytesCapped(response, MAX_IMPORT_IMAGE_BYTES);
+
+	// Re-encode to a clean sRGB PNG; fall back to the raw bytes if the encoder
+	// can't decode them (the upload still happens, just unnormalised).
+	const normalized = (await normalizeImageToPng(downloaded)) ?? downloaded;
+
+	const storagePath = `${args.userId}/${Date.now()}-${crypto
+		.randomUUID()
+		.slice(0, 8)}.png`;
+	const upload = await args.supabase.storage
+		.from(FURNITURE_BUCKET)
+		.upload(storagePath, normalized, {
+			contentType: "image/png",
+			upsert: false,
+		});
+	if (upload.error) {
+		throw new Error(IMAGE_INVALID_MESSAGE);
+	}
+
+	const created = await __createFurnitureItemHandler({
+		userId: args.userId,
+		supabase: args.supabase,
+		input: {
+			storagePath,
+			originalName: importedFilename(photo),
+			contentType: "image/png",
+			label: args.input.label,
+			source: "product",
+			sourceLink: args.input.sourceUrl,
+			brand: args.input.brand ?? null,
+			price: args.input.price ?? null,
+			currency: args.input.currency ?? null,
+			widthCm: args.input.widthCm ?? null,
+			heightCm: args.input.heightCm ?? null,
+			depthCm: args.input.depthCm ?? null,
+		},
+	});
+	return { id: String(created.id) };
+}
+
+/** Safe `original_name` derived from the photo URL's basename. */
+function importedFilename(photo: URL): string {
+	const base = photo.pathname.split("/").pop() ?? "";
+	const cleaned = base.replace(/[^A-Za-z0-9._-]/g, "");
+	return cleaned.length > 0 ? cleaned.slice(0, 255) : "imported-product.png";
+}
+
+export const importFurnitureItem = createServerFn({ method: "POST" })
+	.validator(importFurnitureItemSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(
+			readBearerToken(getRequestHeader("authorization"))
+		);
+		return __importFurnitureItemHandler({ userId, supabase, input: data });
 	});

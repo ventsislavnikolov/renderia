@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	__extractFurnitureCandidateHandler,
+	__importFurnitureItemHandler,
 	FURNITURE_IMPORT_USER_AGENT,
+	MAX_IMPORT_IMAGE_BYTES,
 	MAX_IMPORT_PAGE_BYTES,
 } from "../../../src/server/furniture-import";
 
@@ -210,6 +212,178 @@ describe("extractFurnitureCandidateHandler", () => {
 
 		await expect(
 			__extractFurnitureCandidateHandler({ input: { url }, fetchImpl })
+		).rejects.toThrow(/public.*product pages/i);
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+});
+
+const SOURCE_URL = "https://jysk.bg/divani/divan-gistrup-3-mesten";
+const PHOTO_URL = "https://jysk.bg/cdn/divan-gistrup.jpg";
+
+/**
+ * Supabase stub for the confirm/insert half: records the storage upload and
+ * resolves the `furniture_items` insert chain with the created row.
+ */
+function buildImportSupabase(
+	opts: {
+		uploadError?: unknown;
+		insertResult?: { data: Record<string, unknown> | null; error: unknown };
+	} = {}
+) {
+	const upload = vi.fn(() =>
+		Promise.resolve({ data: {}, error: opts.uploadError ?? null })
+	);
+	const single = vi.fn(() =>
+		Promise.resolve(
+			opts.insertResult ?? { data: { id: "item-1" }, error: null }
+		)
+	);
+	const itemsChain: Record<string, (...args: unknown[]) => unknown> = {};
+	itemsChain.insert = vi.fn(() => itemsChain);
+	itemsChain.select = vi.fn(() => itemsChain);
+	itemsChain.single = single;
+	const from = vi.fn(() => itemsChain);
+	const storageFrom = vi.fn(() => ({ upload }));
+	return {
+		supabase: {
+			from,
+			storage: { from: storageFrom },
+		} as unknown as Parameters<
+			typeof __importFurnitureItemHandler
+		>[0]["supabase"],
+		upload,
+		from,
+		itemsChain,
+	};
+}
+
+/** PNG-ish bytes; sharp may or may not decode them in CI, both paths are fine. */
+function buildImageFetch(opts: { ok?: boolean; body?: BodyInit } = {}) {
+	return vi.fn(() =>
+		Promise.resolve(
+			new Response(opts.body ?? "fake-image-bytes", {
+				status: opts.ok === false ? 404 : 200,
+			})
+		)
+	) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+}
+
+describe("importFurnitureItemHandler", () => {
+	const baseInput = {
+		sourceUrl: SOURCE_URL,
+		photoUrl: PHOTO_URL,
+		label: "GISTRUP sofa",
+		brand: "JYSK",
+		price: 799,
+		currency: "BGN",
+		widthCm: null,
+		heightCm: null,
+		depthCm: null,
+	};
+
+	it("downloads the photo, stores it server-side, and inserts the item", async () => {
+		const fetchImpl = buildImageFetch();
+		const { supabase, upload, from } = buildImportSupabase();
+
+		const result = await __importFurnitureItemHandler({
+			userId: "11111111-1111-1111-1111-111111111111",
+			supabase,
+			input: baseInput,
+			fetchImpl,
+		});
+
+		expect(result.id).toBe("item-1");
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+		expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(PHOTO_URL);
+		// Image stored by Renderia, never hotlinked.
+		expect(upload).toHaveBeenCalledTimes(1);
+		const [storagePath, , uploadOpts] = upload.mock.calls[0] as unknown as [
+			string,
+			unknown,
+			{ contentType: string },
+		];
+		expect(storagePath).toMatch(
+			/^11111111-1111-1111-1111-111111111111\/[\dA-Za-z._-]+\.png$/
+		);
+		expect(uploadOpts.contentType).toBe("image/png");
+		// Inserted with source_link and source=product.
+		const insertArg = (
+			from.mock.results[0]?.value as { insert: ReturnType<typeof vi.fn> }
+		).insert.mock.calls[0]?.[0] as Record<string, unknown>;
+		expect(insertArg.source).toBe("product");
+		expect(insertArg.source_link).toBe(SOURCE_URL);
+		expect(insertArg.brand).toBe("JYSK");
+		expect(insertArg.price).toBe(799);
+	});
+
+	it("sends the honest User-Agent when downloading the photo", async () => {
+		const fetchImpl = buildImageFetch();
+		const { supabase } = buildImportSupabase();
+
+		await __importFurnitureItemHandler({
+			userId: "11111111-1111-1111-1111-111111111111",
+			supabase,
+			input: baseInput,
+			fetchImpl,
+		});
+
+		const headers = (fetchImpl.mock.calls[0]?.[1] as RequestInit)
+			.headers as Record<string, string>;
+		expect(headers["User-Agent"]).toBe(FURNITURE_IMPORT_USER_AGENT);
+	});
+
+	it("rejects a photo whose declared size exceeds the cap", async () => {
+		const fetchImpl = vi.fn(() =>
+			Promise.resolve(
+				new Response("x", {
+					status: 200,
+					headers: { "Content-Length": String(MAX_IMPORT_IMAGE_BYTES + 1) },
+				})
+			)
+		) as unknown as typeof fetch;
+		const { supabase, upload } = buildImportSupabase();
+
+		await expect(
+			__importFurnitureItemHandler({
+				userId: "11111111-1111-1111-1111-111111111111",
+				supabase,
+				input: baseInput,
+				fetchImpl,
+			})
+		).rejects.toThrow(/couldn't be imported|manually/i);
+		expect(upload).not.toHaveBeenCalled();
+	});
+
+	it("maps a failed photo download to an actionable message", async () => {
+		const fetchImpl = buildImageFetch({ ok: false });
+		const { supabase, upload } = buildImportSupabase();
+
+		await expect(
+			__importFurnitureItemHandler({
+				userId: "11111111-1111-1111-1111-111111111111",
+				supabase,
+				input: baseInput,
+				fetchImpl,
+			})
+		).rejects.toThrow(/couldn't be downloaded.*manually/i);
+		expect(upload).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"http://localhost/secret.png",
+		"http://169.254.169.254/meta.png",
+		"ftp://jysk.bg/file.png",
+	])("rejects a non-public photo URL %s without fetching", async (photoUrl) => {
+		const fetchImpl = buildImageFetch();
+		const { supabase } = buildImportSupabase();
+
+		await expect(
+			__importFurnitureItemHandler({
+				userId: "11111111-1111-1111-1111-111111111111",
+				supabase,
+				input: { ...baseInput, photoUrl },
+				fetchImpl,
+			})
 		).rejects.toThrow(/public.*product pages/i);
 		expect(fetchImpl).not.toHaveBeenCalled();
 	});

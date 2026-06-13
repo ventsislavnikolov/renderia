@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AddFurniture } from "@/components/furniture/add-furniture";
 import { EditFurniture } from "@/components/furniture/edit-furniture";
 import { FurnitureMeta } from "@/components/furniture/furniture-meta";
+import { LinkImport } from "@/components/furniture/link-import";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -142,7 +143,19 @@ export function FurnitureLibrary() {
 				</p>
 			</header>
 
-			<AddFurniture onSaved={refresh} />
+			<div className="grid gap-4 rounded-lg border border-border bg-surface p-4">
+				<div className="grid gap-1">
+					<h2 className="m-0 font-body font-semibold text-[1.0625rem] text-foreground">
+						Add furniture
+					</h2>
+					<p className="m-0 text-[0.875rem] text-ink-muted">
+						Import from a retailer link, or upload a product image or phone
+						photo.
+					</p>
+				</div>
+				<LinkImport onSaved={refresh} />
+				<AddFurniture onSaved={refresh} />
+			</div>
 
 			{items === null && !error ? (
 				<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

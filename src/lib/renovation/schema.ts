@@ -214,6 +214,32 @@ export type ExtractFurnitureCandidateInput = z.infer<
 	typeof extractFurnitureCandidateSchema
 >;
 
+/**
+ * Inputs for `importFurnitureItem` — the Link Import confirm step. The user
+ * has edited the pre-filled form and picked which extracted photo becomes the
+ * Reference Image; the server downloads that one photo, normalises it, stores
+ * it in the furniture bucket, and inserts the item with its Source Link.
+ *
+ * `sourceUrl` and `photoUrl` are plain bounded strings (not `z.string().url()`)
+ * so the handler can parse them itself and surface the same actionable
+ * "public http(s) product pages" message the extract step uses, instead of a
+ * generic validation error.
+ */
+export const importFurnitureItemSchema = z.object({
+	sourceUrl: z.string().min(1).max(2048),
+	photoUrl: z.string().min(1).max(2048),
+	label: z.string().min(1).max(120),
+	brand: brandField,
+	price: priceField,
+	currency: currencyField,
+	widthCm: dimensionField,
+	heightCm: dimensionField,
+	depthCm: dimensionField,
+});
+export type ImportFurnitureItemInput = z.infer<
+	typeof importFurnitureItemSchema
+>;
+
 export const MAX_FURNITURE_PER_GENERATION = 8;
 
 export const setTaskFurnitureSchema = z.object({
