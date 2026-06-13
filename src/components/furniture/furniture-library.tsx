@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AddFurniture } from "@/components/furniture/add-furniture";
+import { EditFurniture } from "@/components/furniture/edit-furniture";
+import { FurnitureMeta } from "@/components/furniture/furniture-meta";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -28,6 +30,13 @@ type FurnitureItem = {
 	signedUrl: string | null;
 	selected: boolean;
 	createdAt: string;
+	sourceLink: string | null;
+	brand: string | null;
+	price: number | null;
+	currency: string | null;
+	widthCm: number | null;
+	heightCm: number | null;
+	depthCm: number | null;
 };
 
 /**
@@ -42,6 +51,7 @@ export function FurnitureLibrary() {
 	const [pendingDelete, setPendingDelete] = useState<FurnitureItem | null>(
 		null
 	);
+	const [editing, setEditing] = useState<FurnitureItem | null>(null);
 	const [deleting, setDeleting] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
@@ -102,6 +112,22 @@ export function FurnitureLibrary() {
 		} finally {
 			if (!cancelledRef.current) setDeleting(false);
 		}
+	}
+
+	function handleEdited(updated: {
+		id: string;
+		label: string;
+		widthCm: number | null;
+		heightCm: number | null;
+		depthCm: number | null;
+	}) {
+		setItems(
+			(prev) =>
+				prev?.map((entry) =>
+					entry.id === updated.id ? { ...entry, ...updated } : entry
+				) ?? prev
+		);
+		setEditing(null);
 	}
 
 	return (
@@ -175,7 +201,7 @@ export function FurnitureLibrary() {
 							) : (
 								<div className="aspect-square w-full bg-muted" />
 							)}
-							<div className="flex items-center justify-between gap-3 border-border border-t px-4 py-3">
+							<div className="grid gap-2 border-border border-t px-4 py-3">
 								<div className="min-w-0">
 									<div className="truncate font-body font-medium text-[0.9375rem] text-foreground">
 										{item.label}
@@ -184,21 +210,46 @@ export function FurnitureLibrary() {
 										{item.source === "product" ? "Product image" : "From photo"}
 									</div>
 								</div>
-								<Button
-									aria-label={`Delete ${item.label}`}
-									className="shrink-0"
-									onClick={() => setPendingDelete(item)}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									Delete
-								</Button>
+								<FurnitureMeta
+									brand={item.brand}
+									currency={item.currency}
+									depthCm={item.depthCm}
+									heightCm={item.heightCm}
+									price={item.price}
+									sourceLink={item.sourceLink}
+									widthCm={item.widthCm}
+								/>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										aria-label={`Edit ${item.label}`}
+										onClick={() => setEditing(item)}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										Edit
+									</Button>
+									<Button
+										aria-label={`Delete ${item.label}`}
+										onClick={() => setPendingDelete(item)}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										Delete
+									</Button>
+								</div>
 							</div>
 						</article>
 					))}
 				</div>
 			) : null}
+
+			<EditFurniture
+				item={editing}
+				onClose={() => setEditing(null)}
+				onSaved={handleEdited}
+			/>
 
 			<Dialog
 				onOpenChange={(open) => {

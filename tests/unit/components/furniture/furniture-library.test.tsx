@@ -6,6 +6,7 @@ const {
 	listItemsMock,
 	createItemMock,
 	deleteItemMock,
+	updateItemMock,
 	getAuthHeadersMock,
 	uploadMock,
 	getSessionMock,
@@ -13,6 +14,7 @@ const {
 	listItemsMock: vi.fn(),
 	createItemMock: vi.fn(),
 	deleteItemMock: vi.fn(),
+	updateItemMock: vi.fn(),
 	getAuthHeadersMock: vi.fn(() => Promise.resolve({})),
 	uploadMock: vi.fn(() => Promise.resolve({ data: {}, error: null })),
 	getSessionMock: vi.fn(() =>
@@ -31,6 +33,7 @@ vi.mock("../../../../src/server/furniture", () => ({
 	createFurnitureItem: (...args: unknown[]) => createItemMock(...args),
 	deleteFurnitureItem: (...args: unknown[]) => deleteItemMock(...args),
 	listFurnitureItems: (...args: unknown[]) => listItemsMock(...args),
+	updateFurnitureItem: (...args: unknown[]) => updateItemMock(...args),
 }));
 
 vi.mock("../../../../src/lib/supabase/browser", () => ({
@@ -42,7 +45,19 @@ vi.mock("../../../../src/lib/supabase/browser", () => ({
 
 import { FurnitureLibrary } from "../../../../src/components/furniture/furniture-library";
 
-function item(id: string, label: string) {
+function item(
+	id: string,
+	label: string,
+	metadata: Partial<{
+		sourceLink: string | null;
+		brand: string | null;
+		price: number | null;
+		currency: string | null;
+		widthCm: number | null;
+		heightCm: number | null;
+		depthCm: number | null;
+	}> = {}
+) {
 	return {
 		id,
 		label,
@@ -51,6 +66,14 @@ function item(id: string, label: string) {
 		signedUrl: `https://signed/${id}.png`,
 		selected: false,
 		createdAt: "2026-01-01T00:00:00Z",
+		sourceLink: null,
+		brand: null,
+		price: null,
+		currency: null,
+		widthCm: null,
+		heightCm: null,
+		depthCm: null,
+		...metadata,
 	};
 }
 
@@ -59,6 +82,7 @@ describe("FurnitureLibrary", () => {
 		listItemsMock.mockReset().mockResolvedValue({ items: [] });
 		createItemMock.mockReset();
 		deleteItemMock.mockReset().mockResolvedValue(undefined);
+		updateItemMock.mockReset().mockResolvedValue({ id: "f1" });
 	});
 
 	it("renders the account's furniture as a grid of cards", async () => {
@@ -76,6 +100,73 @@ describe("FurnitureLibrary", () => {
 		expect(listItemsMock).toHaveBeenCalledWith(
 			expect.objectContaining({ data: {} })
 		);
+	});
+
+	it("shows import metadata — brand, dimensions, price, source link — on a card", async () => {
+		listItemsMock.mockResolvedValue({
+			items: [
+				item("f1", "BILLY bookcase", {
+					sourceLink: "https://www.ikea.com/p/billy",
+					brand: "IKEA",
+					price: 79.99,
+					currency: "EUR",
+					widthCm: 80,
+					heightCm: 202,
+					depthCm: 28,
+				}),
+			],
+		});
+		render(<FurnitureLibrary />);
+
+		expect(await screen.findByText("IKEA")).toBeInTheDocument();
+		expect(screen.getByText("W 80 × H 202 × D 28 cm")).toBeInTheDocument();
+		const link = screen.getByRole("link", { name: /source link/i });
+		expect(link).toHaveAttribute("href", "https://www.ikea.com/p/billy");
+	});
+
+	it("renders a metadata-free item without breaking", async () => {
+		listItemsMock.mockResolvedValue({ items: [item("f1", "plain chair")] });
+		render(<FurnitureLibrary />);
+
+		expect(await screen.findByText("plain chair")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /source link/i })
+		).not.toBeInTheDocument();
+		expect(screen.queryByText(/cm$/)).not.toBeInTheDocument();
+	});
+
+	it("edits an item's label and dimensions and re-renders", async () => {
+		const user = userEvent.setup();
+		listItemsMock.mockResolvedValue({
+			items: [item("f1", "bookcase", { widthCm: 80 })],
+		});
+		render(<FurnitureLibrary />);
+
+		await user.click(
+			await screen.findByRole("button", { name: /Edit bookcase/i })
+		);
+		const nameField = await screen.findByLabelText(/^Name$/i);
+		await user.clear(nameField);
+		await user.type(nameField, "tall bookcase");
+		const heightField = screen.getByLabelText(/Height \(cm\)/i);
+		await user.type(heightField, "202");
+		await user.click(screen.getByRole("button", { name: /Save changes/i }));
+
+		await waitFor(() => {
+			expect(updateItemMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						furnitureItemId: "f1",
+						label: "tall bookcase",
+						widthCm: 80,
+						heightCm: 202,
+						depthCm: null,
+					}),
+				})
+			);
+		});
+		expect(await screen.findByText("tall bookcase")).toBeInTheDocument();
+		expect(screen.getByText("W 80 × H 202 cm")).toBeInTheDocument();
 	});
 
 	it("shows an empty state inviting the first add", async () => {

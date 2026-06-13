@@ -577,6 +577,13 @@ export type Database = {
 					content_type: string;
 					label: string;
 					source: "product" | "photo";
+					source_link: Nullable<string>;
+					brand: Nullable<string>;
+					price: Nullable<number>;
+					currency: Nullable<string>;
+					width_cm: Nullable<number>;
+					height_cm: Nullable<number>;
+					depth_cm: Nullable<number>;
 					created_at: string;
 				};
 				Insert: {
@@ -588,6 +595,13 @@ export type Database = {
 					content_type: string;
 					label: string;
 					source: "product" | "photo";
+					source_link?: Nullable<string>;
+					brand?: Nullable<string>;
+					price?: Nullable<number>;
+					currency?: Nullable<string>;
+					width_cm?: Nullable<number>;
+					height_cm?: Nullable<number>;
+					depth_cm?: Nullable<number>;
 					created_at?: string;
 				};
 				Update: {
@@ -599,6 +613,13 @@ export type Database = {
 					content_type?: string;
 					label?: string;
 					source?: "product" | "photo";
+					source_link?: Nullable<string>;
+					brand?: Nullable<string>;
+					price?: Nullable<number>;
+					currency?: Nullable<string>;
+					width_cm?: Nullable<number>;
+					height_cm?: Nullable<number>;
+					depth_cm?: Nullable<number>;
 					created_at?: string;
 				};
 				Relationships: [];

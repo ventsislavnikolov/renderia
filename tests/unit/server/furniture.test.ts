@@ -5,6 +5,7 @@ import {
 	__deleteFurnitureItemHandler,
 	__listFurnitureItemsHandler,
 	__setTaskFurnitureHandler,
+	__updateFurnitureItemHandler,
 } from "../../../src/server/furniture";
 
 type Row = Record<string, unknown>;
@@ -46,6 +47,7 @@ function buildSupabaseStub(opts: {
 		Promise.resolve(opts.insertResult ?? { data: null, error: null })
 	);
 	itemsChain.insert = vi.fn(() => itemsChain);
+	itemsChain.update = vi.fn(() => itemsChain);
 	itemsChain.delete = vi.fn(() => itemsChain);
 	itemsChain.then = vi.fn((resolve, reject) =>
 		Promise.resolve({ data: null, error: null }).then(resolve, reject)
@@ -118,6 +120,55 @@ describe("createFurnitureItemHandler", () => {
 			content_type: "image/png",
 			label: "white dresser",
 			source: "product",
+			source_link: null,
+			brand: null,
+			price: null,
+			currency: null,
+			width_cm: null,
+			height_cm: null,
+			depth_cm: null,
+		});
+	});
+
+	it("round-trips Link-Import metadata into the row", async () => {
+		const created = { id: "f9", label: "BILLY bookcase" };
+		const { supabase, itemsChain } = buildSupabaseStub({
+			insertResult: { data: created, error: null },
+		});
+
+		await __createFurnitureItemHandler({
+			userId: "user-1",
+			supabase,
+			input: {
+				storagePath: "user-1/billy.png",
+				originalName: "billy.png",
+				contentType: "image/png",
+				label: "BILLY bookcase",
+				source: "product",
+				sourceLink: "https://www.ikea.com/p/billy",
+				brand: "IKEA",
+				price: 79.99,
+				currency: "EUR",
+				widthCm: 80,
+				heightCm: 202,
+				depthCm: 28,
+			},
+		});
+
+		expect(itemsChain.insert).toHaveBeenCalledWith({
+			owner_id: "user-1",
+			storage_path: "user-1/billy.png",
+			original_name: "billy.png",
+			content_type: "image/png",
+			label: "BILLY bookcase",
+			source: "product",
+			source_link: "https://www.ikea.com/p/billy",
+			brand: "IKEA",
+			price: 79.99,
+			currency: "EUR",
+			width_cm: 80,
+			height_cm: 202,
+			depth_cm: 28,
 		});
 	});
 });
@@ -167,6 +218,118 @@ describe("listFurnitureItemsHandler", () => {
 		// Account-wide library: the only filter on the items query is ownership.
 		expect(itemsChain.eq).toHaveBeenCalledTimes(1);
 		expect(itemsChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
+	});
+
+	it("maps metadata columns and tolerates absent/null ones", async () => {
+		const { supabase } = buildSupabaseStub({
+			itemsListResult: {
+				data: [
+					{
+						id: "f1",
+						label: "BILLY bookcase",
+						source: "product",
+						original_name: "billy.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/billy.png",
+						created_at: "2026-01-01T00:00:00Z",
+						source_link: "https://www.ikea.com/p/billy",
+						brand: "IKEA",
+						// numeric columns can arrive as strings from PostgREST.
+						price: "79.99",
+						currency: "EUR",
+						width_cm: "80",
+						height_cm: "202",
+						depth_cm: null,
+					},
+					{
+						id: "f2",
+						label: "hand-added chair",
+						source: "photo",
+						original_name: "chair.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/chair.png",
+						created_at: "2026-01-02T00:00:00Z",
+					},
+				],
+				error: null,
+			},
+		});
+
+		const result = await __listFurnitureItemsHandler({
+			userId: "user-1",
+			supabase,
+			input: {},
+		});
+
+		expect(result.items[0]).toMatchObject({
+			sourceLink: "https://www.ikea.com/p/billy",
+			brand: "IKEA",
+			price: 79.99,
+			currency: "EUR",
+			widthCm: 80,
+			heightCm: 202,
+			depthCm: null,
+		});
+		expect(result.items[1]).toMatchObject({
+			sourceLink: null,
+			brand: null,
+			price: null,
+			currency: null,
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
+		});
+	});
+});
+
+describe("updateFurnitureItemHandler", () => {
+	it("updates label and dimensions scoped to the owner", async () => {
+		const updated = { id: "f1", label: "tall bookcase" };
+		const { supabase, itemsChain } = buildSupabaseStub({
+			insertResult: { data: updated, error: null },
+		});
+
+		const result = await __updateFurnitureItemHandler({
+			userId: "user-1",
+			supabase,
+			input: {
+				furnitureItemId: "f1",
+				label: "tall bookcase",
+				widthCm: 80,
+				heightCm: 202,
+				depthCm: null,
+			},
+		});
+
+		expect(result).toEqual(updated);
+		expect(itemsChain.update).toHaveBeenCalledWith({
+			label: "tall bookcase",
+			width_cm: 80,
+			height_cm: 202,
+			depth_cm: null,
+		});
+		expect(itemsChain.eq).toHaveBeenCalledWith("id", "f1");
+		expect(itemsChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
+	});
+
+	it("rejects when the item is not owned", async () => {
+		const { supabase } = buildSupabaseStub({
+			insertResult: { data: null, error: null },
+		});
+
+		await expect(
+			__updateFurnitureItemHandler({
+				userId: "user-1",
+				supabase,
+				input: {
+					furnitureItemId: "missing",
+					label: "x",
+					widthCm: null,
+					heightCm: null,
+					depthCm: null,
+				},
+			})
+		).rejects.toThrow("Furniture item not found");
 	});
 });
 

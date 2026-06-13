@@ -10,6 +10,8 @@ import {
 	listFurnitureItemsSchema,
 	type SetTaskFurnitureInput,
 	setTaskFurnitureSchema,
+	type UpdateFurnitureItemInput,
+	updateFurnitureItemSchema,
 } from "../lib/renovation/schema";
 import {
 	readBearerToken,
@@ -38,7 +40,31 @@ export type FurnitureItemPayload = {
 	signedUrl: string | null;
 	selected: boolean;
 	createdAt: string;
+	/** Link-Import metadata; null on manually-added items. */
+	sourceLink: string | null;
+	brand: string | null;
+	price: number | null;
+	currency: string | null;
+	widthCm: number | null;
+	heightCm: number | null;
+	depthCm: number | null;
 };
+
+/**
+ * PostgREST can return `numeric` columns as strings to preserve precision, so
+ * normalise every numeric metadata field to a finite number (or null).
+ */
+function toFiniteNumberOrNull(value: unknown): number | null {
+	if (value === null || value === undefined) return null;
+	const parsed = typeof value === "number" ? value : Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toTrimmedStringOrNull(value: unknown): string | null {
+	if (typeof value !== "string") return null;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
 
 /** @internal */
 export async function __createFurnitureItemHandler(args: {
@@ -55,6 +81,13 @@ export async function __createFurnitureItemHandler(args: {
 			content_type: args.input.contentType,
 			label: args.input.label,
 			source: args.input.source,
+			source_link: args.input.sourceLink ?? null,
+			brand: args.input.brand ?? null,
+			price: args.input.price ?? null,
+			currency: args.input.currency ?? null,
+			width_cm: args.input.widthCm ?? null,
+			height_cm: args.input.heightCm ?? null,
+			depth_cm: args.input.depthCm ?? null,
 		})
 		.select()
 		.single();
@@ -71,7 +104,7 @@ export async function __listFurnitureItemsHandler(args: {
 	const rows = await args.supabase
 		.from("furniture_items")
 		.select(
-			"id, label, source, original_name, storage_bucket, storage_path, created_at"
+			"id, label, source, original_name, storage_bucket, storage_path, created_at, source_link, brand, price, currency, width_cm, height_cm, depth_cm"
 		)
 		.eq("owner_id", args.userId)
 		.order("created_at", { ascending: true });
@@ -103,9 +136,39 @@ export async function __listFurnitureItemsHandler(args: {
 			signedUrl: signed.data?.signedUrl ?? null,
 			selected: selectedIds.has(String(row.id)),
 			createdAt: String(row.created_at),
+			sourceLink: toTrimmedStringOrNull(row.source_link),
+			brand: toTrimmedStringOrNull(row.brand),
+			price: toFiniteNumberOrNull(row.price),
+			currency: toTrimmedStringOrNull(row.currency),
+			widthCm: toFiniteNumberOrNull(row.width_cm),
+			heightCm: toFiniteNumberOrNull(row.height_cm),
+			depthCm: toFiniteNumberOrNull(row.depth_cm),
 		});
 	}
 	return { items };
+}
+
+/** @internal */
+export async function __updateFurnitureItemHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: UpdateFurnitureItemInput;
+}) {
+	const { data, error } = await args.supabase
+		.from("furniture_items")
+		.update({
+			label: args.input.label,
+			width_cm: args.input.widthCm,
+			height_cm: args.input.heightCm,
+			depth_cm: args.input.depthCm,
+		})
+		.eq("id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId)
+		.select()
+		.single();
+	if (error) throw wrapSupabaseError(error);
+	if (!data) throw new Error("Furniture item not found");
+	return data;
 }
 
 /** @internal */
@@ -193,6 +256,13 @@ export const listFurnitureItems = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __listFurnitureItemsHandler({ userId, supabase, input: data });
+	});
+
+export const updateFurnitureItem = createServerFn({ method: "POST" })
+	.validator(updateFurnitureItemSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __updateFurnitureItemHandler({ userId, supabase, input: data });
 	});
 
 export const deleteFurnitureItem = createServerFn({ method: "POST" })

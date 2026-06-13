@@ -138,6 +138,19 @@ export type DeletePhotoInput = z.infer<typeof deletePhotoSchema>;
  * browser uploads the (optionally cropped) image to the
  * `furniture-references` bucket first, then registers it here.
  */
+/**
+ * Optional Link-Import metadata shared by create and (the dimension subset of)
+ * update. Every field is nullable: manual add supplies none of them, Link
+ * Import fills whatever the product page exposed, and the user may clear any
+ * of them in the edit form. A non-null `sourceLink` is what marks an item as
+ * link-imported.
+ */
+const sourceLinkField = z.string().url().max(2048).nullish();
+const brandField = z.string().min(1).max(120).nullish();
+const priceField = z.number().nonnegative().finite().nullish();
+const currencyField = z.string().min(1).max(8).nullish();
+const dimensionField = z.number().positive().finite().nullish();
+
 export const createFurnitureItemSchema = z.object({
 	storagePath: z
 		.string()
@@ -148,9 +161,31 @@ export const createFurnitureItemSchema = z.object({
 	contentType: z.string().regex(/^image\/(png|jpeg|webp)$/),
 	label: z.string().min(1).max(120),
 	source: z.enum(["product", "photo"]),
+	sourceLink: sourceLinkField,
+	brand: brandField,
+	price: priceField,
+	currency: currencyField,
+	widthCm: dimensionField,
+	heightCm: dimensionField,
+	depthCm: dimensionField,
 });
 export type CreateFurnitureItemInput = z.infer<
 	typeof createFurnitureItemSchema
+>;
+
+/**
+ * Edit an existing item's user-correctable fields: its label and the three
+ * dimensions. Dimensions are nullable so the user can clear a wrong import.
+ */
+export const updateFurnitureItemSchema = z.object({
+	furnitureItemId: z.string().uuid(),
+	label: z.string().min(1).max(120),
+	widthCm: z.number().positive().finite().nullable(),
+	heightCm: z.number().positive().finite().nullable(),
+	depthCm: z.number().positive().finite().nullable(),
+});
+export type UpdateFurnitureItemInput = z.infer<
+	typeof updateFurnitureItemSchema
 >;
 
 export const listFurnitureItemsSchema = z.object({

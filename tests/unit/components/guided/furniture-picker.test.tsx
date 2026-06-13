@@ -47,7 +47,20 @@ import { FurniturePicker } from "../../../../src/components/guided/furniture-pic
 
 const TASK_ID = "22222222-2222-2222-2222-222222222222";
 
-function item(id: string, label: string, selected = false) {
+function item(
+	id: string,
+	label: string,
+	selected = false,
+	metadata: Partial<{
+		sourceLink: string | null;
+		brand: string | null;
+		price: number | null;
+		currency: string | null;
+		widthCm: number | null;
+		heightCm: number | null;
+		depthCm: number | null;
+	}> = {}
+) {
 	return {
 		id,
 		label,
@@ -56,6 +69,14 @@ function item(id: string, label: string, selected = false) {
 		signedUrl: `https://signed/${id}.png`,
 		selected,
 		createdAt: "2026-01-01T00:00:00Z",
+		sourceLink: null,
+		brand: null,
+		price: null,
+		currency: null,
+		widthCm: null,
+		heightCm: null,
+		depthCm: null,
+		...metadata,
 	};
 }
 
@@ -83,6 +104,30 @@ describe("FurniturePicker", () => {
 			expect.objectContaining({
 				data: { taskId: TASK_ID },
 			})
+		);
+	});
+
+	it("shows import metadata and a source link on picker rows", async () => {
+		listItemsMock.mockResolvedValue({
+			items: [
+				item("f1", "BILLY bookcase", false, {
+					sourceLink: "https://www.ikea.com/p/billy",
+					brand: "IKEA",
+					price: 79.99,
+					currency: "EUR",
+					widthCm: 80,
+					heightCm: 202,
+					depthCm: 28,
+				}),
+			],
+		});
+		render(<FurniturePicker onSelectionChange={vi.fn()} taskId={TASK_ID} />);
+
+		expect(await screen.findByText("IKEA")).toBeInTheDocument();
+		expect(screen.getByText("W 80 × H 202 × D 28 cm")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: /source link/i })).toHaveAttribute(
+			"href",
+			"https://www.ikea.com/p/billy"
 		);
 	});
 

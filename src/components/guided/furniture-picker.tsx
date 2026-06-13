@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AddFurniture } from "@/components/furniture/add-furniture";
+import { FurnitureMeta } from "@/components/furniture/furniture-meta";
 import { Button } from "@/components/ui/button";
 import {
 	getAuthHeaders,
@@ -21,6 +22,13 @@ type FurnitureItem = {
 	signedUrl: string | null;
 	selected: boolean;
 	createdAt: string;
+	sourceLink: string | null;
+	brand: string | null;
+	price: number | null;
+	currency: string | null;
+	widthCm: number | null;
+	heightCm: number | null;
+	depthCm: number | null;
 };
 
 /**
@@ -191,6 +199,15 @@ export function FurniturePicker(props: {
 								<div className="text-ink-muted text-xs">
 									{item.source === "product" ? "Product image" : "From photo"}
 								</div>
+								<FurnitureMeta
+									brand={item.brand}
+									currency={item.currency}
+									depthCm={item.depthCm}
+									heightCm={item.heightCm}
+									price={item.price}
+									sourceLink={item.sourceLink}
+									widthCm={item.widthCm}
+								/>
 							</div>
 							<label className="flex items-center gap-2 text-sm">
 								<input
