@@ -3,6 +3,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
+import type {
+	FurnitureDimensions,
+	RenovationAiProvider,
+} from "../../../src/lib/ai/types";
 import {
 	__extractFurnitureCandidateHandler,
 	__importFurnitureItemHandler,
@@ -214,6 +218,132 @@ describe("extractFurnitureCandidateHandler", () => {
 			__extractFurnitureCandidateHandler({ input: { url }, fetchImpl })
 		).rejects.toThrow(/public.*product pages/i);
 		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+});
+
+/**
+ * Stub the AI provider's dimension method only — the extract handler touches
+ * nothing else on the provider. Returns the spy so tests can assert call count
+ * and the stripped page text it received.
+ */
+function buildDimensionsProvider(
+	impl: () => Promise<{ value: FurnitureDimensions }>
+): {
+	provider: RenovationAiProvider;
+	extractFurnitureDimensions: ReturnType<typeof vi.fn>;
+} {
+	const extractFurnitureDimensions = vi.fn(impl);
+	return {
+		provider: { extractFurnitureDimensions } as unknown as RenovationAiProvider,
+		extractFurnitureDimensions,
+	};
+}
+
+/** Minimal Product page with only the JSON-LD dimensions a test needs. */
+function productHtml(dimensionsJson: string): string {
+	return `<html><head><script type="application/ld+json">{
+		"@type":"Product","name":"Tall shelf",
+		"image":["https://cdn.example/shelf.jpg"]${dimensionsJson}
+	}</script></head><body><p>A nice shelf.</p></body></html>`;
+}
+
+describe("extractFurnitureCandidateHandler — AI dimension fill", () => {
+	it("fills blank dimensions from the AI provider over the stripped page text", async () => {
+		const fetchImpl = buildFetch({});
+		const { provider, extractFurnitureDimensions } = buildDimensionsProvider(
+			() =>
+				Promise.resolve({ value: { widthCm: 210, heightCm: 85, depthCm: 95 } })
+		);
+
+		const result = await __extractFurnitureCandidateHandler({
+			input: { url: PAGE_URL },
+			fetchImpl,
+			aiProvider: provider,
+		});
+
+		expect(result.candidate.widthCm).toBe(210);
+		expect(result.candidate.heightCm).toBe(85);
+		expect(result.candidate.depthCm).toBe(95);
+
+		// The provider receives plain text (HTML stripped) plus the product name.
+		expect(extractFurnitureDimensions).toHaveBeenCalledTimes(1);
+		const arg = extractFurnitureDimensions.mock.calls[0]?.[0] as {
+			pageText: string;
+			productName: string | null;
+		};
+		expect(arg.pageText).not.toContain("<");
+		expect(arg.productName).toBe("Диван GISTRUP 3-местен тъмнозелен");
+	});
+
+	it("keeps JSON-LD-sourced dimensions and only fills the gaps", async () => {
+		const fetchImpl = buildFetch({
+			page: () =>
+				new Response(
+					productHtml(
+						',"width":{"@type":"QuantitativeValue","value":"80","unitCode":"CMT"}'
+					),
+					{ status: 200 }
+				),
+		});
+		// The provider would return a different width — it must not win.
+		const { provider } = buildDimensionsProvider(() =>
+			Promise.resolve({ value: { widthCm: 999, heightCm: 180, depthCm: 30 } })
+		);
+
+		const result = await __extractFurnitureCandidateHandler({
+			input: { url: PAGE_URL },
+			fetchImpl,
+			aiProvider: provider,
+		});
+
+		expect(result.candidate.widthCm).toBe(80);
+		expect(result.candidate.heightCm).toBe(180);
+		expect(result.candidate.depthCm).toBe(30);
+	});
+
+	it("skips the AI call when JSON-LD already supplied all three dimensions", async () => {
+		const fetchImpl = buildFetch({
+			page: () =>
+				new Response(
+					productHtml(
+						',"width":{"@type":"QuantitativeValue","value":"80","unitCode":"CMT"},"height":{"@type":"QuantitativeValue","value":"180","unitCode":"CMT"},"depth":{"@type":"QuantitativeValue","value":"30","unitCode":"CMT"}'
+					),
+					{ status: 200 }
+				),
+		});
+		const { provider, extractFurnitureDimensions } = buildDimensionsProvider(
+			() => Promise.resolve({ value: { widthCm: 1, heightCm: 1, depthCm: 1 } })
+		);
+
+		const result = await __extractFurnitureCandidateHandler({
+			input: { url: PAGE_URL },
+			fetchImpl,
+			aiProvider: provider,
+		});
+
+		expect(extractFurnitureDimensions).not.toHaveBeenCalled();
+		expect(result.candidate.widthCm).toBe(80);
+		expect(result.candidate.heightCm).toBe(180);
+		expect(result.candidate.depthCm).toBe(30);
+	});
+
+	it("degrades to blank dimensions when the provider fails, never blocking the import", async () => {
+		const fetchImpl = buildFetch({});
+		const { provider } = buildDimensionsProvider(() =>
+			Promise.reject(new Error("model unavailable"))
+		);
+
+		const result = await __extractFurnitureCandidateHandler({
+			input: { url: PAGE_URL },
+			fetchImpl,
+			aiProvider: provider,
+		});
+
+		// Import still succeeds with the rest of the candidate intact.
+		expect(result.candidate.name).toBe("Диван GISTRUP 3-местен тъмнозелен");
+		expect(result.candidate.widthCm).toBeNull();
+		expect(result.candidate.heightCm).toBeNull();
+		expect(result.candidate.depthCm).toBeNull();
 	});
 });
 

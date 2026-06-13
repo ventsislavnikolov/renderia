@@ -83,4 +83,11 @@ export const mockRenovationProvider: RenovationAiProvider = {
 			],
 		};
 	},
+	async extractFurnitureDimensions() {
+		// Canned sofa-sized dimensions so import-flow tests get a deterministic,
+		// network-free fill for the W×H×D the page markup left blank.
+		return {
+			value: { widthCm: 210, heightCm: 85, depthCm: 95 },
+		};
+	},
 };

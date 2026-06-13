@@ -101,6 +101,33 @@ export type ListRoomContentsInput = {
 };
 
 /**
+ * Three furniture dimensions in centimetres. Each is nullable because a
+ * product page may expose some, all, or none of them — the AI pass fills only
+ * what the structured markup missed and the user remains the correctness gate
+ * in the confirm form.
+ */
+export type FurnitureDimensions = {
+	widthCm: number | null;
+	heightCm: number | null;
+	depthCm: number | null;
+};
+
+/**
+ * Inputs for `extractFurnitureDimensions` — a text-only pass over a product
+ * page's stripped body text that recovers W×H×D when the structured markup
+ * (JSON-LD) didn't carry them. No images: dimensions live in prose and spec
+ * tables, not photos. Verified during design that neither Jysk nor IKEA ships
+ * structured dimensions, so this is the only automated path to sizes.
+ */
+export type ExtractFurnitureDimensionsInput = {
+	/** Plain-text product page body, HTML already stripped. */
+	pageText: string;
+	/** Product name, when known, to anchor the model on the right item. */
+	productName?: string | null;
+	model?: ModelSelection;
+};
+
+/**
  * Debug payload attached to provider responses when running outside production.
  *
  * The server function decides whether to forward this to the client based on
@@ -140,4 +167,7 @@ export type RenovationAiProvider = {
 	listRoomContents(
 		input: ListRoomContentsInput
 	): Promise<ProviderResult<string[]>>;
+	extractFurnitureDimensions(
+		input: ExtractFurnitureDimensionsInput
+	): Promise<ProviderResult<FurnitureDimensions>>;
 };

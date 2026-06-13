@@ -3,7 +3,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { extractProductCandidate } from "../../../src/server/product-extraction";
+import {
+	extractProductCandidate,
+	stripHtmlToText,
+} from "../../../src/server/product-extraction";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 
@@ -29,6 +32,9 @@ describe("extractProductCandidate", () => {
 			brand: "JYSK",
 			price: 799,
 			currency: "BGN",
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
 		});
 	});
 
@@ -47,6 +53,9 @@ describe("extractProductCandidate", () => {
 			brand: "IKEA",
 			price: 449,
 			currency: "BGN",
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
 		});
 	});
 
@@ -65,6 +74,9 @@ describe("extractProductCandidate", () => {
 			brand: null,
 			price: 1299.5,
 			currency: "EUR",
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
 		});
 	});
 
@@ -80,6 +92,9 @@ describe("extractProductCandidate", () => {
 			brand: null,
 			price: null,
 			currency: null,
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
 		});
 	});
 
@@ -103,6 +118,9 @@ describe("extractProductCandidate", () => {
 			brand: null,
 			price: null,
 			currency: null,
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
 		});
 	});
 
@@ -114,5 +132,55 @@ describe("extractProductCandidate", () => {
 		const candidate = extractProductCandidate(html, "https://example.com/p/1");
 
 		expect(candidate.photos).toEqual(["https://ok.example/a.jpg"]);
+	});
+
+	it("reads schema.org QuantitativeValue dimensions, converting units to cm", () => {
+		const html = `<script type="application/ld+json">{
+			"@type":"Product","name":"Shelf",
+			"width":{"@type":"QuantitativeValue","value":"80","unitCode":"CMT"},
+			"height":{"@type":"QuantitativeValue","value":"2","unitCode":"MTR"},
+			"depth":{"@type":"QuantitativeValue","value":"350","unitCode":"MMT"}
+		}</script>`;
+
+		const candidate = extractProductCandidate(html, "https://example.com/p/1");
+
+		expect(candidate.widthCm).toBe(80);
+		expect(candidate.heightCm).toBe(200);
+		expect(candidate.depthCm).toBe(35);
+	});
+
+	it("treats a bare numeric dimension as centimetres and ignores non-positive values", () => {
+		const html = `<script type="application/ld+json">{
+			"@type":"Product","name":"Stool","width":45,"height":"0","depth":"abc"
+		}</script>`;
+
+		const candidate = extractProductCandidate(html, "https://example.com/p/1");
+
+		expect(candidate.widthCm).toBe(45);
+		expect(candidate.heightCm).toBeNull();
+		expect(candidate.depthCm).toBeNull();
+	});
+});
+
+describe("stripHtmlToText", () => {
+	it("drops script/style blocks and tags, collapses whitespace", () => {
+		const html = `<html><head><style>.x{color:red}</style>
+			<script>var a = "210cm";</script></head>
+			<body><h1>Sofa</h1><p>Width:&nbsp;210&nbsp;cm,
+			Depth: 95 cm</p></body></html>`;
+
+		const text = stripHtmlToText(html);
+
+		expect(text).toContain("Sofa");
+		expect(text).toContain("Width: 210 cm, Depth: 95 cm");
+		expect(text).not.toContain("color:red");
+		expect(text).not.toContain("var a");
+		expect(text).not.toContain("<");
+	});
+
+	it("caps the output length so the prompt stays bounded", () => {
+		const text = stripHtmlToText(`<p>${"word ".repeat(5000)}</p>`);
+
+		expect(text.length).toBeLessThanOrEqual(12_000);
 	});
 });

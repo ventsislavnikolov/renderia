@@ -19,6 +19,15 @@ export type ProductExtractionCandidate = {
 	brand: string | null;
 	price: number | null;
 	currency: string | null;
+	/**
+	 * Dimensions in centimetres, sourced from schema.org Product
+	 * width/height/depth when present. Almost always null for the verified
+	 * retailers (Jysk/IKEA ship no structured dimensions) — the import flow
+	 * fills the gaps with an AI pass over the page text.
+	 */
+	widthCm: number | null;
+	heightCm: number | null;
+	depthCm: number | null;
 };
 
 const LD_JSON_SCRIPT_PATTERN =
@@ -102,6 +111,41 @@ function collectImageUrls(value: JsonValue, pageUrl: string): string[] {
 function extractBrand(value: JsonValue): string | null {
 	if (isObject(value)) return asNonEmptyString(value.name);
 	return asNonEmptyString(value);
+}
+
+/** UN/CEFACT unit codes → centimetre multiplier. Unknown/absent ⇒ assume cm. */
+const UNIT_TO_CM: Record<string, number> = {
+	CMT: 1,
+	MMT: 0.1,
+	MTR: 100,
+	INH: 2.54,
+};
+
+/** Parse a finite, strictly-positive number from a JSON value (number or string). */
+function parsePositiveNumber(value: JsonValue): number | null {
+	if (typeof value === "number") {
+		return Number.isFinite(value) && value > 0 ? value : null;
+	}
+	const text = asNonEmptyString(value);
+	if (!text) return null;
+	const parsed = Number.parseFloat(text.replace(",", "."));
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * Read a schema.org dimension as centimetres. Handles a `QuantitativeValue`
+ * (`{ value, unitCode }`) and a bare number/string. An unrecognized or absent
+ * unit code is treated as centimetres.
+ */
+function parseDimensionCm(value: JsonValue): number | null {
+	if (isObject(value)) {
+		const raw = parsePositiveNumber(value.value);
+		if (raw === null) return null;
+		const unit = asNonEmptyString(value.unitCode);
+		const factor = unit ? (UNIT_TO_CM[unit.toUpperCase()] ?? 1) : 1;
+		return raw * factor;
+	}
+	return parsePositiveNumber(value);
 }
 
 function parsePrice(value: JsonValue): number | null {
@@ -193,5 +237,34 @@ export function extractProductCandidate(
 		currency = metaContent(meta, "product:price:currency", "og:price:currency");
 	}
 
-	return { name, photos, brand, price, currency };
+	const widthCm = product ? parseDimensionCm(product.width ?? null) : null;
+	const heightCm = product ? parseDimensionCm(product.height ?? null) : null;
+	const depthCm = product ? parseDimensionCm(product.depth ?? null) : null;
+
+	return { name, photos, brand, price, currency, widthCm, heightCm, depthCm };
+}
+
+const STRIP_BLOCK_PATTERN =
+	/<(script|style|template|noscript)\b[\s\S]*?<\/\1>/gi;
+const TAG_PATTERN = /<[^>]+>/g;
+const MAX_STRIPPED_TEXT_LENGTH = 12_000;
+
+/**
+ * Reduce product-page HTML to plain text for the AI dimension pass: drop
+ * script/style/template blocks, strip the remaining tags, decode a few common
+ * entities, collapse whitespace, and cap the length so the prompt stays
+ * bounded. Pure and deterministic — no parser, no network.
+ */
+export function stripHtmlToText(html: string): string {
+	const withoutBlocks = html.replace(STRIP_BLOCK_PATTERN, " ");
+	const withoutTags = withoutBlocks.replace(TAG_PATTERN, " ");
+	const decoded = withoutTags
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.replace(/&quot;/gi, '"')
+		.replace(/&#0*39;/gi, "'");
+	const collapsed = decoded.replace(/\s+/g, " ").trim();
+	return collapsed.slice(0, MAX_STRIPPED_TEXT_LENGTH);
 }

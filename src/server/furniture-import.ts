@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
+import { getRenovationAiProvider } from "../lib/ai/provider";
+import type { RenovationAiProvider } from "../lib/ai/types";
 import {
 	type ExtractFurnitureCandidateInput,
 	extractFurnitureCandidateSchema,
@@ -14,6 +16,7 @@ import { normalizeImageToPng } from "./image-normalize";
 import {
 	extractProductCandidate,
 	type ProductExtractionCandidate,
+	stripHtmlToText,
 } from "./product-extraction";
 
 /**
@@ -246,10 +249,47 @@ async function readBodyCapped(
 	return new TextDecoder().decode(merged);
 }
 
+/**
+ * Fill any dimension the structured extraction left blank with an AI pass over
+ * the stripped page text. JSON-LD-sourced dimensions always win — the provider
+ * only fills nulls. Dimension extraction is best-effort: a provider failure
+ * leaves the blanks untouched and never blocks the import.
+ */
+async function fillMissingDimensions(args: {
+	candidate: ProductExtractionCandidate;
+	html: string;
+	aiProvider: RenovationAiProvider;
+}): Promise<ProductExtractionCandidate> {
+	const { candidate } = args;
+	if (
+		candidate.widthCm !== null &&
+		candidate.heightCm !== null &&
+		candidate.depthCm !== null
+	) {
+		return candidate;
+	}
+
+	try {
+		const { value } = await args.aiProvider.extractFurnitureDimensions({
+			pageText: stripHtmlToText(args.html),
+			productName: candidate.name,
+		});
+		return {
+			...candidate,
+			widthCm: candidate.widthCm ?? value.widthCm,
+			heightCm: candidate.heightCm ?? value.heightCm,
+			depthCm: candidate.depthCm ?? value.depthCm,
+		};
+	} catch {
+		return candidate;
+	}
+}
+
 /** @internal */
 export async function __extractFurnitureCandidateHandler(args: {
 	input: ExtractFurnitureCandidateInput;
 	fetchImpl?: typeof fetch;
+	aiProvider?: RenovationAiProvider;
 }): Promise<{ sourceUrl: string; candidate: ProductExtractionCandidate }> {
 	const fetchImpl = args.fetchImpl ?? fetch;
 	const target = parsePublicHttpUrl(args.input.url);
@@ -269,9 +309,14 @@ export async function __extractFurnitureCandidateHandler(args: {
 
 	// Resolve relative photo URLs against the post-redirect URL when known.
 	const pageUrl = response.url || target.href;
+	const candidate = await fillMissingDimensions({
+		candidate: extractProductCandidate(html, pageUrl),
+		html,
+		aiProvider: args.aiProvider ?? getRenovationAiProvider(),
+	});
 	return {
 		sourceUrl: args.input.url,
-		candidate: extractProductCandidate(html, pageUrl),
+		candidate,
 	};
 }
 

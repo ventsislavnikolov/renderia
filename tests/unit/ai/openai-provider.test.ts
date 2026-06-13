@@ -248,6 +248,55 @@ describe("openAiRenovationProvider", () => {
 		});
 	});
 
+	describe("extractFurnitureDimensions", () => {
+		it("returns the dimensions object, feeds the page text as a text part, and attaches debug", async () => {
+			generateObjectMock.mockResolvedValueOnce({
+				object: { widthCm: 210, heightCm: 85, depthCm: 95 },
+			});
+
+			const result = await openAiRenovationProvider.extractFurnitureDimensions({
+				pageText: "GISTRUP sofa. Width 210 cm, height 85 cm, depth 95 cm.",
+				productName: "GISTRUP 3-seat sofa",
+				model: { provider: "openai", model: "gpt-5.5" },
+			});
+
+			expect(result.value).toEqual({
+				widthCm: 210,
+				heightCm: 85,
+				depthCm: 95,
+			});
+			expect(openaiModelMock).toHaveBeenCalledWith("gpt-5.5");
+			// Page text is the source of dimensions — it rides in the text prompt,
+			// and there are no image parts (dimensions live in prose, not photos).
+			expect(callText(0)).toContain("Width 210 cm");
+			expect(callText(0)).toContain("GISTRUP 3-seat sofa");
+			expect(callImages(0)).toHaveLength(0);
+			expect(result.debug?.model).toBe("gpt-5.5");
+			expect(result.debug?.rawResponse).toContain("210");
+		});
+
+		it("passes a Zod schema that constrains the dimensions shape", async () => {
+			generateObjectMock.mockResolvedValueOnce({
+				object: { widthCm: null, heightCm: null, depthCm: null },
+			});
+
+			const result = await openAiRenovationProvider.extractFurnitureDimensions({
+				pageText: "No sizes here.",
+				model: { provider: "openai", model: "gpt-5.5" },
+			});
+
+			expect(result.value).toEqual({
+				widthCm: null,
+				heightCm: null,
+				depthCm: null,
+			});
+			const opts = generateObjectMock.mock.calls[0]?.[0] as {
+				schema: { safeParse?: (v: unknown) => unknown };
+			};
+			expect(typeof opts.schema.safeParse).toBe("function");
+		});
+	});
+
 	describe("createDesignBrief", () => {
 		it("returns markdown plus a prompt with PRESERVE EXACTLY and never hits the network", async () => {
 			const result = await openAiRenovationProvider.createDesignBrief({

@@ -157,6 +157,14 @@ const tasksResponseSchema = z.object({
 	tasks: z.array(suggestedTaskSchema),
 });
 
+// OpenAI strict structured-output mode requires every property in `required`,
+// so a "not stated" dimension is expressed as nullable rather than optional.
+const furnitureDimensionsResponseSchema = z.object({
+	widthCm: z.number().positive().nullable(),
+	heightCm: z.number().positive().nullable(),
+	depthCm: z.number().positive().nullable(),
+});
+
 /**
  * Lazy OpenAI client (used for image generation only — text calls go through
  * the AI SDK and don't need this). Constructed on first use so importing this
@@ -372,6 +380,50 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 
 		return {
 			value: result.object.items,
+			debug: buildDebug({
+				modelId: selection.model,
+				prompt: promptText,
+				object: result.object,
+				durationMs,
+			}),
+		};
+	},
+
+	async extractFurnitureDimensions(input) {
+		const selection = input.model ?? DEFAULT_TEXT_MODEL;
+		const promptText = [
+			"Extract the physical dimensions of the product described in the page text below.",
+			"Return centimetres as numbers for width, height, and depth.",
+			"Rules:",
+			"- Convert other units to centimetres (1 m = 100 cm, 1 mm = 0.1 cm, 1 in = 2.54 cm).",
+			"- width = horizontal span, height = floor-to-top, depth = front-to-back.",
+			"- Use null for any dimension the text does not state. Never guess.",
+			"Return an object { widthCm, heightCm, depthCm }.",
+			input.productName
+				? `Product: ${sanitizePromptField(input.productName)}`
+				: "",
+			"Page text:",
+			sanitizePromptField(input.pageText, 12_000),
+		]
+			.filter((line) => line !== "")
+			.join("\n");
+
+		const startedAt = Date.now();
+		const result = await generateObject({
+			model: resolveTextModel(selection),
+			schema: furnitureDimensionsResponseSchema,
+			messages: [
+				{ role: "user", content: [{ type: "text", text: promptText }] },
+			],
+		});
+		const durationMs = Date.now() - startedAt;
+
+		return {
+			value: {
+				widthCm: result.object.widthCm,
+				heightCm: result.object.heightCm,
+				depthCm: result.object.depthCm,
+			},
 			debug: buildDebug({
 				modelId: selection.model,
 				prompt: promptText,
