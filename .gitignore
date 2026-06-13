@@ -26,3 +26,5 @@ playwright/.cache/
 !.env.vault
 # Supabase CLI artifacts
 supabase/.temp/
+.sandcastle/.env
+.pnpm-store/

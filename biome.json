@@ -25,7 +25,11 @@
       "!**/.vercel",
       "!**/test-results",
       "!**/playwright-report",
-      "!**/tests/**/fixtures"
+      "!**/tests/**/fixtures",
+      "!**/.sandcastle",
+      "!**/.claude",
+      "!**/scripts",
+      "!**/docs"
     ]
   },
   "formatter": {
