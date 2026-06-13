@@ -278,21 +278,66 @@ export function buildStructuralPreviewPrompt(input: {
 }
 
 /**
+ * One furniture piece referenced by a generation run. Dimensions are
+ * optional and independently nullable — manual items may leave any subset
+ * blank, and Link Import fills whatever the retailer page exposes.
+ */
+export type FurnitureReferenceItem = {
+	label: string;
+	widthCm?: number | null;
+	heightCm?: number | null;
+	depthCm?: number | null;
+};
+
+function formatDimensionValue(value: number): string {
+	// numeric(8,1) columns arrive as 72 or 72.5 — strip the trailing ".0".
+	return String(Number(value));
+}
+
+/**
+ * Compact dimension string for the prompt. Full W×H×D sets render in the
+ * unlabeled retailer form ("72×76×77 cm"); partial sets keep W/H/D prefixes
+ * so the remaining axis stays unambiguous. Returns null when no dimension is
+ * known, in which case the item is described by label alone.
+ */
+function formatFurnitureDimensions(
+	item: FurnitureReferenceItem
+): string | null {
+	const { widthCm, heightCm, depthCm } = item;
+	if (widthCm != null && heightCm != null && depthCm != null) {
+		return `${formatDimensionValue(widthCm)}×${formatDimensionValue(heightCm)}×${formatDimensionValue(depthCm)} cm`;
+	}
+	const parts: string[] = [];
+	if (widthCm != null) parts.push(`W${formatDimensionValue(widthCm)}`);
+	if (heightCm != null) parts.push(`H${formatDimensionValue(heightCm)}`);
+	if (depthCm != null) parts.push(`D${formatDimensionValue(depthCm)}`);
+	if (parts.length === 0) return null;
+	return `${parts.join("×")} cm`;
+}
+
+/**
  * Prompt section describing furniture reference images that accompany the
  * source photo in image-edit mode. The first input image is always the room;
  * every following image is one furniture piece the design must include.
  * Appended to each variation prompt by the generation server fn so adding
- * furniture never requires regenerating the design brief.
+ * furniture never requires regenerating the design brief. Items that carry
+ * dimensions render them after the label ("UDSBJERG armchair, 72×76×77 cm")
+ * so renders respect proportions relative to the room.
  */
-export function buildFurnitureReferenceSection(labels: string[]): string {
-	if (labels.length === 0) return "";
+export function buildFurnitureReferenceSection(
+	items: FurnitureReferenceItem[]
+): string {
+	if (items.length === 0) return "";
 	return [
 		"FURNITURE TO INCLUDE (mandatory):",
 		"- Input images after the first are furniture references, NOT room geometry. Only the first image defines the room.",
-		...labels.map(
-			(label, index) =>
-				`- Reference image ${index + 2}: ${sanitizePromptField(label)}. This exact piece must appear in the room, prominently and recognizably, matching its real shape, color, and material.`
-		),
+		...items.map((item, index) => {
+			const dimensions = formatFurnitureDimensions(item);
+			const described = dimensions
+				? `${sanitizePromptField(item.label)}, ${dimensions}`
+				: sanitizePromptField(item.label);
+			return `- Reference image ${index + 2}: ${described}. This exact piece must appear in the room, prominently and recognizably, matching its real shape, color, and material.`;
+		}),
 		"- Place each referenced piece naturally within the room layout. Do not duplicate a referenced piece multiple times.",
 		"- Do not copy backgrounds, walls, floors, or other objects from the reference images.",
 	].join("\n");

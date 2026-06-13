@@ -383,7 +383,12 @@ export async function __generateRenovationImagesHandler(args: {
 
 	try {
 		const furnitureSection = buildFurnitureReferenceSection(
-			furnitureReferences.map((reference) => reference.label)
+			furnitureReferences.map((reference) => ({
+				label: reference.label,
+				widthCm: reference.widthCm,
+				heightCm: reference.heightCm,
+				depthCm: reference.depthCm,
+			}))
 		);
 		const prompts = buildConceptVariationPrompts(
 			args.input.prompt,
@@ -860,11 +865,16 @@ async function loadFurnitureReferences(args: {
 		contentType: "image/png" | "image/jpeg" | "image/webp";
 		filename: string;
 		label: string;
+		widthCm: number | null;
+		heightCm: number | null;
+		depthCm: number | null;
 	}>
 > {
 	const rows = await args.supabase
 		.from("furniture_items")
-		.select("id, label, storage_bucket, storage_path, content_type")
+		.select(
+			"id, label, storage_bucket, storage_path, content_type, width_cm, height_cm, depth_cm"
+		)
 		.in("id", args.furnitureItemIds)
 		.eq("owner_id", args.userId);
 	if (rows.error) throw wrapSupabaseError(rows.error);
@@ -880,6 +890,9 @@ async function loadFurnitureReferences(args: {
 		contentType: "image/png" | "image/jpeg" | "image/webp";
 		filename: string;
 		label: string;
+		widthCm: number | null;
+		heightCm: number | null;
+		depthCm: number | null;
 	}> = [];
 	for (const furnitureItemId of args.furnitureItemIds) {
 		const row = rowById.get(furnitureItemId);
@@ -902,6 +915,9 @@ async function loadFurnitureReferences(args: {
 			contentType,
 			filename: `furniture-${references.length + 1}.png`,
 			label: String(row.label),
+			widthCm: row.width_cm == null ? null : Number(row.width_cm),
+			heightCm: row.height_cm == null ? null : Number(row.height_cm),
+			depthCm: row.depth_cm == null ? null : Number(row.depth_cm),
 		});
 	}
 	return references;
