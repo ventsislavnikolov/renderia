@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/ventsislavnikolov/renderia/compare/v1.10.1...v1.10.2) (2026-06-13)
+
+
+### Bug Fixes
+
+* **furniture:** drop policy before project_id column in 0006 ([372a411](https://github.com/ventsislavnikolov/renderia/commit/372a41116d49f9a549fccc40980e8eccbe462676))
+
 ## [1.10.1](https://github.com/ventsislavnikolov/renderia/compare/v1.10.0...v1.10.1) (2026-06-12)
 
 
