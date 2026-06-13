@@ -388,3 +388,55 @@ describe("importFurnitureItemHandler", () => {
 		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 });
+
+describe("Link Import end-to-end (VEN-634)", () => {
+	it("extracts a pasted URL then saves it as a Furniture Item with its Source Link", async () => {
+		// 1. Paste URL → extraction: fetch the page and parse a candidate.
+		const pageFetch = buildFetch({});
+		const { sourceUrl, candidate } = await __extractFurnitureCandidateHandler({
+			input: { url: PAGE_URL },
+			fetchImpl: pageFetch,
+		});
+		expect(candidate.name).toBe("Диван GISTRUP 3-местен тъмнозелен");
+		expect(candidate.photos.length).toBeGreaterThan(0);
+
+		// 2. Confirm form → save: map the candidate the way the UI does
+		//    (label ← name, Reference Image ← first photo, metadata carried over).
+		const confirmInput = {
+			sourceUrl,
+			photoUrl: candidate.photos[0] as string,
+			label: candidate.name ?? "",
+			brand: candidate.brand,
+			price: candidate.price,
+			currency: candidate.currency,
+			widthCm: null,
+			heightCm: null,
+			depthCm: null,
+		};
+
+		const imageFetch = buildImageFetch();
+		const { supabase, upload, from } = buildImportSupabase();
+		const created = await __importFurnitureItemHandler({
+			userId: "11111111-1111-1111-1111-111111111111",
+			supabase,
+			input: confirmInput,
+			fetchImpl: imageFetch,
+		});
+
+		// 3. The chosen photo was stored by Renderia, never hotlinked.
+		expect(created.id).toBe("item-1");
+		expect(String(imageFetch.mock.calls[0]?.[0])).toBe(candidate.photos[0]);
+		expect(upload).toHaveBeenCalledTimes(1);
+
+		// 4. The saved item carries the extracted metadata and its Source Link.
+		const insertArg = (
+			from.mock.results[0]?.value as { insert: ReturnType<typeof vi.fn> }
+		).insert.mock.calls[0]?.[0] as Record<string, unknown>;
+		expect(insertArg.source).toBe("product");
+		expect(insertArg.source_link).toBe(PAGE_URL);
+		expect(insertArg.label).toBe("Диван GISTRUP 3-местен тъмнозелен");
+		expect(insertArg.brand).toBe("JYSK");
+		expect(insertArg.price).toBe(799);
+		expect(insertArg.currency).toBe("BGN");
+	});
+});
