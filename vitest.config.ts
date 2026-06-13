@@ -16,6 +16,9 @@ export default defineConfig({
 			"**/node_modules/**",
 			"**/dist/**",
 			"**/.claude/**",
+			// Sandcastle bind-mounts agent worktrees here mid-run; their
+			// in-progress trees would otherwise be picked up as our tests.
+			"**/.sandcastle/**",
 			"**/tests/e2e/**",
 		],
 	},
