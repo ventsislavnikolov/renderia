@@ -1,3 +1,10 @@
+## [1.10.4](https://github.com/ventsislavnikolov/renderia/compare/v1.10.3...v1.10.4) (2026-06-13)
+
+
+### Bug Fixes
+
+* **deploy:** set engines.node >=24 for Vercel (max 24.x) ([b61efcb](https://github.com/ventsislavnikolov/renderia/commit/b61efcb4373d51c28c8566c287ad0c7fcf0ee766))
+
 ## [1.10.3](https://github.com/ventsislavnikolov/renderia/compare/v1.10.2...v1.10.3) (2026-06-13)
 
 
