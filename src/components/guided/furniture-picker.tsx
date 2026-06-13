@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AddFurniture } from "@/components/furniture/add-furniture";
 import { FurnitureMeta } from "@/components/furniture/furniture-meta";
+import { LinkImport } from "@/components/furniture/link-import";
 import { Button } from "@/components/ui/button";
 import {
 	getAuthHeaders,
@@ -237,6 +238,8 @@ export function FurniturePicker(props: {
 					No furniture in your library yet.
 				</p>
 			) : null}
+
+			<LinkImport disabled={props.disabled} onSaved={handleSaved} />
 
 			<AddFurniture disabled={props.disabled} onSaved={handleSaved}>
 				{selectedCount > 0 ? (

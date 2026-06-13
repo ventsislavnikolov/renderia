@@ -10,6 +10,8 @@ const {
 	getAuthHeadersMock,
 	uploadMock,
 	getSessionMock,
+	extractMock,
+	importMock,
 } = vi.hoisted(() => ({
 	listItemsMock: vi.fn(),
 	createItemMock: vi.fn(),
@@ -22,6 +24,8 @@ const {
 			data: { session: { user: { id: "user-1" } } },
 		})
 	),
+	extractMock: vi.fn(),
+	importMock: vi.fn(),
 }));
 
 vi.mock("../../../../src/lib/server-client/auth-headers", () => ({
@@ -35,6 +39,22 @@ vi.mock("../../../../src/server/furniture", () => ({
 	listFurnitureItems: (...args: unknown[]) => listItemsMock(...args),
 	setTaskFurniture: (...args: unknown[]) => setTaskFurnitureMock(...args),
 }));
+
+vi.mock("../../../../src/server/furniture-import", () => ({
+	extractFurnitureCandidate: (...args: unknown[]) => extractMock(...args),
+	importFurnitureItem: (...args: unknown[]) => importMock(...args),
+}));
+
+const LINK_CANDIDATE = {
+	sourceUrl: "https://jysk.bg/divani/divan-gistrup",
+	candidate: {
+		name: "GISTRUP 3-seat sofa",
+		photos: ["https://jysk.bg/cdn/gistrup-1.jpg"],
+		brand: "JYSK",
+		price: 799,
+		currency: "BGN",
+	},
+};
 
 vi.mock("../../../../src/lib/supabase/browser", () => ({
 	supabaseBrowser: {
@@ -86,6 +106,8 @@ describe("FurniturePicker", () => {
 		createItemMock.mockReset();
 		deleteItemMock.mockReset().mockResolvedValue(undefined);
 		setTaskFurnitureMock.mockReset().mockResolvedValue({ ok: true });
+		extractMock.mockReset();
+		importMock.mockReset();
 	});
 
 	it("lists the account's furniture library and reports the persisted selection", async () => {
@@ -208,6 +230,46 @@ describe("FurniturePicker", () => {
 				})
 			);
 		});
+	});
+
+	it("quick-adds a Furniture Item from a pasted link and auto-includes it", async () => {
+		const user = userEvent.setup();
+		// Empty to start; after the import the refresh returns the new piece ticked.
+		listItemsMock
+			.mockReset()
+			.mockResolvedValueOnce({ items: [] })
+			.mockResolvedValue({
+				items: [item("f-link", "GISTRUP 3-seat sofa", true)],
+			});
+		extractMock.mockResolvedValue(LINK_CANDIDATE);
+		importMock.mockResolvedValue({ id: "f-link" });
+		const onSelectionChange = vi.fn();
+		render(
+			<FurniturePicker onSelectionChange={onSelectionChange} taskId={TASK_ID} />
+		);
+		await screen.findByText(/No furniture in your library yet/i);
+
+		// Paste-link entry sits alongside the upload add — reuses Link Import.
+		await user.type(
+			screen.getByPlaceholderText(/paste a product link/i),
+			"https://jysk.bg/divani/divan-gistrup"
+		);
+		await user.click(screen.getByRole("button", { name: /import from link/i }));
+
+		// The shared confirm form pre-fills; confirm saves to the library.
+		await screen.findByDisplayValue("GISTRUP 3-seat sofa");
+		await user.click(screen.getByRole("button", { name: /save to library/i }));
+
+		await waitFor(() => {
+			expect(importMock).toHaveBeenCalled();
+			// Auto-ticked for the current task, matching the upload add flow.
+			expect(setTaskFurnitureMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: { taskId: TASK_ID, furnitureItemIds: ["f-link"] },
+				})
+			);
+		});
+		expect(onSelectionChange).toHaveBeenLastCalledWith(["f-link"]);
 	});
 
 	it("rejects unsupported file types with a HEIC hint", async () => {
