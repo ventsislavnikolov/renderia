@@ -1,3 +1,10 @@
+## [1.10.3](https://github.com/ventsislavnikolov/renderia/compare/v1.10.2...v1.10.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **e2e:** mock loadTaskRoomState with per-angle previews map ([f2807e9](https://github.com/ventsislavnikolov/renderia/commit/f2807e954ae3f29aa9482ebe001fd1accae80f47))
+
 ## [1.10.2](https://github.com/ventsislavnikolov/renderia/compare/v1.10.1...v1.10.2) (2026-06-13)
 
 
