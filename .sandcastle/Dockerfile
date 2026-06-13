@@ -1,4 +1,4 @@
-FROM node:22-bookworm
+FROM node:26-bookworm
 
 # Install system dependencies. gh is the backlog manager — the agent lists and
 # closes GitHub issues with it (authenticated via GH_TOKEN from .sandcastle/.env).
