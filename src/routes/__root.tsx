@@ -1,10 +1,24 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { createClientOnlyFn } from "@tanstack/react-start";
 
+import { DefaultCatchBoundary } from "../components/layout/default-catch-boundary";
 import appCss from "../styles.css?url";
 
+// Initialise browser error/performance monitoring as early as possible. Wrapped
+// as client-only so the client SDK never enters the server graph; no-op without
+// a DSN configured.
+const initSentry = createClientOnlyFn(() => {
+	import("../lib/observability/sentry.client").then((module) => {
+		module.initSentryClient();
+	});
+});
+
+initSentry();
+
 export const Route = createRootRoute({
+	errorComponent: DefaultCatchBoundary,
 	head: () => ({
 		meta: [
 			{

@@ -60,6 +60,14 @@ Optional text-model provider keys used by model selection:
 - `ZAI_API_KEY`
 - `MOONSHOT_API_KEY`
 
+Optional observability (Sentry). Monitoring is disabled cleanly when the DSN is unset, so local and dev runs need none of these:
+
+- `VITE_SENTRY_DSN` — browser DSN; `SENTRY_DSN` — server DSN (both enable capture in their runtime)
+- `SENTRY_ENVIRONMENT` — defaults to `VERCEL_ENV`, then `development`
+- `SENTRY_RELEASE` — release tag; defaults to `VERCEL_GIT_COMMIT_SHA`. Set to the semantic-release version (e.g. `renderia@1.10.3`) so events match the deployed build
+- `SENTRY_TRACES_SAMPLE_RATE` — performance sample rate (0–1, default `0.1`)
+- `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — build-time source-map upload only (CI/Vercel); omit locally
+
 ## Scripts
 
 ```bash
