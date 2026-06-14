@@ -37,8 +37,21 @@ import type { Database } from "../lib/types/database";
  */
 
 type SupabaseScoped = SupabaseClient<Database>;
-type Row = Record<string, unknown>;
 const SIGNED_URL_TTL_SECONDS = 600;
+
+/**
+ * One Furniture Photo of an item. The edit-dialog gallery renders these; the
+ * active one is the item's Reference Image. Ordered active-first then by
+ * `createdAt` ascending in {@link FurnitureItemPayload.photos}.
+ */
+export type FurniturePhotoPayload = {
+	id: string;
+	source: "product" | "photo";
+	originalName: string;
+	signedUrl: string | null;
+	isActive: boolean;
+	createdAt: string;
+};
 
 export type FurnitureItemPayload = {
 	id: string;
@@ -56,6 +69,11 @@ export type FurnitureItemPayload = {
 	widthCm: number | null;
 	heightCm: number | null;
 	depthCm: number | null;
+	/**
+	 * Every Furniture Photo of the item, active-first then by `createdAt`. The
+	 * top-level `source`/`originalName`/`signedUrl` mirror the active photo.
+	 */
+	photos: FurniturePhotoPayload[];
 };
 
 /**
@@ -128,19 +146,43 @@ export async function __listFurnitureItemsHandler(args: {
 		.order("created_at", { ascending: true });
 	if (rows.error) throw wrapSupabaseError(rows.error);
 
-	// Resolve each item's Reference Image from its active child photo.
+	// Load every Furniture Photo so the edit-dialog gallery has the full set;
+	// the active one (per item) is also the Reference Image used elsewhere.
+	// Ordered created_at ascending so a stable active-first sort below keeps the
+	// rest in creation order.
 	const images = await args.supabase
 		.from("furniture_item_images")
 		.select(
-			"furniture_item_id, source, original_name, storage_bucket, storage_path"
+			"id, furniture_item_id, source, original_name, storage_bucket, storage_path, is_active, created_at"
 		)
 		.eq("owner_id", args.userId)
-		.eq("is_active", true);
+		.order("created_at", { ascending: true });
 	if (images.error) throw wrapSupabaseError(images.error);
-	const activeImageByItemId = new Map<string, Row>();
-	for (const image of images.data ?? []) {
-		activeImageByItemId.set(String(image.furniture_item_id), image);
-	}
+
+	// Sign every photo's URL in parallel — the gallery needs them all, and one
+	// serial round-trip per photo would scale with total photo count.
+	const imageRows = images.data ?? [];
+	const signedUrls = await Promise.all(
+		imageRows.map((image) =>
+			args.supabase.storage
+				.from(String(image.storage_bucket))
+				.createSignedUrl(String(image.storage_path), SIGNED_URL_TTL_SECONDS)
+		)
+	);
+	const photosByItemId = new Map<string, FurniturePhotoPayload[]>();
+	imageRows.forEach((image, index) => {
+		const itemId = String(image.furniture_item_id);
+		const list = photosByItemId.get(itemId) ?? [];
+		list.push({
+			id: String(image.id),
+			source: (image.source ?? "photo") as "product" | "photo",
+			originalName: String(image.original_name),
+			signedUrl: signedUrls[index]?.data?.signedUrl ?? null,
+			isActive: Boolean(image.is_active),
+			createdAt: String(image.created_at),
+		});
+		photosByItemId.set(itemId, list);
+	});
 
 	const selectedIds = new Set<string>();
 	if (args.input.taskId) {
@@ -157,18 +199,18 @@ export async function __listFurnitureItemsHandler(args: {
 
 	const items: FurnitureItemPayload[] = [];
 	for (const row of rows.data ?? []) {
-		const image = activeImageByItemId.get(String(row.id));
-		const signed = image
-			? await args.supabase.storage
-					.from(String(image.storage_bucket))
-					.createSignedUrl(String(image.storage_path), SIGNED_URL_TTL_SECONDS)
-			: null;
+		// Active first, then created_at ascending (the query already ordered by
+		// created_at, and Array.prototype.sort is stable, so the rest keep order).
+		const photos = (photosByItemId.get(String(row.id)) ?? [])
+			.slice()
+			.sort((a, b) => (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1));
+		const active = photos.find((photo) => photo.isActive) ?? photos[0] ?? null;
 		items.push({
 			id: String(row.id),
 			label: String(row.label),
-			source: (image?.source ?? "photo") as "product" | "photo",
-			originalName: image ? String(image.original_name) : "",
-			signedUrl: signed?.data?.signedUrl ?? null,
+			source: active?.source ?? "photo",
+			originalName: active?.originalName ?? "",
+			signedUrl: active?.signedUrl ?? null,
 			selected: selectedIds.has(String(row.id)),
 			createdAt: String(row.created_at),
 			sourceLink: toTrimmedStringOrNull(row.source_link),
@@ -178,6 +220,7 @@ export async function __listFurnitureItemsHandler(args: {
 			widthCm: toFiniteNumberOrNull(row.width_cm),
 			heightCm: toFiniteNumberOrNull(row.height_cm),
 			depthCm: toFiniteNumberOrNull(row.depth_cm),
+			photos,
 		});
 	}
 	return { items };

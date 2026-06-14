@@ -240,18 +240,24 @@ describe("listFurnitureItemsHandler", () => {
 			imagesResult: {
 				data: [
 					{
+						id: "img-f1",
 						furniture_item_id: "f1",
 						source: "product",
 						original_name: "dresser.png",
 						storage_bucket: "furniture-references",
 						storage_path: "user-1/dresser.png",
+						is_active: true,
+						created_at: "2026-01-01T00:00:00Z",
 					},
 					{
+						id: "img-f2",
 						furniture_item_id: "f2",
 						source: "photo",
 						original_name: "sofa.png",
 						storage_bucket: "furniture-references",
 						storage_path: "user-1/sofa.png",
+						is_active: true,
+						created_at: "2026-01-02T00:00:00Z",
 					},
 				],
 				error: null,
@@ -283,6 +289,70 @@ describe("listFurnitureItemsHandler", () => {
 		expect(itemsChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
 	});
 
+	it("returns every photo of an item, active first then by created_at", async () => {
+		const { supabase } = buildSupabaseStub({
+			itemsListResult: {
+				data: [
+					{ id: "f1", label: "dresser", created_at: "2026-01-01T00:00:00Z" },
+				],
+				error: null,
+			},
+			imagesResult: {
+				data: [
+					{
+						id: "img-old",
+						furniture_item_id: "f1",
+						source: "product",
+						original_name: "front.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/front.png",
+						is_active: false,
+						created_at: "2026-01-01T00:00:00Z",
+					},
+					{
+						id: "img-active",
+						furniture_item_id: "f1",
+						source: "photo",
+						original_name: "side.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/side.png",
+						is_active: true,
+						created_at: "2026-01-02T00:00:00Z",
+					},
+					{
+						id: "img-new",
+						furniture_item_id: "f1",
+						source: "photo",
+						original_name: "back.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/back.png",
+						is_active: false,
+						created_at: "2026-01-03T00:00:00Z",
+					},
+				],
+				error: null,
+			},
+		});
+
+		const result = await __listFurnitureItemsHandler({
+			userId: "user-1",
+			supabase,
+			input: {},
+		});
+
+		const item = result.items[0];
+		// Active first; the rest keep created_at-ascending order.
+		expect(item.photos.map((photo) => photo.id)).toEqual([
+			"img-active",
+			"img-old",
+			"img-new",
+		]);
+		expect(item.photos.filter((photo) => photo.isActive)).toHaveLength(1);
+		// Top-level Reference Image fields mirror the active photo.
+		expect(item.originalName).toBe("side.png");
+		expect(item.source).toBe("photo");
+	});
+
 	it("maps metadata columns and tolerates absent/null ones", async () => {
 		const { supabase } = buildSupabaseStub({
 			itemsListResult: {
@@ -311,18 +381,24 @@ describe("listFurnitureItemsHandler", () => {
 			imagesResult: {
 				data: [
 					{
+						id: "img-f1",
 						furniture_item_id: "f1",
 						source: "product",
 						original_name: "billy.png",
 						storage_bucket: "furniture-references",
 						storage_path: "user-1/billy.png",
+						is_active: true,
+						created_at: "2026-01-01T00:00:00Z",
 					},
 					{
+						id: "img-f2",
 						furniture_item_id: "f2",
 						source: "photo",
 						original_name: "chair.png",
 						storage_bucket: "furniture-references",
 						storage_path: "user-1/chair.png",
+						is_active: true,
+						created_at: "2026-01-02T00:00:00Z",
 					},
 				],
 				error: null,

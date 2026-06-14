@@ -20,25 +20,11 @@ import {
 } from "../../lib/server-client/auth-headers";
 import {
 	deleteFurnitureItem,
+	type FurnitureItemPayload,
 	listFurnitureItems,
 } from "../../server/furniture";
 
-type FurnitureItem = {
-	id: string;
-	label: string;
-	source: "product" | "photo";
-	originalName: string;
-	signedUrl: string | null;
-	selected: boolean;
-	createdAt: string;
-	sourceLink: string | null;
-	brand: string | null;
-	price: number | null;
-	currency: string | null;
-	widthCm: number | null;
-	heightCm: number | null;
-	depthCm: number | null;
-};
+type FurnitureItem = FurnitureItemPayload;
 
 /**
  * The Furniture Library's management home: every item in the account as a
@@ -261,6 +247,7 @@ export function FurnitureLibrary() {
 			<EditFurniture
 				item={editing}
 				onClose={() => setEditing(null)}
+				onPhotosChanged={refresh}
 				onSaved={handleEdited}
 			/>
 
