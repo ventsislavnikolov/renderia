@@ -2,20 +2,20 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createClientOnlyFn } from "@tanstack/react-start";
+import { useEffect } from "react";
 
 import { DefaultCatchBoundary } from "../components/layout/default-catch-boundary";
 import appCss from "../styles.css?url";
 
-// Initialise browser error/performance monitoring as early as possible. Wrapped
-// as client-only so the client SDK never enters the server graph; no-op without
-// a DSN configured.
+// Initialise browser error/performance monitoring. Wrapped as client-only so the
+// client SDK never enters the server graph; no-op without a DSN configured.
+// Invoked from a mount effect (not module scope) so it never runs during SSR —
+// createClientOnlyFn throws if called on the server.
 const initSentry = createClientOnlyFn(() => {
 	import("../lib/observability/sentry.client").then((module) => {
 		module.initSentryClient();
 	});
 });
-
-initSentry();
 
 export const Route = createRootRoute({
 	errorComponent: DefaultCatchBoundary,
@@ -53,6 +53,10 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	useEffect(() => {
+		initSentry();
+	}, []);
+
 	return (
 		<html lang="en">
 			<head>
