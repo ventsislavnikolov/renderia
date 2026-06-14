@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { track } from "../../lib/analytics/track";
 import { formatRelativeTime } from "../../lib/format";
 import {
 	getAuthHeaders,
@@ -263,6 +264,7 @@ export function PhotoUploadStep(props: {
 			}
 
 			if (cancelledRef.current) return;
+			track("photo_uploaded");
 			setAnnouncement("Photo uploaded.");
 			props.onPhotoSelected?.(row);
 			await refresh();

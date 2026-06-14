@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ProviderDebug } from "@/lib/ai/types";
 import { cn } from "@/lib/utils";
+import { track } from "../../lib/analytics/track";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -188,6 +189,7 @@ export function GenerationStep(props: {
 				debug?: ProviderDebug;
 			};
 			if (cancelledRef.current) return;
+			track("variations_generated", { count: response.data.images.length });
 			setImages(response.data.images);
 			setActiveJobId(response.data.jobId);
 			setDebug(response.debug ?? null);
@@ -271,6 +273,9 @@ export function GenerationStep(props: {
 				data: { imageId: image.id, isFavorite: nextValue },
 				headers,
 			});
+			if (nextValue) {
+				track("favorite_marked");
+			}
 		} catch (caught) {
 			if (cancelledRef.current) return;
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {

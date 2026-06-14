@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { track } from "../../lib/analytics/track";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -66,6 +67,7 @@ export function ProjectList() {
 				headers,
 			});
 			if (cancelledRef.current) return;
+			track("project_created");
 			setName("");
 			setDescription("");
 			await refreshProjects();

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { track } from "../../lib/analytics/track";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -135,6 +136,7 @@ export function LinkImport(props: {
 				},
 				headers,
 			});
+			track("furniture_imported");
 			await props.onSaved({ id: created.id });
 			resetDraft();
 		} catch (caught) {

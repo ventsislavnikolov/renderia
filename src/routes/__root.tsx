@@ -5,6 +5,7 @@ import { createClientOnlyFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 
 import { DefaultCatchBoundary } from "../components/layout/default-catch-boundary";
+import { AnalyticsProvider } from "../lib/analytics/analytics-context";
 import appCss from "../styles.css?url";
 
 // Initialise browser error/performance monitoring. Wrapped as client-only so the
@@ -63,7 +64,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<HeadContent />
 			</head>
 			<body>
-				{children}
+				<AnalyticsProvider>{children}</AnalyticsProvider>
 				<TanStackDevtools
 					config={{
 						position: "bottom-right",

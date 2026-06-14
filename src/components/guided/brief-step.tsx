@@ -3,6 +3,7 @@ import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
+import { track } from "../../lib/analytics/track";
 import type { RoomObject } from "../../lib/renovation/room-state";
 import {
 	getAuthHeaders,
@@ -99,6 +100,7 @@ export function BriefStep(props: {
 						});
 			const responseDebug: ProviderDebug | undefined =
 				"debug" in response ? response.debug : undefined;
+			track("brief_generated");
 			props.onBriefChange(payload.markdown);
 			props.onBriefIdChange(payload.id ?? null);
 			props.onPromptChange(payload.prompt);
