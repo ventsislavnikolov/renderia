@@ -530,7 +530,7 @@ export function PhotoReviewStep(props: {
 									<label className="grid gap-1 text-sm">
 										<span>Kind</span>
 										<select
-											className="rounded border border-border bg-background px-3 py-2"
+											className="rounded border border-border bg-background px-3 py-2 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 											onChange={(event) =>
 												updateAppearance(entry.id, {
 													kind: event.target.value as RoomAppearance["kind"],

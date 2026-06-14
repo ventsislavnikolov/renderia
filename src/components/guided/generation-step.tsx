@@ -343,7 +343,7 @@ export function GenerationStep(props: {
 					<label className="flex items-center gap-2 text-sm">
 						<span className="text-ink-muted">History</span>
 						<select
-							className="rounded border border-border bg-background px-3 py-2"
+							className="rounded border border-border bg-background px-3 py-2 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							onChange={(event) => {
 								const job = jobs.find(
 									(entry) => entry.id === event.target.value
