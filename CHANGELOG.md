@@ -1,3 +1,10 @@
+## [1.10.6](https://github.com/ventsislavnikolov/renderia/compare/v1.10.5...v1.10.6) (2026-06-14)
+
+
+### Bug Fixes
+
+* **furniture:** drop owner-access policy before dropping storage_path ([6a87b52](https://github.com/ventsislavnikolov/renderia/commit/6a87b52d316d7c7222df2bd3e702cbc17f7517c0))
+
 ## [1.10.5](https://github.com/ventsislavnikolov/renderia/compare/v1.10.4...v1.10.5) (2026-06-14)
 
 
