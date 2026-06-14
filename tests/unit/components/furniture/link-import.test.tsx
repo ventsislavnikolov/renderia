@@ -122,6 +122,20 @@ describe("LinkImport", () => {
 		).toBeInTheDocument();
 	});
 
+	it("gives each reference-photo button a visible design-system focus ring", async () => {
+		extractMock.mockResolvedValue(CANDIDATE);
+		render(<LinkImport onSaved={vi.fn()} />);
+
+		await importLink();
+		const photoButtons = await screen.findAllByRole("button", {
+			name: /use photo \d+ as the reference image/i,
+		});
+		for (const button of photoButtons) {
+			expect(button.className).toContain("focus-visible:ring-[3px]");
+			expect(button.className).toContain("focus-visible:ring-ring/50");
+		}
+	});
+
 	it("discards the draft on cancel without saving", async () => {
 		extractMock.mockResolvedValue(CANDIDATE);
 		render(<LinkImport onSaved={vi.fn()} />);

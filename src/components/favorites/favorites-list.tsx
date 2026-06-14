@@ -141,7 +141,7 @@ export function FavoritesList() {
 							<div className="flex items-center justify-between gap-3 border-border border-t px-5 py-3">
 								<div className="min-w-0">
 									<Link
-										className="block truncate font-body font-medium text-[0.9375rem] text-foreground hover:underline"
+										className="block truncate rounded-sm font-body font-medium text-[0.9375rem] text-foreground hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 										params={{
 											projectId: image.projectId,
 											taskId: image.taskId,

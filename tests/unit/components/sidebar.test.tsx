@@ -130,4 +130,28 @@ describe("Sidebar", () => {
 			await screen.findByRole("button", { name: /user@example\.com/i })
 		).toBeDefined();
 	});
+
+	it("gives nav links and the search button a visible design-system focus ring", async () => {
+		renderSidebar("/projects");
+
+		const newLink = await screen.findByRole("link", { name: /^new$/i });
+		expect(newLink.className).toContain("focus-visible:ring-[3px]");
+		expect(newLink.className).toContain("focus-visible:ring-ring/50");
+
+		const search = screen.getByRole("button", { name: /^search$/i });
+		expect(search.className).toContain("focus-visible:ring-[3px]");
+
+		const project = await screen.findByRole("link", { name: /pleven/i });
+		expect(project.className).toContain("focus-visible:ring-[3px]");
+	});
+
+	it("uses the design-system ring on the account menu trigger", async () => {
+		renderSidebar("/projects");
+
+		const trigger = await screen.findByRole("button", {
+			name: /user@example\.com/i,
+		});
+		expect(trigger.className).toContain("focus-visible:ring-[3px]");
+		expect(trigger.className).toContain("focus-visible:ring-ring/50");
+	});
 });

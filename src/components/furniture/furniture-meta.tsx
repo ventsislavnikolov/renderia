@@ -52,7 +52,7 @@ export function FurnitureMeta(props: FurnitureMetaProps) {
 					<dt className="sr-only">Source</dt>
 					<dd className="m-0">
 						<a
-							className="text-gold underline underline-offset-2"
+							className="rounded-sm text-gold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							href={props.sourceLink}
 							rel="noopener noreferrer"
 							target="_blank"

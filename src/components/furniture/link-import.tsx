@@ -213,6 +213,7 @@ export function LinkImport(props: {
 									aria-pressed={selected}
 									className={cn(
 										"relative h-24 w-24 overflow-hidden rounded border-2 bg-background",
+										"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
 										selected ? "border-gold" : "border-border"
 									)}
 									key={photo}

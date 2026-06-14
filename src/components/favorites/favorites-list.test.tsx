@@ -59,4 +59,12 @@ describe("FavoritesList accessible names", () => {
 		expect(icon).not.toBeNull();
 		expect(icon).toHaveAttribute("aria-hidden", "true");
 	});
+
+	it("gives the project link a visible design-system focus ring", async () => {
+		render(<FavoritesList />);
+
+		const link = await screen.findByText("Lake House");
+		expect(link.className).toContain("focus-visible:ring-[3px]");
+		expect(link.className).toContain("focus-visible:ring-ring/50");
+	});
 });

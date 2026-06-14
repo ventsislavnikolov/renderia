@@ -6,7 +6,7 @@ export function Breadcrumbs({ children }: { children: ReactNode }) {
 	return (
 		<nav
 			aria-label="Breadcrumb"
-			className="mb-6 flex items-center gap-2 font-medium text-[0.8125rem] text-ink-muted tracking-tight [&_[aria-current=page]]:font-semibold [&_[aria-current=page]]:text-foreground [&_a:hover]:border-foreground [&_a]:border-transparent [&_a]:border-b [&_a]:text-foreground [&_a]:no-underline [&_a]:transition-[border-color]"
+			className="mb-6 flex items-center gap-2 font-medium text-[0.8125rem] text-ink-muted tracking-tight [&_[aria-current=page]]:font-semibold [&_[aria-current=page]]:text-foreground [&_a:focus-visible]:border-foreground [&_a:focus-visible]:outline-none [&_a:hover]:border-foreground [&_a]:border-transparent [&_a]:border-b [&_a]:text-foreground [&_a]:no-underline [&_a]:transition-[border-color]"
 		>
 			{children}
 		</nav>
@@ -36,7 +36,7 @@ export function AppShell(props: {
 					{props.breadcrumbs ? (
 						<nav
 							aria-label="Breadcrumb"
-							className="mb-6 flex items-center gap-2 font-medium text-[0.8125rem] text-ink-muted tracking-tight [&_[aria-current=page]]:font-semibold [&_[aria-current=page]]:text-foreground [&_a:hover]:border-foreground [&_a]:border-transparent [&_a]:border-b [&_a]:text-foreground [&_a]:no-underline [&_a]:transition-[border-color]"
+							className="mb-6 flex items-center gap-2 font-medium text-[0.8125rem] text-ink-muted tracking-tight [&_[aria-current=page]]:font-semibold [&_[aria-current=page]]:text-foreground [&_a:focus-visible]:border-foreground [&_a:focus-visible]:outline-none [&_a:hover]:border-foreground [&_a]:border-transparent [&_a]:border-b [&_a]:text-foreground [&_a]:no-underline [&_a]:transition-[border-color]"
 						>
 							{props.breadcrumbs}
 						</nav>

@@ -65,7 +65,7 @@ export function AuthPage() {
 			<div className="mx-auto grid min-h-screen w-full max-w-[1120px] grid-rows-[auto_1fr_auto] px-6 py-5 sm:px-8">
 				<header className="flex items-center justify-between">
 					<a
-						className="font-body font-semibold text-[1rem] text-foreground no-underline"
+						className="rounded-sm font-body font-semibold text-[1rem] text-foreground no-underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 						href="/sign-in"
 					>
 						Renderia

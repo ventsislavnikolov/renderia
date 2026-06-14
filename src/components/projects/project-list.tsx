@@ -231,7 +231,7 @@ export function ProjectList() {
 							key={project.id}
 						>
 							<Link
-								className="group grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 no-underline transition-colors hover:bg-surface sm:px-5"
+								className="group grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 no-underline transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
 								params={{ projectId: project.id }}
 								to="/projects/$projectId"
 							>

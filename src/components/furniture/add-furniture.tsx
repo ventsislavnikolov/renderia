@@ -283,7 +283,7 @@ export function AddFurniture(props: {
 					<label className="grid max-w-md gap-1 text-sm">
 						<span>What is this piece?</span>
 						<input
-							className="rounded border border-border bg-background px-3 py-2"
+							className="rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							onChange={(event) => setLabel(event.target.value)}
 							placeholder="e.g. white 4-drawer dresser"
 							value={label}

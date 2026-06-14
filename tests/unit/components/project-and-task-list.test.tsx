@@ -102,6 +102,14 @@ describe("ProjectList", () => {
 			within(dialog).getByRole("button", { name: /create project/i })
 		).toBeDefined();
 	});
+
+	it("gives the project row link a visible design-system focus ring", async () => {
+		renderWithRouter(<ProjectList />);
+
+		const link = await screen.findByRole("link", { name: /city house/i });
+		expect(link.className).toContain("focus-visible:ring-[3px]");
+		expect(link.className).toContain("focus-visible:ring-ring/50");
+	});
 });
 
 describe("TaskList", () => {
@@ -135,5 +143,13 @@ describe("TaskList", () => {
 		expect(
 			within(dialog).getByRole("button", { name: /create room/i })
 		).toBeDefined();
+	});
+
+	it("gives the room row link a visible design-system focus ring", async () => {
+		renderWithRouter(<TaskList projectId="project-1" />);
+
+		const link = await screen.findByRole("link", { name: /living room/i });
+		expect(link.className).toContain("focus-visible:ring-[3px]");
+		expect(link.className).toContain("focus-visible:ring-ring/50");
 	});
 });

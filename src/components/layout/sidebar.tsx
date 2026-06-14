@@ -196,7 +196,7 @@ function UserMenu(props: {
 					className={cn(
 						"flex w-full items-center gap-3 rounded-lg px-2 py-2",
 						"text-left transition-colors hover:bg-background",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					)}
 					type="button"
 				>
@@ -255,7 +255,8 @@ function SidebarActionLink(props: {
 	const baseClass = cn(
 		"flex items-center gap-3 rounded-lg px-3 py-2.5",
 		"font-body font-medium text-[1rem] text-foreground",
-		"transition-colors hover:bg-background"
+		"transition-colors hover:bg-background",
+		"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 	);
 	return (
 		<Link
@@ -285,7 +286,8 @@ function SidebarActionButton(props: {
 			className={cn(
 				"flex w-full items-center gap-3 rounded-lg px-3 py-2.5",
 				"font-body font-medium text-[1rem] text-foreground",
-				"transition-colors hover:bg-background"
+				"transition-colors hover:bg-background",
+				"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 			)}
 			onClick={props.onClick}
 			type="button"
@@ -316,6 +318,7 @@ function SidebarProjectEntry(props: {
 				className={cn(
 					"flex items-center gap-3 rounded-lg px-3 py-2",
 					"font-body text-[0.9375rem] text-foreground transition-colors",
+					"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
 					isActive
 						? "bg-background font-semibold"
 						: "font-medium text-ink-muted hover:bg-background hover:text-foreground"
@@ -341,6 +344,7 @@ function SidebarProjectEntry(props: {
 								className={cn(
 									"flex items-center justify-between rounded-lg px-3 py-1.5",
 									"font-body text-[0.875rem] transition-colors",
+									"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
 									task.id === props.activeTaskId
 										? "bg-background font-medium text-foreground"
 										: "text-ink-muted hover:bg-background hover:text-foreground"
@@ -414,7 +418,8 @@ function SearchModal(props: {
 										className={cn(
 											"flex items-center gap-3 rounded-lg px-3 py-2.5",
 											"font-body text-[0.9375rem] text-foreground",
-											"transition-colors hover:bg-surface"
+											"transition-colors hover:bg-surface",
+											"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 										)}
 										onClick={() => props.onOpenChange(false)}
 										params={{ projectId: project.id }}
