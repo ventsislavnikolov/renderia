@@ -165,15 +165,23 @@ const FAKE_PREVIEW = {
  */
 async function installFakeSession(context: BrowserContext) {
 	await context.addInitScript(
-		({ key, session }) => {
+		({ key, session, consentKey }) => {
 			try {
 				window.localStorage.setItem(key, JSON.stringify(session));
+				// Dismiss the analytics consent banner: it's a fixed bottom overlay
+				// that otherwise intercepts pointer events on small (mobile) viewports
+				// and blocks the controls under test. "declined" keeps analytics off.
+				window.localStorage.setItem(consentKey, "declined");
 			} catch {
 				// SSR or sandboxed iframe — nothing we can do, the auth guard
 				// will redirect and the test will surface that as a failure.
 			}
 		},
-		{ key: SUPABASE_STORAGE_KEY, session: FAKE_SESSION }
+		{
+			key: SUPABASE_STORAGE_KEY,
+			session: FAKE_SESSION,
+			consentKey: "renderia.analytics-consent",
+		}
 	);
 }
 

@@ -24,6 +24,10 @@ export const FIXTURE_BYTES = readFileSync(FIXTURE_PATH);
 const SUPABASE_PROJECT_REF = "ittpjznlewuwiyuhrddu";
 const SUPABASE_STORAGE_KEY = `sb-${SUPABASE_PROJECT_REF}-auth-token`;
 
+// Mirrors CONSENT_STORAGE_KEY in src/lib/analytics/consent.ts. Seeding it
+// dismisses the consent banner so it never intercepts pointer events in tests.
+const ANALYTICS_CONSENT_STORAGE_KEY = "renderia.analytics-consent";
+
 export const USER_ID = "00000000-0000-0000-0000-000000000001";
 export const PROJECT_ID = "11111111-1111-1111-1111-111111111111";
 export const TASK_ID = "22222222-2222-2222-2222-222222222222";
@@ -77,15 +81,23 @@ const FAKE_TASK = {
  */
 export async function installFakeSession(context: BrowserContext) {
 	await context.addInitScript(
-		({ key, session }) => {
+		({ key, session, consentKey }) => {
 			try {
 				window.localStorage.setItem(key, JSON.stringify(session));
+				// Dismiss the analytics consent banner: it's a fixed bottom overlay
+				// that otherwise intercepts pointer events on small (mobile) viewports
+				// and blocks the controls under test. "declined" keeps analytics off.
+				window.localStorage.setItem(consentKey, "declined");
 			} catch {
 				// SSR or sandboxed iframe — the auth guard will redirect and the
 				// test surfaces that as a failure.
 			}
 		},
-		{ key: SUPABASE_STORAGE_KEY, session: FAKE_SESSION }
+		{
+			key: SUPABASE_STORAGE_KEY,
+			session: FAKE_SESSION,
+			consentKey: ANALYTICS_CONSENT_STORAGE_KEY,
+		}
 	);
 }
 
