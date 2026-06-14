@@ -2,13 +2,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import {
+	type AddFurniturePhotoInput,
+	addFurniturePhotoSchema,
 	type CreateFurnitureItemInput,
 	createFurnitureItemSchema,
 	type DeleteFurnitureItemInput,
+	type DeleteFurniturePhotoInput,
 	deleteFurnitureItemSchema,
+	deleteFurniturePhotoSchema,
 	type ListFurnitureItemsInput,
 	listFurnitureItemsSchema,
+	MAX_FURNITURE_PHOTOS,
+	type SetActiveFurniturePhotoInput,
 	type SetTaskFurnitureInput,
+	setActiveFurniturePhotoSchema,
 	setTaskFurnitureSchema,
 	type UpdateFurnitureItemInput,
 	updateFurnitureItemSchema,
@@ -284,6 +291,150 @@ export async function __setTaskFurnitureHandler(args: {
 	return { ok: true };
 }
 
+/** @internal */
+export async function __addFurniturePhotoHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: AddFurniturePhotoInput;
+}) {
+	const item = await args.supabase
+		.from("furniture_items")
+		.select("id")
+		.eq("id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (item.error) throw wrapSupabaseError(item.error);
+	if (!item.data) throw new Error("Furniture item not found");
+
+	// Enforce the soft cap of 6 Furniture Photos per item server-side.
+	const existing = await args.supabase
+		.from("furniture_item_images")
+		.select("id")
+		.eq("furniture_item_id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId);
+	if (existing.error) throw wrapSupabaseError(existing.error);
+	if ((existing.data?.length ?? 0) >= MAX_FURNITURE_PHOTOS) {
+		throw new Error(
+			`This item already has the maximum of ${MAX_FURNITURE_PHOTOS} photos.`
+		);
+	}
+
+	// A newly added photo is never the Reference Image — the existing active
+	// photo stays put until the user switches it from the edit dialog.
+	const inserted = await args.supabase.from("furniture_item_images").insert({
+		furniture_item_id: args.input.furnitureItemId,
+		owner_id: args.userId,
+		storage_path: args.input.storagePath,
+		original_name: args.input.originalName,
+		content_type: args.input.contentType,
+		source: args.input.source,
+		is_active: false,
+	});
+	if (inserted.error) throw wrapSupabaseError(inserted.error);
+	return { ok: true };
+}
+
+/** @internal */
+export async function __setActiveFurniturePhotoHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: SetActiveFurniturePhotoInput;
+}) {
+	const photo = await args.supabase
+		.from("furniture_item_images")
+		.select("id")
+		.eq("id", args.input.photoId)
+		.eq("furniture_item_id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (photo.error) throw wrapSupabaseError(photo.error);
+	if (!photo.data) throw new Error("Furniture photo not found");
+
+	// One-active is a DB invariant (partial unique index). Clear the current
+	// active first, then set the chosen one — clearing first keeps the two
+	// sequential updates from ever asserting two active rows at once.
+	const cleared = await args.supabase
+		.from("furniture_item_images")
+		.update({ is_active: false })
+		.eq("furniture_item_id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId)
+		.eq("is_active", true);
+	if (cleared.error) throw wrapSupabaseError(cleared.error);
+
+	const activated = await args.supabase
+		.from("furniture_item_images")
+		.update({ is_active: true })
+		.eq("id", args.input.photoId)
+		.eq("owner_id", args.userId);
+	if (activated.error) throw wrapSupabaseError(activated.error);
+	return { ok: true };
+}
+
+/** @internal */
+export async function __deleteFurniturePhotoHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: DeleteFurniturePhotoInput;
+}) {
+	const target = await args.supabase
+		.from("furniture_item_images")
+		.select("id, is_active, storage_bucket, storage_path")
+		.eq("id", args.input.photoId)
+		.eq("furniture_item_id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (target.error) throw wrapSupabaseError(target.error);
+	if (!target.data) throw new Error("Furniture photo not found");
+
+	// Oldest-first so we can both enforce the last-photo rule and pick the
+	// promotion target when the active photo is the one going away.
+	const photos = await args.supabase
+		.from("furniture_item_images")
+		.select("id, created_at")
+		.eq("furniture_item_id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId)
+		.order("created_at", { ascending: true });
+	if (photos.error) throw wrapSupabaseError(photos.error);
+	if ((photos.data?.length ?? 0) <= 1) {
+		throw new Error(
+			"An item must keep at least one photo. Delete the item instead."
+		);
+	}
+
+	const deleted = await args.supabase
+		.from("furniture_item_images")
+		.delete()
+		.eq("id", args.input.photoId)
+		.eq("owner_id", args.userId);
+	if (deleted.error) throw wrapSupabaseError(deleted.error);
+
+	// Deleting the active photo would leave the item with no Reference Image —
+	// promote the oldest survivor in its place (the delete already cleared the
+	// old active, so this can't assert two active rows).
+	if (target.data.is_active) {
+		const oldest = (photos.data ?? []).find(
+			(row) => String(row.id) !== args.input.photoId
+		);
+		if (oldest) {
+			const promoted = await args.supabase
+				.from("furniture_item_images")
+				.update({ is_active: true })
+				.eq("id", String(oldest.id))
+				.eq("owner_id", args.userId);
+			if (promoted.error) throw wrapSupabaseError(promoted.error);
+		}
+	}
+
+	// Best-effort storage cleanup — an orphaned object never blocks the user.
+	const removal = await args.supabase.storage
+		.from(String(target.data.storage_bucket))
+		.remove([String(target.data.storage_path)]);
+	if (removal.error) {
+		console.error("Failed to remove storage object", removal.error.message);
+	}
+	return { ok: true };
+}
+
 function readAuthToken(): string | undefined {
 	return readBearerToken(getRequestHeader("authorization"));
 }
@@ -321,4 +472,25 @@ export const setTaskFurniture = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __setTaskFurnitureHandler({ userId, supabase, input: data });
+	});
+
+export const addFurniturePhoto = createServerFn({ method: "POST" })
+	.validator(addFurniturePhotoSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __addFurniturePhotoHandler({ userId, supabase, input: data });
+	});
+
+export const setActiveFurniturePhoto = createServerFn({ method: "POST" })
+	.validator(setActiveFurniturePhotoSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __setActiveFurniturePhotoHandler({ userId, supabase, input: data });
+	});
+
+export const deleteFurniturePhoto = createServerFn({ method: "POST" })
+	.validator(deleteFurniturePhotoSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __deleteFurniturePhotoHandler({ userId, supabase, input: data });
 	});

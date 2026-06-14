@@ -202,6 +202,59 @@ export type DeleteFurnitureItemInput = z.infer<
 >;
 
 /**
+ * Multi-photo furniture (PRD: multi-photo-furniture). A Furniture Item carries
+ * 1–6 Furniture Photos; exactly one is the active Reference Image. The cap is a
+ * soft product limit enforced server-side on every add path (edit-dialog add
+ * and Link Import) and mirrored client-side (the add control disables at 6).
+ */
+export const MAX_FURNITURE_PHOTOS = 6;
+
+/**
+ * Inputs for `addFurniturePhoto` — register a new Furniture Photo on an
+ * existing item. The browser has already uploaded the (cropped) image to the
+ * `furniture-references` bucket, same as manual add; this only inserts the
+ * metadata row. The new photo is never active — the existing Reference Image
+ * stays put until the user explicitly switches it.
+ */
+export const addFurniturePhotoSchema = z.object({
+	furnitureItemId: z.string().uuid(),
+	storagePath: z
+		.string()
+		.min(1)
+		.max(512)
+		.regex(/^[a-f0-9-]+\/[A-Za-z0-9._-]+$/),
+	originalName: z.string().min(1).max(255),
+	contentType: z.string().regex(/^image\/(png|jpeg|webp)$/),
+	source: z.enum(["product", "photo"]),
+});
+export type AddFurniturePhotoInput = z.infer<typeof addFurniturePhotoSchema>;
+
+/**
+ * Inputs for `setActiveFurniturePhoto` — make the chosen photo the item's
+ * active Reference Image, clearing whichever was active before.
+ */
+export const setActiveFurniturePhotoSchema = z.object({
+	furnitureItemId: z.string().uuid(),
+	photoId: z.string().uuid(),
+});
+export type SetActiveFurniturePhotoInput = z.infer<
+	typeof setActiveFurniturePhotoSchema
+>;
+
+/**
+ * Inputs for `deleteFurniturePhoto` — remove one Furniture Photo. Blocked when
+ * it is the item's last photo; deleting the active photo promotes the oldest
+ * remaining one so the item always keeps exactly one Reference Image.
+ */
+export const deleteFurniturePhotoSchema = z.object({
+	furnitureItemId: z.string().uuid(),
+	photoId: z.string().uuid(),
+});
+export type DeleteFurniturePhotoInput = z.infer<
+	typeof deleteFurniturePhotoSchema
+>;
+
+/**
  * Inputs for `extractFurnitureCandidate` — the Link Import preview step.
  * Deliberately a plain bounded string: the handler parses the URL itself so
  * that an unusable link surfaces as its actionable "public http(s) product

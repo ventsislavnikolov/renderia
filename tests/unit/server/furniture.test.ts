@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	__addFurniturePhotoHandler,
 	__createFurnitureItemHandler,
 	__deleteFurnitureItemHandler,
+	__deleteFurniturePhotoHandler,
 	__listFurnitureItemsHandler,
+	__setActiveFurniturePhotoHandler,
 	__setTaskFurnitureHandler,
 	__updateFurnitureItemHandler,
 } from "../../../src/server/furniture";
@@ -24,6 +27,8 @@ function buildSupabaseStub(opts: {
 	/** Active/owned furniture_item_images rows resolved by select chains. */
 	imagesResult?: { data: Row[] | null; error: unknown };
 	imageInsertResult?: { data: Row | null; error: unknown };
+	/** Single furniture_item_images row resolved by `.maybeSingle()`. */
+	imageSingleResult?: { data: Row | null; error: unknown };
 }) {
 	const tasksChain: Record<string, (...args: unknown[]) => unknown> = {};
 	tasksChain.select = vi.fn(() => tasksChain);
@@ -56,14 +61,24 @@ function buildSupabaseStub(opts: {
 		Promise.resolve({ data: null, error: null }).then(resolve, reject)
 	);
 
-	// furniture_item_images: insert is awaited directly (create); select chains
-	// are awaited after their `.eq()` filters (list active photos, delete cleanup).
+	// furniture_item_images: insert is awaited directly (create/add); select
+	// chains are awaited after their `.eq()` filters (list active photos, count,
+	// delete cleanup) or terminate in `.order()`/`.maybeSingle()`; update/delete
+	// chains are awaited after their filters (set-active, delete-photo).
 	const imagesChain: Record<string, (...args: unknown[]) => unknown> = {};
 	imagesChain.select = vi.fn(() => imagesChain);
 	imagesChain.eq = vi.fn(() => imagesChain);
+	imagesChain.order = vi.fn(() =>
+		Promise.resolve(opts.imagesResult ?? { data: [], error: null })
+	);
+	imagesChain.maybeSingle = vi.fn(() =>
+		Promise.resolve(opts.imageSingleResult ?? { data: null, error: null })
+	);
 	imagesChain.insert = vi.fn(() =>
 		Promise.resolve(opts.imageInsertResult ?? { data: null, error: null })
 	);
+	imagesChain.update = vi.fn(() => imagesChain);
+	imagesChain.delete = vi.fn(() => imagesChain);
 	imagesChain.then = vi.fn((resolve, reject) =>
 		Promise.resolve(opts.imagesResult ?? { data: [], error: null }).then(
 			resolve,
@@ -477,5 +492,243 @@ describe("setTaskFurnitureHandler", () => {
 				input: { taskId: "t1", furnitureItemIds: [] },
 			})
 		).rejects.toThrow("Task not found");
+	});
+});
+
+describe("addFurniturePhotoHandler", () => {
+	it("inserts a non-active Furniture Photo row on an owned item under the cap", async () => {
+		const { supabase, imagesChain } = buildSupabaseStub({
+			itemSingleResult: { data: { id: "f1" }, error: null },
+			// Three existing photos — well under the cap of 6.
+			imagesResult: {
+				data: [{ id: "i1" }, { id: "i2" }, { id: "i3" }],
+				error: null,
+			},
+		});
+
+		await __addFurniturePhotoHandler({
+			userId: "user-1",
+			supabase,
+			input: {
+				furnitureItemId: "f1",
+				storagePath: "user-1/extra.png",
+				originalName: "extra.png",
+				contentType: "image/png",
+				source: "photo",
+			},
+		});
+
+		// New photos never steal the active flag — the Reference Image stays put.
+		expect(imagesChain.insert).toHaveBeenCalledWith({
+			furniture_item_id: "f1",
+			owner_id: "user-1",
+			storage_path: "user-1/extra.png",
+			original_name: "extra.png",
+			content_type: "image/png",
+			source: "photo",
+			is_active: false,
+		});
+	});
+
+	it("rejects a 7th photo (cap of 6)", async () => {
+		const { supabase, imagesChain } = buildSupabaseStub({
+			itemSingleResult: { data: { id: "f1" }, error: null },
+			imagesResult: {
+				data: [
+					{ id: "i1" },
+					{ id: "i2" },
+					{ id: "i3" },
+					{ id: "i4" },
+					{ id: "i5" },
+					{ id: "i6" },
+				],
+				error: null,
+			},
+		});
+
+		await expect(
+			__addFurniturePhotoHandler({
+				userId: "user-1",
+				supabase,
+				input: {
+					furnitureItemId: "f1",
+					storagePath: "user-1/seventh.png",
+					originalName: "seventh.png",
+					contentType: "image/png",
+					source: "photo",
+				},
+			})
+		).rejects.toThrow(/maximum of 6/i);
+		expect(imagesChain.insert).not.toHaveBeenCalled();
+	});
+
+	it("rejects when the item is not owned", async () => {
+		const { supabase } = buildSupabaseStub({
+			itemSingleResult: { data: null, error: null },
+		});
+
+		await expect(
+			__addFurniturePhotoHandler({
+				userId: "user-1",
+				supabase,
+				input: {
+					furnitureItemId: "missing",
+					storagePath: "user-1/extra.png",
+					originalName: "extra.png",
+					contentType: "image/png",
+					source: "photo",
+				},
+			})
+		).rejects.toThrow("Furniture item not found");
+	});
+});
+
+describe("setActiveFurniturePhotoHandler", () => {
+	it("clears the current active then sets the chosen photo active", async () => {
+		const { supabase, imagesChain } = buildSupabaseStub({
+			imageSingleResult: { data: { id: "i2" }, error: null },
+		});
+
+		await __setActiveFurniturePhotoHandler({
+			userId: "user-1",
+			supabase,
+			input: { furnitureItemId: "f1", photoId: "i2" },
+		});
+
+		// Exactly one-active is the DB invariant; the handler clears the old
+		// active first, then promotes the chosen photo — two updates, in order.
+		expect(imagesChain.update).toHaveBeenCalledTimes(2);
+		expect(imagesChain.update).toHaveBeenNthCalledWith(1, { is_active: false });
+		expect(imagesChain.update).toHaveBeenNthCalledWith(2, { is_active: true });
+	});
+
+	it("rejects when the photo does not belong to the item", async () => {
+		const { supabase, imagesChain } = buildSupabaseStub({
+			imageSingleResult: { data: null, error: null },
+		});
+
+		await expect(
+			__setActiveFurniturePhotoHandler({
+				userId: "user-1",
+				supabase,
+				input: { furnitureItemId: "f1", photoId: "missing" },
+			})
+		).rejects.toThrow("Furniture photo not found");
+		expect(imagesChain.update).not.toHaveBeenCalled();
+	});
+});
+
+describe("deleteFurniturePhotoHandler", () => {
+	it("rejects deleting the item's last photo", async () => {
+		const { supabase, imagesChain, remove } = buildSupabaseStub({
+			imageSingleResult: {
+				data: {
+					id: "i1",
+					is_active: true,
+					storage_bucket: "furniture-references",
+					storage_path: "user-1/only.png",
+				},
+				error: null,
+			},
+			imagesResult: {
+				data: [
+					{ id: "i1", is_active: true, created_at: "2026-01-01T00:00:00Z" },
+				],
+				error: null,
+			},
+		});
+
+		await expect(
+			__deleteFurniturePhotoHandler({
+				userId: "user-1",
+				supabase,
+				input: { furnitureItemId: "f1", photoId: "i1" },
+			})
+		).rejects.toThrow(/at least one photo/i);
+		expect(imagesChain.delete).not.toHaveBeenCalled();
+		expect(remove).not.toHaveBeenCalled();
+	});
+
+	it("deletes a non-active photo and removes its storage object without promoting", async () => {
+		const { supabase, imagesChain, remove } = buildSupabaseStub({
+			imageSingleResult: {
+				data: {
+					id: "i2",
+					is_active: false,
+					storage_bucket: "furniture-references",
+					storage_path: "user-1/side.png",
+				},
+				error: null,
+			},
+			imagesResult: {
+				data: [
+					{ id: "i1", is_active: true, created_at: "2026-01-01T00:00:00Z" },
+					{ id: "i2", is_active: false, created_at: "2026-01-02T00:00:00Z" },
+				],
+				error: null,
+			},
+		});
+
+		await __deleteFurniturePhotoHandler({
+			userId: "user-1",
+			supabase,
+			input: { furnitureItemId: "f1", photoId: "i2" },
+		});
+
+		expect(imagesChain.delete).toHaveBeenCalledTimes(1);
+		// Deleting a non-active photo leaves the Reference Image untouched.
+		expect(imagesChain.update).not.toHaveBeenCalled();
+		expect(remove).toHaveBeenCalledWith(["user-1/side.png"]);
+	});
+
+	it("promotes the oldest remaining photo when the active one is deleted", async () => {
+		const { supabase, imagesChain, remove } = buildSupabaseStub({
+			imageSingleResult: {
+				data: {
+					id: "i1",
+					is_active: true,
+					storage_bucket: "furniture-references",
+					storage_path: "user-1/front.png",
+				},
+				error: null,
+			},
+			// Ordered oldest-first; i1 (the active, deleted one) is removed and the
+			// next-oldest survivor (i2) must inherit the active flag.
+			imagesResult: {
+				data: [
+					{ id: "i1", is_active: true, created_at: "2026-01-01T00:00:00Z" },
+					{ id: "i2", is_active: false, created_at: "2026-01-02T00:00:00Z" },
+					{ id: "i3", is_active: false, created_at: "2026-01-03T00:00:00Z" },
+				],
+				error: null,
+			},
+		});
+
+		await __deleteFurniturePhotoHandler({
+			userId: "user-1",
+			supabase,
+			input: { furnitureItemId: "f1", photoId: "i1" },
+		});
+
+		expect(imagesChain.delete).toHaveBeenCalledTimes(1);
+		expect(imagesChain.update).toHaveBeenCalledTimes(1);
+		expect(imagesChain.update).toHaveBeenCalledWith({ is_active: true });
+		// The promotion targets the oldest survivor by id.
+		expect(imagesChain.eq).toHaveBeenCalledWith("id", "i2");
+		expect(remove).toHaveBeenCalledWith(["user-1/front.png"]);
+	});
+
+	it("rejects when the photo does not belong to the item", async () => {
+		const { supabase } = buildSupabaseStub({
+			imageSingleResult: { data: null, error: null },
+		});
+
+		await expect(
+			__deleteFurniturePhotoHandler({
+				userId: "user-1",
+				supabase,
+				input: { furnitureItemId: "f1", photoId: "missing" },
+			})
+		).rejects.toThrow("Furniture photo not found");
 	});
 });
