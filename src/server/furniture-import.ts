@@ -9,7 +9,11 @@ import {
 	type ImportFurnitureItemInput,
 	importFurnitureItemSchema,
 } from "../lib/renovation/schema";
-import { readBearerToken, requireAuthedSupabase } from "../lib/supabase/server";
+import {
+	readBearerToken,
+	requireAuthedSupabase,
+	wrapSupabaseError,
+} from "../lib/supabase/server";
 import type { Database } from "../lib/types/database";
 import { __createFurnitureItemHandler } from "./furniture";
 import { normalizeImageToPng } from "./image-normalize";
@@ -380,25 +384,20 @@ async function readBytesCapped(
 }
 
 /**
- * Link Import confirm half: download the one photo the user picked as the
- * Reference Image, normalise it to a clean PNG (Renderia stores its own copy —
- * never hotlinks), upload it to the furniture bucket, and insert the item row
- * with its Source Link and edited metadata. Reuses the same fetch hygiene as
- * the page fetch (honest UA, public hosts only, size cap).
+ * Download one extracted photo, normalise it to a clean PNG (Renderia stores
+ * its own copy — never hotlinks), and upload it to the furniture bucket.
+ * Reuses the page fetch's hygiene (honest UA, public hosts only, size cap).
+ * Returns the stored path and a safe original name.
  */
-/** @internal */
-export async function __importFurnitureItemHandler(args: {
-	userId: string;
+async function downloadAndStorePhoto(args: {
+	fetchImpl: typeof fetch;
 	supabase: SupabaseClient<Database>;
-	input: ImportFurnitureItemInput;
-	fetchImpl?: typeof fetch;
-}): Promise<{ id: string }> {
-	const fetchImpl = args.fetchImpl ?? fetch;
-	const photo = parsePublicHttpUrl(args.input.photoUrl);
-
+	userId: string;
+	photo: URL;
+}): Promise<{ storagePath: string; originalName: string }> {
 	let response: Response;
 	try {
-		response = await fetchImpl(photo.href, buildImageRequestInit());
+		response = await args.fetchImpl(args.photo.href, buildImageRequestInit());
 	} catch {
 		throw new Error(IMAGE_UNREACHABLE_MESSAGE);
 	}
@@ -423,13 +422,50 @@ export async function __importFurnitureItemHandler(args: {
 	if (upload.error) {
 		throw new Error(IMAGE_INVALID_MESSAGE);
 	}
+	return { storagePath, originalName: importedFilename(args.photo) };
+}
 
+/**
+ * Link Import confirm half: download every photo the user chose to keep,
+ * store each as a clean PNG in the furniture bucket, and insert the item with
+ * one `furniture_item_images` row per photo — exactly one active (the user's
+ * picked Reference Image). The other kept photos join the item's gallery.
+ */
+/** @internal */
+export async function __importFurnitureItemHandler(args: {
+	userId: string;
+	supabase: SupabaseClient<Database>;
+	input: ImportFurnitureItemInput;
+	fetchImpl?: typeof fetch;
+}): Promise<{ id: string }> {
+	const fetchImpl = args.fetchImpl ?? fetch;
+	// Parse every kept photo up front so a non-public URL is rejected before any
+	// download or storage write happens.
+	const photos = args.input.photoUrls.map((url) => parsePublicHttpUrl(url));
+	const activeIndex = args.input.activePhotoIndex;
+
+	// Download and store each kept photo (sequentially — keeps the request
+	// gentle on the retailer and storage paths distinct).
+	const stored: { storagePath: string; originalName: string }[] = [];
+	for (const photo of photos) {
+		stored.push(
+			await downloadAndStorePhoto({
+				fetchImpl,
+				supabase: args.supabase,
+				userId: args.userId,
+				photo,
+			})
+		);
+	}
+
+	// Create the parent item with the picked photo as its active Reference Image.
+	const active = stored[activeIndex];
 	const created = await __createFurnitureItemHandler({
 		userId: args.userId,
 		supabase: args.supabase,
 		input: {
-			storagePath,
-			originalName: importedFilename(photo),
+			storagePath: active.storagePath,
+			originalName: active.originalName,
 			contentType: "image/png",
 			label: args.input.label,
 			source: "product",
@@ -442,6 +478,23 @@ export async function __importFurnitureItemHandler(args: {
 			depthCm: args.input.depthCm ?? null,
 		},
 	});
+
+	// The remaining kept photos become inactive gallery rows on the same item.
+	const others = stored.filter((_, index) => index !== activeIndex);
+	if (others.length > 0) {
+		const inserted = await args.supabase.from("furniture_item_images").insert(
+			others.map((photo) => ({
+				furniture_item_id: String(created.id),
+				owner_id: args.userId,
+				storage_path: photo.storagePath,
+				original_name: photo.originalName,
+				content_type: "image/png",
+				source: "product" as const,
+				is_active: false,
+			}))
+		);
+		if (inserted.error) throw wrapSupabaseError(inserted.error);
+	}
 	return { id: String(created.id) };
 }
 

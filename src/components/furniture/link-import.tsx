@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { track } from "../../lib/analytics/track";
+import { MAX_FURNITURE_PHOTOS } from "../../lib/renovation/schema";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -27,7 +28,10 @@ type Draft = {
 	price: string;
 	currency: string;
 	photos: string[];
-	selectedPhoto: number;
+	/** Parallel to `photos`: which extracted photos to keep on the item. */
+	kept: boolean[];
+	/** Index into `photos` of the active Reference Image (always a kept photo). */
+	activePhoto: number;
 };
 
 /** Blank → null; a non-negative finite number → that number; else undefined (invalid). */
@@ -46,10 +50,11 @@ function emptyToNull(raw: string): string | null {
 /**
  * Link Import on the Furniture page: paste a retailer product URL, the server
  * fetches and extracts a candidate, and an editable confirm form pre-fills.
- * The user edits any field and picks which extracted photo becomes the
- * Reference Image, then confirms — the server downloads that photo into the
- * furniture bucket and inserts the item with its Source Link. Nothing persists
- * before confirm; cancel discards the draft cleanly.
+ * The user edits any field, chooses which extracted photos to keep (default:
+ * all, capped at {@link MAX_FURNITURE_PHOTOS}) and which kept photo is the
+ * Reference Image, then confirms — the server downloads every kept photo into
+ * the furniture bucket and inserts the item with one photo row per photo and
+ * its Source Link. Nothing persists before confirm; cancel discards the draft.
  */
 export function LinkImport(props: {
 	disabled?: boolean;
@@ -94,7 +99,9 @@ export function LinkImport(props: {
 				price: candidate.price === null ? "" : String(candidate.price),
 				currency: candidate.currency ?? "",
 				photos: candidate.photos,
-				selectedPhoto: 0,
+				// Default: keep all extracted photos, capped at the per-item maximum.
+				kept: candidate.photos.map((_, index) => index < MAX_FURNITURE_PHOTOS),
+				activePhoto: 0,
 			});
 		} catch (caught) {
 			if (handleAuthError(caught)) return;
@@ -108,11 +115,43 @@ export function LinkImport(props: {
 		}
 	}
 
+	/** Toggle whether a photo is kept, never dropping below one kept photo and
+	 * never exceeding the cap; promote another kept photo if the active one goes. */
+	function toggleKeep(index: number) {
+		setDraft((prev) => {
+			if (!prev) return prev;
+			const kept = prev.kept.slice();
+			const next = !kept[index];
+			const keptCount = kept.filter(Boolean).length;
+			if (!next && keptCount <= 1) return prev;
+			if (next && keptCount >= MAX_FURNITURE_PHOTOS) return prev;
+			kept[index] = next;
+			const activePhoto =
+				!next && index === prev.activePhoto
+					? kept.findIndex(Boolean)
+					: prev.activePhoto;
+			return { ...prev, kept, activePhoto };
+		});
+	}
+
+	function setActivePhoto(index: number) {
+		setDraft((prev) =>
+			prev && prev.kept[index] ? { ...prev, activePhoto: index } : prev
+		);
+	}
+
 	async function confirmImport() {
 		if (!draft || saving) return;
 		const label = draft.label.trim();
-		const photoUrl = draft.photos[draft.selectedPhoto];
-		if (label.length === 0 || !photoUrl) return;
+		const keptIndices = draft.photos
+			.map((_, index) => index)
+			.filter((index) => draft.kept[index]);
+		const photoUrls = keptIndices.map((index) => draft.photos[index]);
+		const activePhotoIndex = Math.max(
+			0,
+			keptIndices.indexOf(draft.activePhoto)
+		);
+		if (label.length === 0 || photoUrls.length === 0) return;
 		const price = parsePrice(draft.price);
 		if (price === undefined) {
 			setError("Price must be a non-negative number, or left blank.");
@@ -125,7 +164,8 @@ export function LinkImport(props: {
 			const created = await importFurnitureItem({
 				data: {
 					sourceUrl: draft.sourceUrl,
-					photoUrl,
+					photoUrls,
+					activePhotoIndex,
 					label,
 					brand: emptyToNull(draft.brand),
 					price,
@@ -205,33 +245,57 @@ export function LinkImport(props: {
 
 			{hasPhotos ? (
 				<fieldset className="m-0 grid gap-2 border-0 p-0">
-					<legend className="mb-1 p-0 text-sm">Pick the Reference Image</legend>
+					<legend className="mb-1 p-0 text-sm">
+						Keep the photos you want and pick the Reference Image
+					</legend>
 					<div className="flex flex-wrap gap-3">
 						{draft.photos.map((photo, index) => {
-							const selected = index === draft.selectedPhoto;
+							const kept = draft.kept[index];
+							const active = index === draft.activePhoto;
+							const keptCount = draft.kept.filter(Boolean).length;
+							const keepDisabled =
+								(kept && keptCount <= 1) ||
+								(!kept && keptCount >= MAX_FURNITURE_PHOTOS);
 							return (
-								<button
-									aria-label={`Use photo ${index + 1} as the Reference Image`}
-									aria-pressed={selected}
-									className={cn(
-										"relative h-24 w-24 overflow-hidden rounded border-2 bg-background",
-										"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-										selected ? "border-gold" : "border-border"
-									)}
-									key={photo}
-									onClick={() =>
-										setDraft((prev) =>
-											prev ? { ...prev, selectedPhoto: index } : prev
-										)
-									}
-									type="button"
-								>
-									<img
-										alt={`Product option ${index + 1}`}
-										className="h-full w-full object-cover"
-										src={photo}
-									/>
-								</button>
+								<div className="grid gap-1" key={photo}>
+									<button
+										aria-label={`Use photo ${index + 1} as the Reference Image`}
+										aria-pressed={active}
+										className={cn(
+											"relative h-24 w-24 overflow-hidden rounded border-2 bg-background",
+											"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+											"disabled:opacity-50",
+											active ? "border-gold" : "border-border"
+										)}
+										disabled={!kept}
+										onClick={() => setActivePhoto(index)}
+										type="button"
+									>
+										<img
+											alt={`Product option ${index + 1}`}
+											className={cn(
+												"h-full w-full object-cover",
+												kept ? "" : "opacity-40"
+											)}
+											src={photo}
+										/>
+										{active ? (
+											<span className="absolute top-1 left-1 rounded bg-ring px-1.5 py-0.5 font-medium text-[0.625rem] text-background">
+												Reference
+											</span>
+										) : null}
+									</button>
+									<label className="flex items-center gap-1 text-[0.75rem]">
+										<input
+											aria-label={`Keep photo ${index + 1}`}
+											checked={kept}
+											disabled={keepDisabled}
+											onChange={() => toggleKeep(index)}
+											type="checkbox"
+										/>
+										Keep
+									</label>
+								</div>
 							);
 						})}
 					</div>

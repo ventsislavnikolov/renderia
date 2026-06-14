@@ -269,26 +269,37 @@ export type ExtractFurnitureCandidateInput = z.infer<
 
 /**
  * Inputs for `importFurnitureItem` — the Link Import confirm step. The user
- * has edited the pre-filled form and picked which extracted photo becomes the
- * Reference Image; the server downloads that one photo, normalises it, stores
- * it in the furniture bucket, and inserts the item with its Source Link.
+ * has edited the pre-filled form and chosen which extracted photos to keep
+ * (1–6) plus which kept photo is the active Reference Image; the server
+ * downloads each kept photo, normalises it, stores it in the furniture bucket,
+ * and inserts the item with one `furniture_item_images` row per photo, exactly
+ * one active.
  *
- * `sourceUrl` and `photoUrl` are plain bounded strings (not `z.string().url()`)
+ * `sourceUrl` and `photoUrls` are plain bounded strings (not `z.string().url()`)
  * so the handler can parse them itself and surface the same actionable
  * "public http(s) product pages" message the extract step uses, instead of a
- * generic validation error.
+ * generic validation error. `activePhotoIndex` points into `photoUrls`.
  */
-export const importFurnitureItemSchema = z.object({
-	sourceUrl: z.string().min(1).max(2048),
-	photoUrl: z.string().min(1).max(2048),
-	label: z.string().min(1).max(120),
-	brand: brandField,
-	price: priceField,
-	currency: currencyField,
-	widthCm: dimensionField,
-	heightCm: dimensionField,
-	depthCm: dimensionField,
-});
+export const importFurnitureItemSchema = z
+	.object({
+		sourceUrl: z.string().min(1).max(2048),
+		photoUrls: z
+			.array(z.string().min(1).max(2048))
+			.min(1)
+			.max(MAX_FURNITURE_PHOTOS),
+		activePhotoIndex: z.number().int().nonnegative(),
+		label: z.string().min(1).max(120),
+		brand: brandField,
+		price: priceField,
+		currency: currencyField,
+		widthCm: dimensionField,
+		heightCm: dimensionField,
+		depthCm: dimensionField,
+	})
+	.refine((value) => value.activePhotoIndex < value.photoUrls.length, {
+		message: "activePhotoIndex must point to a kept photo",
+		path: ["activePhotoIndex"],
+	});
 export type ImportFurnitureItemInput = z.infer<
 	typeof importFurnitureItemSchema
 >;

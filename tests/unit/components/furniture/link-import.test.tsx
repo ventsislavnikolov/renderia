@@ -67,9 +67,15 @@ describe("LinkImport", () => {
 		expect(photoButtons).toHaveLength(2);
 		expect(photoButtons[0]).toHaveAttribute("aria-pressed", "true");
 		expect(photoButtons[1]).toHaveAttribute("aria-pressed", "false");
+		// Every extracted photo is kept by default.
+		const keepBoxes = screen.getAllByRole("checkbox", {
+			name: /keep photo \d+/i,
+		});
+		expect(keepBoxes).toHaveLength(2);
+		for (const box of keepBoxes) expect(box).toBeChecked();
 	});
 
-	it("imports the picked photo with the edited fields, then resets", async () => {
+	it("keeps all photos by default and imports them with the picked active one", async () => {
 		extractMock.mockResolvedValue(CANDIDATE);
 		importMock.mockResolvedValue({ id: "item-9" });
 		const onSaved = vi.fn();
@@ -88,9 +94,14 @@ describe("LinkImport", () => {
 		await user.click(screen.getByRole("button", { name: /save to library/i }));
 
 		await waitFor(() => expect(importMock).toHaveBeenCalledTimes(1));
+		// Both photos kept; the second is the active Reference Image.
 		expect(importMock.mock.calls[0][0].data).toMatchObject({
 			sourceUrl: "https://jysk.bg/divani/divan-gistrup",
-			photoUrl: "https://jysk.bg/cdn/gistrup-2.jpg",
+			photoUrls: [
+				"https://jysk.bg/cdn/gistrup-1.jpg",
+				"https://jysk.bg/cdn/gistrup-2.jpg",
+			],
+			activePhotoIndex: 1,
 			label: "GISTRUP 3-seat sofa",
 			brand: "JYSK",
 			price: 799,
@@ -103,6 +114,81 @@ describe("LinkImport", () => {
 				""
 			)
 		);
+	});
+
+	it("excludes an unchecked photo from the import", async () => {
+		extractMock.mockResolvedValue(CANDIDATE);
+		importMock.mockResolvedValue({ id: "item-7" });
+		render(<LinkImport onSaved={vi.fn()} />);
+
+		const user = await importLink();
+		await screen.findByDisplayValue("GISTRUP 3-seat sofa");
+
+		// Drop the first photo; the second becomes the active Reference Image.
+		const keepBoxes = screen.getAllByRole("checkbox", {
+			name: /keep photo \d+/i,
+		});
+		await user.click(keepBoxes[0]);
+
+		await user.click(screen.getByRole("button", { name: /save to library/i }));
+
+		await waitFor(() => expect(importMock).toHaveBeenCalledTimes(1));
+		expect(importMock.mock.calls[0][0].data).toMatchObject({
+			photoUrls: ["https://jysk.bg/cdn/gistrup-2.jpg"],
+			activePhotoIndex: 0,
+		});
+	});
+
+	it("keeps at most the photo cap by default and disables keeping the rest", async () => {
+		const photos = Array.from(
+			{ length: 8 },
+			(_, index) => `https://jysk.bg/cdn/p-${index}.jpg`
+		);
+		extractMock.mockResolvedValue({
+			...CANDIDATE,
+			candidate: { ...CANDIDATE.candidate, photos },
+		});
+		importMock.mockResolvedValue({ id: "item-cap" });
+		render(<LinkImport onSaved={vi.fn()} />);
+
+		const user = await importLink();
+		await screen.findByDisplayValue("GISTRUP 3-seat sofa");
+
+		const keepBoxes = screen.getAllByRole("checkbox", {
+			name: /keep photo \d+/i,
+		});
+		// First six kept; the extras are unchecked and can't be added (cap of 6).
+		for (let index = 0; index < 6; index++) {
+			expect(keepBoxes[index]).toBeChecked();
+		}
+		for (let index = 6; index < 8; index++) {
+			expect(keepBoxes[index]).not.toBeChecked();
+			expect(keepBoxes[index]).toBeDisabled();
+		}
+
+		await user.click(screen.getByRole("button", { name: /save to library/i }));
+		await waitFor(() => expect(importMock).toHaveBeenCalledTimes(1));
+		expect(importMock.mock.calls[0][0].data.photoUrls).toHaveLength(6);
+	});
+
+	it("promotes another kept photo when the active one is unchecked", async () => {
+		extractMock.mockResolvedValue(CANDIDATE);
+		render(<LinkImport onSaved={vi.fn()} />);
+
+		const user = await importLink();
+		await screen.findByDisplayValue("GISTRUP 3-seat sofa");
+
+		const photoButtons = screen.getAllByRole("button", {
+			name: /use photo \d+ as the reference image/i,
+		});
+		expect(photoButtons[0]).toHaveAttribute("aria-pressed", "true");
+
+		// Uncheck the active (first) photo — the second is promoted to active.
+		const keepBoxes = screen.getAllByRole("checkbox", {
+			name: /keep photo \d+/i,
+		});
+		await user.click(keepBoxes[0]);
+		expect(photoButtons[1]).toHaveAttribute("aria-pressed", "true");
 	});
 
 	it("surfaces an actionable error when extraction fails", async () => {

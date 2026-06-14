@@ -7,7 +7,9 @@ import {
 	createTaskSchema,
 	detectedProtectedElementSchema,
 	detectProtectedElementsSchema,
+	importFurnitureItemSchema,
 	listPhotosSchema,
+	MAX_FURNITURE_PHOTOS,
 	protectedElementSchema,
 	roomAppearanceSchema,
 	roomObjectSchema,
@@ -16,6 +18,65 @@ import {
 } from "../../../src/lib/renovation/schema";
 
 describe("renovation schemas", () => {
+	const importBase = {
+		sourceUrl: "https://jysk.bg/divani/divan-gistrup",
+		label: "GISTRUP sofa",
+		brand: null,
+		price: null,
+		currency: null,
+		widthCm: null,
+		heightCm: null,
+		depthCm: null,
+	};
+
+	it("accepts a Link Import with up to the photo cap kept", () => {
+		const photoUrls = Array.from(
+			{ length: MAX_FURNITURE_PHOTOS },
+			(_, index) => `https://jysk.bg/cdn/p-${index}.jpg`
+		);
+		expect(
+			importFurnitureItemSchema.safeParse({
+				...importBase,
+				photoUrls,
+				activePhotoIndex: 2,
+			}).success
+		).toBe(true);
+	});
+
+	it("rejects a Link Import keeping more than the photo cap", () => {
+		const photoUrls = Array.from(
+			{ length: MAX_FURNITURE_PHOTOS + 1 },
+			(_, index) => `https://jysk.bg/cdn/p-${index}.jpg`
+		);
+		expect(
+			importFurnitureItemSchema.safeParse({
+				...importBase,
+				photoUrls,
+				activePhotoIndex: 0,
+			}).success
+		).toBe(false);
+	});
+
+	it("rejects a Link Import with no kept photos", () => {
+		expect(
+			importFurnitureItemSchema.safeParse({
+				...importBase,
+				photoUrls: [],
+				activePhotoIndex: 0,
+			}).success
+		).toBe(false);
+	});
+
+	it("rejects an active index outside the kept photos", () => {
+		expect(
+			importFurnitureItemSchema.safeParse({
+				...importBase,
+				photoUrls: ["https://jysk.bg/cdn/p-0.jpg"],
+				activePhotoIndex: 1,
+			}).success
+		).toBe(false);
+	});
+
 	it("rejects empty project names", () => {
 		expect(createProjectSchema.safeParse({ name: "" }).success).toBe(false);
 		expect(createProjectSchema.safeParse({ name: "City house" }).success).toBe(

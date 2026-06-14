@@ -429,7 +429,8 @@ function buildImageFetch(opts: { ok?: boolean; body?: BodyInit } = {}) {
 describe("importFurnitureItemHandler", () => {
 	const baseInput = {
 		sourceUrl: SOURCE_URL,
-		photoUrl: PHOTO_URL,
+		photoUrls: [PHOTO_URL],
+		activePhotoIndex: 0,
 		label: "GISTRUP sofa",
 		brand: "JYSK",
 		price: 799,
@@ -543,11 +544,73 @@ describe("importFurnitureItemHandler", () => {
 			__importFurnitureItemHandler({
 				userId: "11111111-1111-1111-1111-111111111111",
 				supabase,
-				input: { ...baseInput, photoUrl },
+				input: { ...baseInput, photoUrls: [photoUrl] },
 				fetchImpl,
 			})
 		).rejects.toThrow(/public.*product pages/i);
 		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
+	it("keeps N photos: stores each and inserts N child rows with exactly one active", async () => {
+		const fetchImpl = buildImageFetch();
+		const { supabase, upload, from } = buildImportSupabase();
+
+		const photoUrls = [
+			"https://jysk.bg/cdn/gistrup-1.jpg",
+			"https://jysk.bg/cdn/gistrup-2.jpg",
+			"https://jysk.bg/cdn/gistrup-3.jpg",
+		];
+
+		await __importFurnitureItemHandler({
+			userId: "11111111-1111-1111-1111-111111111111",
+			supabase,
+			// Mark the second kept photo as the active Reference Image.
+			input: { ...baseInput, photoUrls, activePhotoIndex: 1 },
+			fetchImpl,
+		});
+
+		// Every kept photo is downloaded and stored by Renderia, never hotlinked.
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
+		expect(upload).toHaveBeenCalledTimes(3);
+
+		// The insert calls land on the shared chain: [0] parent item row, [1] the
+		// active Reference Image child row, [2] the remaining gallery rows.
+		const insertCalls = (
+			from.mock.results[0]?.value as { insert: ReturnType<typeof vi.fn> }
+		).insert.mock.calls;
+		const activeImage = insertCalls[1]?.[0] as Record<string, unknown>;
+		const others = insertCalls[2]?.[0] as Record<string, unknown>[];
+		expect(activeImage.is_active).toBe(true);
+		expect(activeImage.source).toBe("product");
+		expect(others).toHaveLength(2);
+
+		// Exactly one active across all N child rows; the rest are inactive gallery
+		// photos, all sourced as product photos.
+		const childRows = [activeImage, ...others];
+		expect(childRows).toHaveLength(photoUrls.length);
+		expect(childRows.filter((row) => row.is_active === true)).toHaveLength(1);
+		for (const row of others) {
+			expect(row.is_active).toBe(false);
+			expect(row.source).toBe("product");
+		}
+	});
+
+	it("keeps a single photo: no extra gallery insert beyond the active row", async () => {
+		const fetchImpl = buildImageFetch();
+		const { supabase, from } = buildImportSupabase();
+
+		await __importFurnitureItemHandler({
+			userId: "11111111-1111-1111-1111-111111111111",
+			supabase,
+			input: baseInput,
+			fetchImpl,
+		});
+
+		const insertCalls = (
+			from.mock.results[0]?.value as { insert: ReturnType<typeof vi.fn> }
+		).insert.mock.calls;
+		// Parent row + one active image row only — no gallery batch.
+		expect(insertCalls).toHaveLength(2);
 	});
 });
 
@@ -566,7 +629,8 @@ describe("Link Import end-to-end (VEN-634)", () => {
 		//    (label ← name, Reference Image ← first photo, metadata carried over).
 		const confirmInput = {
 			sourceUrl,
-			photoUrl: candidate.photos[0] as string,
+			photoUrls: [candidate.photos[0] as string],
+			activePhotoIndex: 0,
 			label: candidate.name ?? "",
 			brand: candidate.brand,
 			price: candidate.price,
