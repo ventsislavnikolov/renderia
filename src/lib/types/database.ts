@@ -571,12 +571,7 @@ export type Database = {
 				Row: {
 					id: string;
 					owner_id: string;
-					storage_bucket: "furniture-references";
-					storage_path: string;
-					original_name: string;
-					content_type: string;
 					label: string;
-					source: "product" | "photo";
 					source_link: Nullable<string>;
 					brand: Nullable<string>;
 					price: Nullable<number>;
@@ -589,12 +584,7 @@ export type Database = {
 				Insert: {
 					id?: string;
 					owner_id: string;
-					storage_bucket?: "furniture-references";
-					storage_path: string;
-					original_name: string;
-					content_type: string;
 					label: string;
-					source: "product" | "photo";
 					source_link?: Nullable<string>;
 					brand?: Nullable<string>;
 					price?: Nullable<number>;
@@ -607,12 +597,7 @@ export type Database = {
 				Update: {
 					id?: string;
 					owner_id?: string;
-					storage_bucket?: "furniture-references";
-					storage_path?: string;
-					original_name?: string;
-					content_type?: string;
 					label?: string;
-					source?: "product" | "photo";
 					source_link?: Nullable<string>;
 					brand?: Nullable<string>;
 					price?: Nullable<number>;
@@ -623,6 +608,52 @@ export type Database = {
 					created_at?: string;
 				};
 				Relationships: [];
+			};
+			furniture_item_images: {
+				Row: {
+					id: string;
+					furniture_item_id: string;
+					owner_id: string;
+					storage_bucket: "furniture-references";
+					storage_path: string;
+					original_name: string;
+					content_type: string;
+					source: "product" | "photo";
+					is_active: boolean;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					furniture_item_id: string;
+					owner_id: string;
+					storage_bucket?: "furniture-references";
+					storage_path: string;
+					original_name: string;
+					content_type: string;
+					source: "product" | "photo";
+					is_active?: boolean;
+					created_at?: string;
+				};
+				Update: {
+					id?: string;
+					furniture_item_id?: string;
+					owner_id?: string;
+					storage_bucket?: "furniture-references";
+					storage_path?: string;
+					original_name?: string;
+					content_type?: string;
+					source?: "product" | "photo";
+					is_active?: boolean;
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "furniture_item_images_furniture_item_id_owner_id_fkey";
+						columns: ["furniture_item_id", "owner_id"];
+						referencedRelation: "furniture_items";
+						referencedColumns: ["id", "owner_id"];
+					},
+				];
 			};
 			task_furniture: {
 				Row: {

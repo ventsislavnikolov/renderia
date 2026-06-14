@@ -464,14 +464,18 @@ describe("importFurnitureItemHandler", () => {
 			/^11111111-1111-1111-1111-111111111111\/[\dA-Za-z._-]+\.png$/
 		);
 		expect(uploadOpts.contentType).toBe("image/png");
-		// Inserted with source_link and source=product.
-		const insertArg = (
+		// Parent row carries the metadata + Source Link; the Reference Image
+		// child row carries source=product and the stored photo path.
+		const insertCalls = (
 			from.mock.results[0]?.value as { insert: ReturnType<typeof vi.fn> }
-		).insert.mock.calls[0]?.[0] as Record<string, unknown>;
-		expect(insertArg.source).toBe("product");
-		expect(insertArg.source_link).toBe(SOURCE_URL);
-		expect(insertArg.brand).toBe("JYSK");
-		expect(insertArg.price).toBe(799);
+		).insert.mock.calls;
+		const parentInsert = insertCalls[0]?.[0] as Record<string, unknown>;
+		const imageInsert = insertCalls[1]?.[0] as Record<string, unknown>;
+		expect(parentInsert.source_link).toBe(SOURCE_URL);
+		expect(parentInsert.brand).toBe("JYSK");
+		expect(parentInsert.price).toBe(799);
+		expect(imageInsert.source).toBe("product");
+		expect(imageInsert.is_active).toBe(true);
 	});
 
 	it("sends the honest User-Agent when downloading the photo", async () => {
@@ -586,15 +590,19 @@ describe("Link Import end-to-end (VEN-634)", () => {
 		expect(String(imageFetch.mock.calls[0]?.[0])).toBe(candidate.photos[0]);
 		expect(upload).toHaveBeenCalledTimes(1);
 
-		// 4. The saved item carries the extracted metadata and its Source Link.
-		const insertArg = (
+		// 4. The saved item carries the extracted metadata and its Source Link,
+		//    with the chosen photo as the active Reference Image child row.
+		const insertCalls = (
 			from.mock.results[0]?.value as { insert: ReturnType<typeof vi.fn> }
-		).insert.mock.calls[0]?.[0] as Record<string, unknown>;
-		expect(insertArg.source).toBe("product");
-		expect(insertArg.source_link).toBe(PAGE_URL);
-		expect(insertArg.label).toBe("Диван GISTRUP 3-местен тъмнозелен");
-		expect(insertArg.brand).toBe("JYSK");
-		expect(insertArg.price).toBe(799);
-		expect(insertArg.currency).toBe("BGN");
+		).insert.mock.calls;
+		const parentInsert = insertCalls[0]?.[0] as Record<string, unknown>;
+		const imageInsert = insertCalls[1]?.[0] as Record<string, unknown>;
+		expect(parentInsert.source_link).toBe(PAGE_URL);
+		expect(parentInsert.label).toBe("Диван GISTRUP 3-местен тъмнозелен");
+		expect(parentInsert.brand).toBe("JYSK");
+		expect(parentInsert.price).toBe(799);
+		expect(parentInsert.currency).toBe("BGN");
+		expect(imageInsert.source).toBe("product");
+		expect(imageInsert.is_active).toBe(true);
 	});
 });

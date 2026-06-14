@@ -21,6 +21,9 @@ function buildSupabaseStub(opts: {
 	itemSingleResult?: { data: Row | null; error: unknown };
 	linksResult?: { data: Row[] | null; error: unknown };
 	insertResult?: { data: Row | null; error: unknown };
+	/** Active/owned furniture_item_images rows resolved by select chains. */
+	imagesResult?: { data: Row[] | null; error: unknown };
+	imageInsertResult?: { data: Row | null; error: unknown };
 }) {
 	const tasksChain: Record<string, (...args: unknown[]) => unknown> = {};
 	tasksChain.select = vi.fn(() => tasksChain);
@@ -53,6 +56,21 @@ function buildSupabaseStub(opts: {
 		Promise.resolve({ data: null, error: null }).then(resolve, reject)
 	);
 
+	// furniture_item_images: insert is awaited directly (create); select chains
+	// are awaited after their `.eq()` filters (list active photos, delete cleanup).
+	const imagesChain: Record<string, (...args: unknown[]) => unknown> = {};
+	imagesChain.select = vi.fn(() => imagesChain);
+	imagesChain.eq = vi.fn(() => imagesChain);
+	imagesChain.insert = vi.fn(() =>
+		Promise.resolve(opts.imageInsertResult ?? { data: null, error: null })
+	);
+	imagesChain.then = vi.fn((resolve, reject) =>
+		Promise.resolve(opts.imagesResult ?? { data: [], error: null }).then(
+			resolve,
+			reject
+		)
+	);
+
 	const linksChain: Record<string, (...args: unknown[]) => unknown> = {};
 	linksChain.select = vi.fn(() => linksChain);
 	linksChain.eq = vi.fn(() => linksChain);
@@ -73,6 +91,7 @@ function buildSupabaseStub(opts: {
 	const fromMock = vi.fn((table: string) => {
 		if (table === "renovation_tasks") return tasksChain;
 		if (table === "task_furniture") return linksChain;
+		if (table === "furniture_item_images") return imagesChain;
 		return itemsChain;
 	});
 
@@ -86,6 +105,7 @@ function buildSupabaseStub(opts: {
 		fromMock,
 		tasksChain,
 		itemsChain,
+		imagesChain,
 		linksChain,
 		createSignedUrl,
 		remove,
@@ -93,9 +113,9 @@ function buildSupabaseStub(opts: {
 }
 
 describe("createFurnitureItemHandler", () => {
-	it("inserts with the auth-derived owner and no project scoping", async () => {
+	it("inserts the parent metadata row plus an active Reference Image child row", async () => {
 		const created = { id: "f1", label: "white dresser" };
-		const { supabase, fromMock, itemsChain } = buildSupabaseStub({
+		const { supabase, fromMock, itemsChain, imagesChain } = buildSupabaseStub({
 			insertResult: { data: created, error: null },
 		});
 
@@ -113,13 +133,10 @@ describe("createFurnitureItemHandler", () => {
 
 		expect(result).toEqual(created);
 		expect(fromMock).not.toHaveBeenCalledWith("projects");
+		// Parent keeps identity + metadata; image fields move to the child table.
 		expect(itemsChain.insert).toHaveBeenCalledWith({
 			owner_id: "user-1",
-			storage_path: "user-1/dresser.png",
-			original_name: "dresser.png",
-			content_type: "image/png",
 			label: "white dresser",
-			source: "product",
 			source_link: null,
 			brand: null,
 			price: null,
@@ -128,11 +145,20 @@ describe("createFurnitureItemHandler", () => {
 			height_cm: null,
 			depth_cm: null,
 		});
+		expect(imagesChain.insert).toHaveBeenCalledWith({
+			furniture_item_id: "f1",
+			owner_id: "user-1",
+			storage_path: "user-1/dresser.png",
+			original_name: "dresser.png",
+			content_type: "image/png",
+			source: "product",
+			is_active: true,
+		});
 	});
 
-	it("round-trips Link-Import metadata into the row", async () => {
+	it("round-trips Link-Import metadata into the parent and image rows", async () => {
 		const created = { id: "f9", label: "BILLY bookcase" };
-		const { supabase, itemsChain } = buildSupabaseStub({
+		const { supabase, itemsChain, imagesChain } = buildSupabaseStub({
 			insertResult: { data: created, error: null },
 		});
 
@@ -157,11 +183,7 @@ describe("createFurnitureItemHandler", () => {
 
 		expect(itemsChain.insert).toHaveBeenCalledWith({
 			owner_id: "user-1",
-			storage_path: "user-1/billy.png",
-			original_name: "billy.png",
-			content_type: "image/png",
 			label: "BILLY bookcase",
-			source: "product",
 			source_link: "https://www.ikea.com/p/billy",
 			brand: "IKEA",
 			price: 79.99,
@@ -170,31 +192,51 @@ describe("createFurnitureItemHandler", () => {
 			height_cm: 202,
 			depth_cm: 28,
 		});
+		expect(imagesChain.insert).toHaveBeenCalledWith({
+			furniture_item_id: "f9",
+			owner_id: "user-1",
+			storage_path: "user-1/billy.png",
+			original_name: "billy.png",
+			content_type: "image/png",
+			source: "product",
+			is_active: true,
+		});
 	});
 });
 
 describe("listFurnitureItemsHandler", () => {
-	it("returns every item the user owns, with signed URLs and per-task selection flags", async () => {
+	it("returns every item the user owns, resolving the Reference Image from the active child photo", async () => {
 		const { supabase, itemsChain } = buildSupabaseStub({
 			itemsListResult: {
 				data: [
 					{
 						id: "f1",
 						label: "dresser",
-						source: "product",
-						original_name: "dresser.png",
-						storage_bucket: "furniture-references",
-						storage_path: "user-1/dresser.png",
 						created_at: "2026-01-01T00:00:00Z",
 					},
 					{
 						id: "f2",
 						label: "sofa",
+						created_at: "2026-01-02T00:00:00Z",
+					},
+				],
+				error: null,
+			},
+			imagesResult: {
+				data: [
+					{
+						furniture_item_id: "f1",
+						source: "product",
+						original_name: "dresser.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/dresser.png",
+					},
+					{
+						furniture_item_id: "f2",
 						source: "photo",
 						original_name: "sofa.png",
 						storage_bucket: "furniture-references",
 						storage_path: "user-1/sofa.png",
-						created_at: "2026-01-02T00:00:00Z",
 					},
 				],
 				error: null,
@@ -211,10 +253,16 @@ describe("listFurnitureItemsHandler", () => {
 		expect(result.items).toHaveLength(2);
 		expect(result.items[0]).toMatchObject({
 			id: "f1",
+			source: "product",
+			originalName: "dresser.png",
 			selected: false,
 			signedUrl: "https://signed/url",
 		});
-		expect(result.items[1]).toMatchObject({ id: "f2", selected: true });
+		expect(result.items[1]).toMatchObject({
+			id: "f2",
+			source: "photo",
+			selected: true,
+		});
 		// Account-wide library: the only filter on the items query is ownership.
 		expect(itemsChain.eq).toHaveBeenCalledTimes(1);
 		expect(itemsChain.eq).toHaveBeenCalledWith("owner_id", "user-1");
@@ -227,10 +275,6 @@ describe("listFurnitureItemsHandler", () => {
 					{
 						id: "f1",
 						label: "BILLY bookcase",
-						source: "product",
-						original_name: "billy.png",
-						storage_bucket: "furniture-references",
-						storage_path: "user-1/billy.png",
 						created_at: "2026-01-01T00:00:00Z",
 						source_link: "https://www.ikea.com/p/billy",
 						brand: "IKEA",
@@ -244,11 +288,26 @@ describe("listFurnitureItemsHandler", () => {
 					{
 						id: "f2",
 						label: "hand-added chair",
+						created_at: "2026-01-02T00:00:00Z",
+					},
+				],
+				error: null,
+			},
+			imagesResult: {
+				data: [
+					{
+						furniture_item_id: "f1",
+						source: "product",
+						original_name: "billy.png",
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/billy.png",
+					},
+					{
+						furniture_item_id: "f2",
 						source: "photo",
 						original_name: "chair.png",
 						storage_bucket: "furniture-references",
 						storage_path: "user-1/chair.png",
-						created_at: "2026-01-02T00:00:00Z",
 					},
 				],
 				error: null,
@@ -334,13 +393,20 @@ describe("updateFurnitureItemHandler", () => {
 });
 
 describe("deleteFurnitureItemHandler", () => {
-	it("deletes the row then removes the storage object", async () => {
+	it("deletes the row then removes every Furniture Photo's storage object", async () => {
 		const { supabase, itemsChain, remove } = buildSupabaseStub({
-			itemSingleResult: {
-				data: {
-					storage_bucket: "furniture-references",
-					storage_path: "user-1/dresser.png",
-				},
+			itemSingleResult: { data: { id: "f1" }, error: null },
+			imagesResult: {
+				data: [
+					{
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/dresser.png",
+					},
+					{
+						storage_bucket: "furniture-references",
+						storage_path: "user-1/dresser-side.png",
+					},
+				],
 				error: null,
 			},
 		});
@@ -356,7 +422,10 @@ describe("deleteFurnitureItemHandler", () => {
 			"project_id",
 			expect.anything()
 		);
-		expect(remove).toHaveBeenCalledWith(["user-1/dresser.png"]);
+		expect(remove).toHaveBeenCalledWith([
+			"user-1/dresser.png",
+			"user-1/dresser-side.png",
+		]);
 	});
 
 	it("rejects unknown items", async () => {

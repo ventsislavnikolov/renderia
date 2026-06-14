@@ -872,15 +872,25 @@ async function loadFurnitureReferences(args: {
 > {
 	const rows = await args.supabase
 		.from("furniture_items")
-		.select(
-			"id, label, storage_bucket, storage_path, content_type, width_cm, height_cm, depth_cm"
-		)
+		.select("id, label, width_cm, height_cm, depth_cm")
 		.in("id", args.furnitureItemIds)
 		.eq("owner_id", args.userId);
 	if (rows.error) throw wrapSupabaseError(rows.error);
 	if ((rows.data ?? []).length !== args.furnitureItemIds.length) {
 		throw new Error("Furniture item not found");
 	}
+
+	// The Reference Image is each item's active Furniture Photo.
+	const images = await args.supabase
+		.from("furniture_item_images")
+		.select("furniture_item_id, storage_bucket, storage_path, content_type")
+		.in("furniture_item_id", args.furnitureItemIds)
+		.eq("owner_id", args.userId)
+		.eq("is_active", true);
+	if (images.error) throw wrapSupabaseError(images.error);
+	const activeImageByItemId = new Map(
+		(images.data ?? []).map((image) => [String(image.furniture_item_id), image])
+	);
 
 	const rowById = new Map(
 		(rows.data ?? []).map((row) => [String(row.id), row])
@@ -897,9 +907,11 @@ async function loadFurnitureReferences(args: {
 	for (const furnitureItemId of args.furnitureItemIds) {
 		const row = rowById.get(furnitureItemId);
 		if (!row) throw new Error("Furniture item not found");
+		const image = activeImageByItemId.get(furnitureItemId);
+		if (!image) throw new Error("Furniture item not found");
 		const download = await args.supabase.storage
-			.from(row.storage_bucket)
-			.download(row.storage_path);
+			.from(image.storage_bucket)
+			.download(image.storage_path);
 		if (download.error || !download.data) {
 			throw new Error(`Furniture image unavailable: ${row.label}`);
 		}
@@ -907,8 +919,8 @@ async function loadFurnitureReferences(args: {
 		const normalized = await normalizeImageToPng(buffer);
 		const contentType = normalized
 			? ("image/png" as const)
-			: EDITABLE_IMAGE_TYPES.has(row.content_type)
-				? (row.content_type as "image/png" | "image/jpeg" | "image/webp")
+			: EDITABLE_IMAGE_TYPES.has(image.content_type)
+				? (image.content_type as "image/png" | "image/jpeg" | "image/webp")
 				: "image/png";
 		references.push({
 			base64: (normalized ?? buffer).toString("base64"),

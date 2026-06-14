@@ -30,6 +30,7 @@ import type { Database } from "../lib/types/database";
  */
 
 type SupabaseScoped = SupabaseClient<Database>;
+type Row = Record<string, unknown>;
 const SIGNED_URL_TTL_SECONDS = 600;
 
 export type FurnitureItemPayload = {
@@ -72,15 +73,13 @@ export async function __createFurnitureItemHandler(args: {
 	supabase: SupabaseScoped;
 	input: CreateFurnitureItemInput;
 }) {
+	// The parent row holds identity + metadata; the image fields live on a
+	// furniture_item_images child row (the Reference Image, marked active).
 	const { data, error } = await args.supabase
 		.from("furniture_items")
 		.insert({
 			owner_id: args.userId,
-			storage_path: args.input.storagePath,
-			original_name: args.input.originalName,
-			content_type: args.input.contentType,
 			label: args.input.label,
-			source: args.input.source,
 			source_link: args.input.sourceLink ?? null,
 			brand: args.input.brand ?? null,
 			price: args.input.price ?? null,
@@ -92,6 +91,18 @@ export async function __createFurnitureItemHandler(args: {
 		.select()
 		.single();
 	if (error) throw wrapSupabaseError(error);
+	if (!data) throw new Error("Failed to create furniture item");
+
+	const image = await args.supabase.from("furniture_item_images").insert({
+		furniture_item_id: String(data.id),
+		owner_id: args.userId,
+		storage_path: args.input.storagePath,
+		original_name: args.input.originalName,
+		content_type: args.input.contentType,
+		source: args.input.source,
+		is_active: true,
+	});
+	if (image.error) throw wrapSupabaseError(image.error);
 	return data;
 }
 
@@ -104,11 +115,25 @@ export async function __listFurnitureItemsHandler(args: {
 	const rows = await args.supabase
 		.from("furniture_items")
 		.select(
-			"id, label, source, original_name, storage_bucket, storage_path, created_at, source_link, brand, price, currency, width_cm, height_cm, depth_cm"
+			"id, label, created_at, source_link, brand, price, currency, width_cm, height_cm, depth_cm"
 		)
 		.eq("owner_id", args.userId)
 		.order("created_at", { ascending: true });
 	if (rows.error) throw wrapSupabaseError(rows.error);
+
+	// Resolve each item's Reference Image from its active child photo.
+	const images = await args.supabase
+		.from("furniture_item_images")
+		.select(
+			"furniture_item_id, source, original_name, storage_bucket, storage_path"
+		)
+		.eq("owner_id", args.userId)
+		.eq("is_active", true);
+	if (images.error) throw wrapSupabaseError(images.error);
+	const activeImageByItemId = new Map<string, Row>();
+	for (const image of images.data ?? []) {
+		activeImageByItemId.set(String(image.furniture_item_id), image);
+	}
 
 	const selectedIds = new Set<string>();
 	if (args.input.taskId) {
@@ -125,15 +150,18 @@ export async function __listFurnitureItemsHandler(args: {
 
 	const items: FurnitureItemPayload[] = [];
 	for (const row of rows.data ?? []) {
-		const signed = await args.supabase.storage
-			.from(String(row.storage_bucket))
-			.createSignedUrl(String(row.storage_path), SIGNED_URL_TTL_SECONDS);
+		const image = activeImageByItemId.get(String(row.id));
+		const signed = image
+			? await args.supabase.storage
+					.from(String(image.storage_bucket))
+					.createSignedUrl(String(image.storage_path), SIGNED_URL_TTL_SECONDS)
+			: null;
 		items.push({
 			id: String(row.id),
 			label: String(row.label),
-			source: row.source as "product" | "photo",
-			originalName: String(row.original_name),
-			signedUrl: signed.data?.signedUrl ?? null,
+			source: (image?.source ?? "photo") as "product" | "photo",
+			originalName: image ? String(image.original_name) : "",
+			signedUrl: signed?.data?.signedUrl ?? null,
 			selected: selectedIds.has(String(row.id)),
 			createdAt: String(row.created_at),
 			sourceLink: toTrimmedStringOrNull(row.source_link),
@@ -179,14 +207,23 @@ export async function __deleteFurnitureItemHandler(args: {
 }) {
 	const item = await args.supabase
 		.from("furniture_items")
-		.select("storage_bucket, storage_path")
+		.select("id")
 		.eq("id", args.input.furnitureItemId)
 		.eq("owner_id", args.userId)
 		.maybeSingle();
 	if (item.error) throw wrapSupabaseError(item.error);
 	if (!item.data) throw new Error("Furniture item not found");
 
-	// Row delete cascades to task_furniture links.
+	// Gather every Furniture Photo's storage object before the cascade removes
+	// the rows, so we can clean them up afterwards.
+	const images = await args.supabase
+		.from("furniture_item_images")
+		.select("storage_bucket, storage_path")
+		.eq("furniture_item_id", args.input.furnitureItemId)
+		.eq("owner_id", args.userId);
+	if (images.error) throw wrapSupabaseError(images.error);
+
+	// Row delete cascades to task_furniture links and furniture_item_images.
 	const deleted = await args.supabase
 		.from("furniture_items")
 		.delete()
@@ -195,11 +232,18 @@ export async function __deleteFurnitureItemHandler(args: {
 	if (deleted.error) throw wrapSupabaseError(deleted.error);
 
 	// Best-effort storage cleanup — an orphaned object never blocks the user.
-	const removal = await args.supabase.storage
-		.from(item.data.storage_bucket)
-		.remove([item.data.storage_path]);
-	if (removal.error) {
-		console.error("Failed to remove storage object", removal.error.message);
+	const pathsByBucket = new Map<string, string[]>();
+	for (const image of images.data ?? []) {
+		const bucket = String(image.storage_bucket);
+		const paths = pathsByBucket.get(bucket) ?? [];
+		paths.push(String(image.storage_path));
+		pathsByBucket.set(bucket, paths);
+	}
+	for (const [bucket, paths] of pathsByBucket) {
+		const removal = await args.supabase.storage.from(bucket).remove(paths);
+		if (removal.error) {
+			console.error("Failed to remove storage object", removal.error.message);
+		}
 	}
 }
 
