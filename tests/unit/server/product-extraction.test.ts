@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	extractProductCandidate,
+	parseDimensionsFromText,
 	stripHtmlToText,
 } from "../../../src/server/product-extraction";
 
@@ -78,6 +79,57 @@ describe("extractProductCandidate", () => {
 			heightCm: null,
 			depthCm: null,
 		});
+	});
+
+	it("reads name/photos/price from an Amazon JSON-LD AggregateOffer page", () => {
+		const candidate = extractProductCandidate(
+			readFixture("amazon-product.html"),
+			"https://www.amazon.com/dp/B0VASAGLE"
+		);
+
+		// JSON-LD name wins over the OG fallback.
+		expect(candidate.name).toBe("VASAGLE Coffee Table, Rustic Brown");
+		expect(candidate.photos).toEqual([
+			"https://m.media-amazon.com/images/vasagle-front.jpg",
+			"https://www.amazon.com/images/vasagle-detail.jpg",
+		]);
+		expect(candidate.brand).toBe("VASAGLE");
+		// AggregateOffer exposes lowPrice rather than price.
+		expect(candidate.price).toBe(59.99);
+		expect(candidate.currency).toBe("USD");
+	});
+
+	it("falls back to schema.org microdata when there is no JSON-LD (IDdesign)", () => {
+		const candidate = extractProductCandidate(
+			readFixture("iddesign-product.html"),
+			"https://www.iddesign.dk/sofaer/soren-3-pers"
+		);
+
+		expect(candidate.name).toBe("SØREN 3-pers. sofa, mørkegrå");
+		expect(candidate.photos).toEqual([
+			"https://cdn.iddesign.dk/soren-front.jpg",
+			"https://www.iddesign.dk/media/soren-side.jpg",
+		]);
+		expect(candidate.brand).toBe("IDdesign");
+		// Machine-readable `content` is preferred over the "4.999 kr." text.
+		expect(candidate.price).toBe(4999);
+		expect(candidate.currency).toBe("DKK");
+	});
+
+	it("reads microdata exposed via meta itemprop tags (Westwing)", () => {
+		const candidate = extractProductCandidate(
+			readFixture("westwing-product.html"),
+			"https://www.westwing.de/samt-sessel-diana"
+		);
+
+		expect(candidate.name).toBe("Samt-Sessel Diana, Petrol");
+		expect(candidate.photos).toEqual([
+			"https://image.westwing.de/diana-1.jpg",
+			"https://image.westwing.de/diana-2.jpg",
+		]);
+		expect(candidate.brand).toBe("Westwing Collection");
+		expect(candidate.price).toBe(299);
+		expect(candidate.currency).toBe("EUR");
 	});
 
 	it("returns graceful nulls for a non-product page", () => {
@@ -159,6 +211,50 @@ describe("extractProductCandidate", () => {
 		expect(candidate.widthCm).toBe(45);
 		expect(candidate.heightCm).toBeNull();
 		expect(candidate.depthCm).toBeNull();
+	});
+});
+
+describe("parseDimensionsFromText", () => {
+	it("parses English labels in centimetres", () => {
+		expect(
+			parseDimensionsFromText("Width: 100 cm, Height: 45 cm, Depth: 50 cm")
+		).toEqual({ widthCm: 100, heightCm: 45, depthCm: 50 });
+	});
+
+	it("converts millimetres to centimetres", () => {
+		expect(
+			parseDimensionsFromText("Width 1500 mm · Height 900 mm · Depth 805 mm")
+		).toEqual({ widthCm: 150, heightCm: 90, depthCm: 80.5 });
+	});
+
+	it("parses localized labels (German, Bulgarian, Danish)", () => {
+		expect(
+			parseDimensionsFromText("Breite 72 cm, Höhe 89 cm, Tiefe 60 cm")
+		).toEqual({ widthCm: 72, heightCm: 89, depthCm: 60 });
+
+		expect(
+			parseDimensionsFromText(
+				"Ширина: 192 см, Височина: 84 см, Дълбочина: 84 см"
+			)
+		).toEqual({ widthCm: 192, heightCm: 84, depthCm: 84 });
+
+		expect(
+			parseDimensionsFromText("Bredde: 220 cm Højde: 88 cm Dybde: 95 cm")
+		).toEqual({ widthCm: 220, heightCm: 88, depthCm: 95 });
+	});
+
+	it("accepts decimal commas and assumes centimetres when the unit is absent", () => {
+		expect(parseDimensionsFromText("Width 80,5")).toEqual({
+			widthCm: 80.5,
+			heightCm: null,
+			depthCm: null,
+		});
+	});
+
+	it("returns nulls when no dimension labels are present", () => {
+		expect(
+			parseDimensionsFromText("A comfortable lounge chair in green.")
+		).toEqual({ widthCm: null, heightCm: null, depthCm: null });
 	});
 });
 

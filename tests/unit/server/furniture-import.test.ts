@@ -249,7 +249,11 @@ function productHtml(dimensionsJson: string): string {
 
 describe("extractFurnitureCandidateHandler — AI dimension fill", () => {
 	it("fills blank dimensions from the AI provider over the stripped page text", async () => {
-		const fetchImpl = buildFetch({});
+		// A page with no labeled dimensions in its text, so the deterministic
+		// parse finds nothing and the AI pass is what fills the blanks.
+		const fetchImpl = buildFetch({
+			page: () => new Response(productHtml(""), { status: 200 }),
+		});
 		const { provider, extractFurnitureDimensions } = buildDimensionsProvider(
 			() =>
 				Promise.resolve({ value: { widthCm: 210, heightCm: 85, depthCm: 95 } })
@@ -272,7 +276,27 @@ describe("extractFurnitureCandidateHandler — AI dimension fill", () => {
 			productName: string | null;
 		};
 		expect(arg.pageText).not.toContain("<");
-		expect(arg.productName).toBe("Диван GISTRUP 3-местен тъмнозелен");
+		expect(arg.productName).toBe("Tall shelf");
+	});
+
+	it("fills blank dimensions deterministically from labeled page text, skipping the AI call", async () => {
+		// The Jysk fixture lists "Ширина: 192 см" etc. in its body — the text
+		// parse covers all three, so the provider is never consulted.
+		const fetchImpl = buildFetch({});
+		const { provider, extractFurnitureDimensions } = buildDimensionsProvider(
+			() => Promise.resolve({ value: { widthCm: 1, heightCm: 1, depthCm: 1 } })
+		);
+
+		const result = await __extractFurnitureCandidateHandler({
+			input: { url: PAGE_URL },
+			fetchImpl,
+			aiProvider: provider,
+		});
+
+		expect(extractFurnitureDimensions).not.toHaveBeenCalled();
+		expect(result.candidate.widthCm).toBe(192);
+		expect(result.candidate.heightCm).toBe(84);
+		expect(result.candidate.depthCm).toBe(84);
 	});
 
 	it("keeps JSON-LD-sourced dimensions and only fills the gaps", async () => {
@@ -328,7 +352,11 @@ describe("extractFurnitureCandidateHandler — AI dimension fill", () => {
 	});
 
 	it("degrades to blank dimensions when the provider fails, never blocking the import", async () => {
-		const fetchImpl = buildFetch({});
+		// A page with no labeled dimensions: the text parse finds nothing and the
+		// provider then fails, so the blanks survive — the import still succeeds.
+		const fetchImpl = buildFetch({
+			page: () => new Response(productHtml(""), { status: 200 }),
+		});
 		const { provider } = buildDimensionsProvider(() =>
 			Promise.reject(new Error("model unavailable"))
 		);
@@ -340,7 +368,7 @@ describe("extractFurnitureCandidateHandler — AI dimension fill", () => {
 		});
 
 		// Import still succeeds with the rest of the candidate intact.
-		expect(result.candidate.name).toBe("Диван GISTRUP 3-местен тъмнозелен");
+		expect(result.candidate.name).toBe("Tall shelf");
 		expect(result.candidate.widthCm).toBeNull();
 		expect(result.candidate.heightCm).toBeNull();
 		expect(result.candidate.depthCm).toBeNull();

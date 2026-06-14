@@ -16,6 +16,7 @@ import { normalizeImageToPng } from "./image-normalize";
 import {
 	extractProductCandidate,
 	type ProductExtractionCandidate,
+	parseDimensionsFromText,
 	stripHtmlToText,
 } from "./product-extraction";
 
@@ -249,37 +250,59 @@ async function readBodyCapped(
 	return new TextDecoder().decode(merged);
 }
 
+type Dimensions = Pick<
+	ProductExtractionCandidate,
+	"widthCm" | "heightCm" | "depthCm"
+>;
+
+function hasAllDimensions(candidate: Dimensions): boolean {
+	return (
+		candidate.widthCm !== null &&
+		candidate.heightCm !== null &&
+		candidate.depthCm !== null
+	);
+}
+
+/** Fill only the still-blank axes of `candidate` from `source`. */
+function mergeDimensions(
+	candidate: ProductExtractionCandidate,
+	source: Dimensions
+): ProductExtractionCandidate {
+	return {
+		...candidate,
+		widthCm: candidate.widthCm ?? source.widthCm,
+		heightCm: candidate.heightCm ?? source.heightCm,
+		depthCm: candidate.depthCm ?? source.depthCm,
+	};
+}
+
 /**
- * Fill any dimension the structured extraction left blank with an AI pass over
- * the stripped page text. JSON-LD-sourced dimensions always win — the provider
- * only fills nulls. Dimension extraction is best-effort: a provider failure
- * leaves the blanks untouched and never blocks the import.
+ * Fill any dimension the structured extraction left blank. Order of precedence:
+ * JSON-LD (already on the candidate) → a deterministic, network-free parse of
+ * labeled cm/mm dimensions in the page text → an AI pass for whatever remains.
+ * Each step only fills nulls, and the AI step is best-effort: a provider
+ * failure leaves the blanks untouched and never blocks the import.
  */
 async function fillMissingDimensions(args: {
 	candidate: ProductExtractionCandidate;
 	html: string;
 	aiProvider: RenovationAiProvider;
 }): Promise<ProductExtractionCandidate> {
-	const { candidate } = args;
-	if (
-		candidate.widthCm !== null &&
-		candidate.heightCm !== null &&
-		candidate.depthCm !== null
-	) {
-		return candidate;
-	}
+	if (hasAllDimensions(args.candidate)) return args.candidate;
+
+	const pageText = stripHtmlToText(args.html);
+	const candidate = mergeDimensions(
+		args.candidate,
+		parseDimensionsFromText(pageText)
+	);
+	if (hasAllDimensions(candidate)) return candidate;
 
 	try {
 		const { value } = await args.aiProvider.extractFurnitureDimensions({
-			pageText: stripHtmlToText(args.html),
+			pageText,
 			productName: candidate.name,
 		});
-		return {
-			...candidate,
-			widthCm: candidate.widthCm ?? value.widthCm,
-			heightCm: candidate.heightCm ?? value.heightCm,
-			depthCm: candidate.depthCm ?? value.depthCm,
-		};
+		return mergeDimensions(candidate, value);
 	} catch {
 		return candidate;
 	}

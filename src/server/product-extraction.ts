@@ -148,6 +148,75 @@ function parseDimensionCm(value: JsonValue): number | null {
 	return parsePositiveNumber(value);
 }
 
+/**
+ * Localized dimension labels → the canonical axis. Lower-cased; matched
+ * case-insensitively so "Breite"/"breite" and "Ширина"/"ШИРИНА" both hit.
+ */
+const DIMENSION_LABELS: Record<"width" | "height" | "depth", string[]> = {
+	width: [
+		"width",
+		"breite",
+		"ширина",
+		"bredde",
+		"largeur",
+		"ancho",
+		"larghezza",
+	],
+	height: [
+		"height",
+		"höhe",
+		"hohe",
+		"височина",
+		"højde",
+		"hojde",
+		"hauteur",
+		"alto",
+		"altezza",
+	],
+	depth: [
+		"depth",
+		"tiefe",
+		"дълбочина",
+		"dybde",
+		"profondeur",
+		"profundidad",
+		"profondità",
+	],
+};
+
+function matchLabeledDimensionCm(
+	text: string,
+	labels: string[]
+): number | null {
+	const match = new RegExp(
+		`(?:^|[^\\p{L}])(?:${labels.join("|")})\\s*[:=]?\\s*(\\d+(?:[.,]\\d+)?)\\s*(mm|cm|мм|см)?`,
+		"iu"
+	).exec(text);
+	if (!match) return null;
+	const value = parsePositiveNumber(match[1]);
+	if (value === null) return null;
+	const unit = (match[2] ?? "").toLowerCase();
+	return unit === "mm" || unit === "мм" ? value * 0.1 : value;
+}
+
+/**
+ * Best-effort dimension parse from free product-page text: labeled
+ * width/height/depth across locales, in cm or mm (mm normalized to cm). An
+ * absent unit is treated as centimetres. Deterministic and network-free — the
+ * import flow runs this before falling back to the AI dimension pass.
+ */
+export function parseDimensionsFromText(text: string): {
+	widthCm: number | null;
+	heightCm: number | null;
+	depthCm: number | null;
+} {
+	return {
+		widthCm: matchLabeledDimensionCm(text, DIMENSION_LABELS.width),
+		heightCm: matchLabeledDimensionCm(text, DIMENSION_LABELS.height),
+		depthCm: matchLabeledDimensionCm(text, DIMENSION_LABELS.depth),
+	};
+}
+
 function parsePrice(value: JsonValue): number | null {
 	if (typeof value === "number") {
 		return Number.isFinite(value) ? value : null;
@@ -201,6 +270,86 @@ function metaContent(
 	return null;
 }
 
+/** Read a single attribute's value off a captured tag's attribute string. */
+function readAttr(attrs: string, name: string): string | null {
+	const match = new RegExp(
+		`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`,
+		"i"
+	).exec(attrs);
+	if (!match) return null;
+	return match[2] ?? match[3] ?? "";
+}
+
+const ITEMPROP_TAG_PATTERN =
+	/<(\w+)([^>]*\bitemprop\s*=\s*["'][^"']+["'][^>]*)>([^<]*)/gi;
+
+/**
+ * Resolve a microdata `itemprop` value the way the spec does: `content` wins,
+ * then the URL attribute appropriate to the element, otherwise the text node.
+ */
+function microdataValue(
+	tag: string,
+	attrs: string,
+	text: string
+): string | null {
+	const content = readAttr(attrs, "content");
+	if (content !== null) return asNonEmptyString(content);
+	if (tag === "img" || tag === "source" || tag === "audio" || tag === "video") {
+		return asNonEmptyString(readAttr(attrs, "src") ?? "");
+	}
+	if (tag === "a" || tag === "link" || tag === "area") {
+		return asNonEmptyString(readAttr(attrs, "href") ?? "");
+	}
+	if (tag === "object") return asNonEmptyString(readAttr(attrs, "data") ?? "");
+	return asNonEmptyString(text);
+}
+
+type MicrodataValues = {
+	name: string | null;
+	images: string[];
+	brand: string | null;
+	price: number | null;
+	currency: string | null;
+};
+
+/**
+ * Fallback for pages that mark up the product with schema.org microdata
+ * (`itemprop` attributes) instead of JSON-LD — common on Magento/older stacks.
+ * A flat scan over tagged elements: nesting is ignored because the property
+ * names alone are unambiguous for the fields we want.
+ */
+function readMicrodata(html: string): MicrodataValues {
+	const values: MicrodataValues = {
+		name: null,
+		images: [],
+		brand: null,
+		price: null,
+		currency: null,
+	};
+	for (const tagMatch of html.matchAll(ITEMPROP_TAG_PATTERN)) {
+		const tag = tagMatch[1].toLowerCase();
+		const attrs = tagMatch[2];
+		const prop = readAttr(attrs, "itemprop");
+		if (!prop) continue;
+		const value = microdataValue(tag, attrs, tagMatch[3] ?? "");
+		if (!value) continue;
+		for (const token of prop.toLowerCase().split(/\s+/)) {
+			if (token === "name" && values.name === null) values.name = value;
+			else if (token === "image") values.images.push(value);
+			else if (token === "brand" && values.brand === null) values.brand = value;
+			else if (
+				(token === "price" || token === "lowprice") &&
+				values.price === null
+			) {
+				values.price = parsePrice(value);
+			} else if (token === "pricecurrency" && values.currency === null) {
+				values.currency = value;
+			}
+		}
+	}
+	return values;
+}
+
 /**
  * Extract a product candidate from raw page HTML. Pure over (html, url) —
  * no network, no throw: malformed or non-product pages yield nulls and an
@@ -212,10 +361,14 @@ export function extractProductCandidate(
 ): ProductExtractionCandidate {
 	const product = parseProductJsonLd(html);
 	const meta = readMetaTags(html);
+	// Microdata is the last-resort fallback — only read it when JSON-LD missed.
+	const microdata = product ? null : readMicrodata(html);
 
 	const name =
 		(product ? asNonEmptyString(product.name) : null) ??
-		metaContent(meta, "og:title");
+		metaContent(meta, "og:title") ??
+		microdata?.name ??
+		null;
 
 	let photos = product ? collectImageUrls(product.image ?? [], pageUrl) : [];
 	if (photos.length === 0) {
@@ -224,8 +377,14 @@ export function extractProductCandidate(
 			pageUrl
 		);
 	}
+	if (photos.length === 0 && microdata) {
+		photos = collectImageUrls(microdata.images, pageUrl);
+	}
 
-	const brand = product ? extractBrand(product.brand ?? null) : null;
+	const brand =
+		(product ? extractBrand(product.brand ?? null) : null) ??
+		microdata?.brand ??
+		null;
 
 	let { price, currency } = product
 		? extractOffer(product.offers ?? null)
@@ -235,6 +394,10 @@ export function extractProductCandidate(
 			metaContent(meta, "product:price:amount", "og:price:amount")
 		);
 		currency = metaContent(meta, "product:price:currency", "og:price:currency");
+	}
+	if (price === null && microdata?.price !== null && microdata !== null) {
+		price = microdata.price;
+		currency = microdata.currency;
 	}
 
 	const widthCm = product ? parseDimensionCm(product.width ?? null) : null;
