@@ -69,4 +69,20 @@ describe("0008_furniture_item_images migration", () => {
 			expect(flat).toContain(`drop column ${column}`);
 		}
 	});
+
+	it("drops the parent owner-access policy before dropping storage_path", () => {
+		// The policy's WITH CHECK references storage_path, so Postgres refuses to
+		// drop the column while the policy exists. The policy must be dropped
+		// before, and recreated after, the column drop.
+		const dropPolicyAt = flat.indexOf(
+			'drop policy "furniture items owner access" on public.furniture_items'
+		);
+		const dropColumnAt = flat.indexOf("drop column storage_path");
+		const recreatePolicyAt = flat.lastIndexOf(
+			'create policy "furniture items owner access"'
+		);
+		expect(dropPolicyAt).toBeGreaterThanOrEqual(0);
+		expect(dropPolicyAt).toBeLessThan(dropColumnAt);
+		expect(recreatePolicyAt).toBeGreaterThan(dropColumnAt);
+	});
 });

@@ -54,6 +54,13 @@ insert into public.furniture_item_images
 select id, owner_id, storage_bucket, storage_path, original_name, content_type, source, true
 from public.furniture_items;
 
+-- The "furniture items owner access" policy's WITH CHECK references
+-- storage_path, so it must be dropped before the column it depends on (same
+-- pattern migration 0006 used for project_id). Recreate it without the
+-- storage_path check — owner scoping stays, and the per-object path check now
+-- lives on the furniture_item_images policy where storage_path moved.
+drop policy "furniture items owner access" on public.furniture_items;
+
 -- Drop the moved columns from the parent. The (storage_bucket, storage_path)
 -- unique constraint depends on storage_path and is dropped with it.
 alter table public.furniture_items
@@ -61,3 +68,9 @@ alter table public.furniture_items
   drop column original_name,
   drop column content_type,
   drop column source;
+
+create policy "furniture items owner access"
+  on public.furniture_items
+  for all
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid());
