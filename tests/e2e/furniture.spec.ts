@@ -57,7 +57,7 @@ test.describe("furniture library page", () => {
 		await page.goto("/furniture");
 
 		await expect(
-			page.getByRole("heading", { name: "Furniture" })
+			page.getByRole("heading", { level: 1, name: "Furniture" })
 		).toBeVisible();
 		await expect(page.getByText("Walnut sideboard")).toBeVisible();
 		await expect(page.getByText("Reading lamp")).toBeVisible();

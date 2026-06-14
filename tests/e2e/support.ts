@@ -135,6 +135,100 @@ function buildServerFnHashMap(): Map<string, string> {
 
 const SERVER_FN_BY_HASH = buildServerFnHashMap();
 
+/**
+ * TanStack Start serializes POST server-fn bodies with seroval's cross-JSON
+ * encoder, NOT plain JSON. `route.request().postDataJSON()` therefore returns
+ * a node graph (`{ t: <node>, f, m }`) rather than `{ data: {...} }`, so a
+ * naive `body.data.foo` read always yields `undefined`. Decode the graph back
+ * into the original value here so spec handlers can inspect the real payload.
+ *
+ * Only the node kinds TanStack emits for server-fn inputs are handled:
+ * number(0), string(1), constant(2), bigint(3), reference(4), array(9),
+ * object(10). The `i`/`o`/`m` ref bookkeeping is honoured so shared
+ * sub-objects deserialize correctly.
+ */
+type SerovalNode = {
+	t: number;
+	i?: number;
+	s?: string | number;
+	a?: SerovalNode[];
+	p?: { k: string[]; v: SerovalNode[] };
+	o?: number;
+};
+
+const SEROVAL_CONSTANTS: Record<number, unknown> = {
+	0: null,
+	1: undefined,
+	2: true,
+	3: false,
+	4: Number.NaN,
+	5: Number.POSITIVE_INFINITY,
+	6: Number.NEGATIVE_INFINITY,
+	7: -0,
+};
+
+function decodeSerovalNode(
+	node: SerovalNode,
+	refs: Map<number, unknown>
+): unknown {
+	switch (node.t) {
+		case 0: // number
+			return node.s as number;
+		case 1: // string
+			return node.s as string;
+		case 2: // constant (null / undefined / boolean / special number)
+			return SEROVAL_CONSTANTS[node.s as number];
+		case 3: // bigint
+			return BigInt(String(node.s));
+		case 4: // reference to a previously-seen node
+			return refs.get(node.i as number);
+		case 9: {
+			// array
+			const arr: unknown[] = [];
+			if (node.i !== undefined) refs.set(node.i, arr);
+			for (const item of node.a ?? []) arr.push(decodeSerovalNode(item, refs));
+			return arr;
+		}
+		case 10: {
+			// object
+			const obj: Record<string, unknown> = {};
+			if (node.i !== undefined) refs.set(node.i, obj);
+			const keys = node.p?.k ?? [];
+			const values = node.p?.v ?? [];
+			for (let index = 0; index < keys.length; index += 1) {
+				obj[keys[index] as string] = decodeSerovalNode(
+					values[index] as SerovalNode,
+					refs
+				);
+			}
+			return obj;
+		}
+		default:
+			return;
+	}
+}
+
+/**
+ * Decode a server-fn POST body. Falls back to the raw parsed JSON when the
+ * payload isn't the seroval envelope (e.g. an older plain-JSON request shape),
+ * so the helper stays robust across TanStack versions.
+ */
+function decodeServerFnBody(
+	raw: unknown
+): { data?: Record<string, unknown> } | null {
+	if (
+		raw &&
+		typeof raw === "object" &&
+		"t" in (raw as Record<string, unknown>)
+	) {
+		const envelope = raw as { t: SerovalNode };
+		return decodeSerovalNode(envelope.t, new Map()) as {
+			data?: Record<string, unknown>;
+		} | null;
+	}
+	return raw as { data?: Record<string, unknown> } | null;
+}
+
 /** Fulfil a server-fn route with the unwrapped-data envelope the middleware expects. */
 function fulfilServerFn(route: Route, data: unknown) {
 	return route.fulfill({
@@ -207,9 +301,7 @@ export async function installBaseMocks(
 		const body =
 			route.request().method() === "GET"
 				? null
-				: (route.request().postDataJSON() as {
-						data?: Record<string, unknown>;
-					} | null);
+				: decodeServerFnBody(route.request().postDataJSON());
 
 		for (const [key, handler] of Object.entries(handlers)) {
 			if (fnId.includes(key)) {

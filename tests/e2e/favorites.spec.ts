@@ -43,13 +43,16 @@ test.describe("favorites page", () => {
 		await expect(
 			page.getByRole("heading", { name: "Favorites" })
 		).toBeVisible();
+		// Scope to the favorite card (`<article>`) — the sidebar nav also renders a
+		// "Demo Renovation" project link, so an unscoped role lookup is ambiguous.
+		const card = page.getByRole("article");
 		await expect(
-			page.getByRole("link", { name: "Demo Renovation" })
+			card.getByRole("link", { name: "Demo Renovation" })
 		).toBeVisible();
 		await expect(
-			page.getByRole("img", { name: /Variation 1 — Demo Renovation/i })
+			card.getByRole("img", { name: /Variation 1 — Demo Renovation/i })
 		).toBeVisible();
-		await expect(page.getByText(/oak dining table/i)).toBeVisible();
+		await expect(card.getByText(/oak dining table/i)).toBeVisible();
 	});
 
 	test("unfavoriting an image removes it and shows the empty state", async ({
