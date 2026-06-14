@@ -1,3 +1,10 @@
+## [1.10.5](https://github.com/ventsislavnikolov/renderia/compare/v1.10.4...v1.10.5) (2026-06-14)
+
+
+### Bug Fixes
+
+* **observability:** init Sentry client from mount effect, not module scope ([df3b710](https://github.com/ventsislavnikolov/renderia/commit/df3b71034789dfd06475d737bb36b86b0f87fc33))
+
 ## [1.10.4](https://github.com/ventsislavnikolov/renderia/compare/v1.10.3...v1.10.4) (2026-06-13)
 
 

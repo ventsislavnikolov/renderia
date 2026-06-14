@@ -1,6 +1,6 @@
 {
   "name": "renderia",
-  "version": "1.10.4",
+  "version": "1.10.5",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.5.2",
