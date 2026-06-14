@@ -18,10 +18,17 @@ generation run.
 _Avoid_: furniture reference, product
 
 **Reference Image**:
-The single image of a Furniture Item that generation sends to the model.
-Chosen at import or upload time; a clean product cutout beats a lifestyle
-scene.
+The active Furniture Photo of a Furniture Item — the one generation sends to
+the model. Exactly one per item; the user can switch which Furniture Photo is
+active. A clean product cutout beats a lifestyle scene.
 _Avoid_: thumbnail, photo set
+
+**Furniture Photo**:
+One image attached to a Furniture Item. An item has one or more Furniture
+Photos; exactly one is the active Reference Image. The rest are kept in the
+library (e.g. a product cutout plus real-life angles) but are not sent to
+generation.
+_Avoid_: reference (only the active one is the Reference Image), variation
 
 **Link Import**:
 Creating a Furniture Item by pasting a retailer product URL. The page is
