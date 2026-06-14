@@ -169,7 +169,7 @@ export function FavoritesList() {
 								</Button>
 							</div>
 							{image.contents && image.contents.length > 0 ? (
-								<p className="m-0 border-border border-t px-5 py-3 text-[0.8125rem] text-ink-muted leading-relaxed">
+								<p className="m-0 break-words border-border border-t px-5 py-3 text-[0.8125rem] text-ink-muted leading-relaxed">
 									<span className="font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.06em]">
 										In this room:{" "}
 									</span>
