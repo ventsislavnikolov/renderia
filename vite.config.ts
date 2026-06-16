@@ -50,7 +50,12 @@ const config = defineConfig(({ isSsrBuild }) => ({
 			},
 	plugins: [
 		devtools(),
-		nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+		// @sentry/* must stay external (its OpenTelemetry auto-instrumentation
+		// breaks when bundled). traceDeps makes Nitro both externalize it AND
+		// trace it into the function's node_modules — externalizing via
+		// rollupConfig.external alone leaves the bare import untraced, so the
+		// isolated Vercel lambda 500s with ERR_MODULE_NOT_FOUND on every request.
+		nitro({ traceDeps: ["@sentry/tanstackstart-react"] }),
 		tailwindcss(),
 		tanstackStart(),
 		viteReact(),
