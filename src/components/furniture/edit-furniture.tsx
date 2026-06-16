@@ -266,7 +266,7 @@ export function EditFurniture(props: {
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid gap-3">
-					<label className="grid gap-1 text-sm">
+					<label className="grid min-w-0 gap-1 text-sm">
 						<span>Name</span>
 						<input
 							className="rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -276,28 +276,28 @@ export function EditFurniture(props: {
 						/>
 					</label>
 					<div className="grid grid-cols-3 gap-3">
-						<label className="grid gap-1 text-sm">
+						<label className="grid min-w-0 gap-1 text-sm">
 							<span>Width (cm)</span>
 							<input
-								className="rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+								className="w-full min-w-0 rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 								inputMode="decimal"
 								onChange={(event) => setWidth(event.target.value)}
 								value={width}
 							/>
 						</label>
-						<label className="grid gap-1 text-sm">
+						<label className="grid min-w-0 gap-1 text-sm">
 							<span>Height (cm)</span>
 							<input
-								className="rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+								className="w-full min-w-0 rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 								inputMode="decimal"
 								onChange={(event) => setHeight(event.target.value)}
 								value={height}
 							/>
 						</label>
-						<label className="grid gap-1 text-sm">
+						<label className="grid min-w-0 gap-1 text-sm">
 							<span>Depth (cm)</span>
 							<input
-								className="rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+								className="w-full min-w-0 rounded border border-border bg-background px-3 py-2 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 								inputMode="decimal"
 								onChange={(event) => setDepth(event.target.value)}
 								value={depth}
