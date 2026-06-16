@@ -81,15 +81,22 @@ const config = defineConfig(({ isSsrBuild }) => ({
 		// trace it into the function's node_modules — externalizing via
 		// rollupConfig.external alone leaves the bare import untraced, so the
 		// isolated Vercel lambda 500s with ERR_MODULE_NOT_FOUND on every request.
-		// The compiled hook patches sharp's libvips (see copyLibvipsIntoServerBundle).
+		//
+		// The libvips copy is registered as a module that ADDS a `compiled`
+		// handler via nitro.hooks.hook — passing it through the config `hooks`
+		// key instead replaces the vercel preset's own `compiled` handler that
+		// writes .vercel/output/config.json, breaking the deploy with
+		// "No Output Directory named 'dist'".
 		nitro({
 			traceDeps: ["@sentry/tanstackstart-react"],
-			hooks: {
-				compiled(nitro) {
-					const serverDir = nitro.options.output.serverDir;
-					if (serverDir) copyLibvipsIntoServerBundle(serverDir);
+			modules: [
+				(nitro) => {
+					nitro.hooks.hook("compiled", (instance) => {
+						const serverDir = instance.options.output.serverDir;
+						if (serverDir) copyLibvipsIntoServerBundle(serverDir);
+					});
 				},
-			},
+			],
 		}),
 		tailwindcss(),
 		tanstackStart(),
