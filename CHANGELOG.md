@@ -1,3 +1,10 @@
+## [1.10.9](https://github.com/ventsislavnikolov/renderia/compare/v1.10.8...v1.10.9) (2026-06-16)
+
+
+### Bug Fixes
+
+* **deploy:** register libvips copy as a nitro module, not a config hook ([#73](https://github.com/ventsislavnikolov/renderia/issues/73)) ([723a4b7](https://github.com/ventsislavnikolov/renderia/commit/723a4b7e49b0540e672bc7e7fed45e6cb2ba038f))
+
 ## [1.10.8](https://github.com/ventsislavnikolov/renderia/compare/v1.10.7...v1.10.8) (2026-06-16)
 
 
