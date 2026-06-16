@@ -1,3 +1,10 @@
+## [1.10.8](https://github.com/ventsislavnikolov/renderia/compare/v1.10.7...v1.10.8) (2026-06-16)
+
+
+### Bug Fixes
+
+* **generation:** ship sharp's libvips into the Vercel lambda ([#72](https://github.com/ventsislavnikolov/renderia/issues/72)) ([733a711](https://github.com/ventsislavnikolov/renderia/commit/733a7114cfc665feecf04c474c415ad104d7fb36))
+
 ## [1.10.7](https://github.com/ventsislavnikolov/renderia/compare/v1.10.6...v1.10.7) (2026-06-16)
 
 
