@@ -1,3 +1,10 @@
+## [1.10.7](https://github.com/ventsislavnikolov/renderia/compare/v1.10.6...v1.10.7) (2026-06-16)
+
+
+### Bug Fixes
+
+* **deploy:** trace [@sentry](https://github.com/sentry) into the Vercel lambda ([#71](https://github.com/ventsislavnikolov/renderia/issues/71)) ([1efc03f](https://github.com/ventsislavnikolov/renderia/commit/1efc03f13a5467cf1501ad9efa0d3ab5a5e484b8))
+
 ## [1.10.6](https://github.com/ventsislavnikolov/renderia/compare/v1.10.5...v1.10.6) (2026-06-14)
 
 
