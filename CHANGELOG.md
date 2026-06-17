@@ -1,3 +1,5 @@
+## [1.10.10](https://github.com/ventsislavnikolov/renderia/compare/v1.10.9...v1.10.10) (2026-06-17)
+
 ## [1.10.9](https://github.com/ventsislavnikolov/renderia/compare/v1.10.8...v1.10.9) (2026-06-16)
 
 
