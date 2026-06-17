@@ -312,7 +312,7 @@ export async function __saveTaskRoomStateHandler(args: {
 	if (objectDelete.error) throw wrapSupabaseError(objectDelete.error);
 
 	if (args.input.roomState.objects.length > 0) {
-		const objectInsert = await args.supabase.from("room_objects").insert(
+		const objectInsert = await args.supabase.from("room_objects").upsert(
 			args.input.roomState.objects.map((entry) => ({
 				id: entry.id,
 				owner_id: args.userId,
@@ -322,7 +322,8 @@ export async function __saveTaskRoomStateHandler(args: {
 				kind: entry.kind,
 				preservation_mode: entry.preservationMode,
 				is_persisted: entry.isPersisted,
-			}))
+			})),
+			{ onConflict: "id" }
 		);
 		if (objectInsert.error) throw wrapSupabaseError(objectInsert.error);
 	}
@@ -330,7 +331,7 @@ export async function __saveTaskRoomStateHandler(args: {
 	if (args.input.roomState.appearances.length > 0) {
 		const appearanceInsert = await args.supabase
 			.from("room_object_appearances")
-			.insert(
+			.upsert(
 				args.input.roomState.appearances.map((entry) => {
 					const box = clampAppearanceBox(entry);
 					return {
@@ -349,7 +350,8 @@ export async function __saveTaskRoomStateHandler(args: {
 						confidence: entry.confidence,
 						source: entry.source,
 					};
-				})
+				}),
+				{ onConflict: "id" }
 			);
 		if (appearanceInsert.error) throw wrapSupabaseError(appearanceInsert.error);
 	}

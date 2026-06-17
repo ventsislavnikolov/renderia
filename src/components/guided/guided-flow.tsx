@@ -76,6 +76,12 @@ export function GuidedFlow(props: {
 	const [saveError, setSaveError] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
 	const hasLoadedRoomStateRef = useRef(false);
+	// Serializes autosaves: only one save request is in flight at a time. A state
+	// change arriving mid-flight is recorded as pending and flushed once the
+	// current request settles, so overlapping saves can't race each other in the
+	// non-atomic delete-then-write on the server.
+	const savingRef = useRef(false);
+	const pendingStateRef = useRef<TaskRoomState | null>(null);
 
 	// Rehydrate the latest persisted brief for this task so the user doesn't
 	// lose their edited markdown when they reopen the workspace. Photo and
@@ -156,13 +162,25 @@ export function GuidedFlow(props: {
 			return;
 		}
 		const timer = window.setTimeout(async () => {
+			// Coalesce while a save is already running; the trailing flush below
+			// picks up the latest state once the in-flight request settles.
+			if (savingRef.current) {
+				pendingStateRef.current = roomState;
+				return;
+			}
+			savingRef.current = true;
+			let stateToSave: TaskRoomState | null = roomState;
 			try {
-				const headers = await getAuthHeaders();
-				await saveTaskRoomState({
-					data: { taskId: props.taskId, roomState },
-					headers,
-				});
-				setSaveError(null);
+				while (stateToSave) {
+					pendingStateRef.current = null;
+					const headers = await getAuthHeaders();
+					await saveTaskRoomState({
+						data: { taskId: props.taskId, roomState: stateToSave },
+						headers,
+					});
+					setSaveError(null);
+					stateToSave = pendingStateRef.current;
+				}
 			} catch (caught) {
 				if (
 					caught instanceof Error &&
@@ -176,6 +194,8 @@ export function GuidedFlow(props: {
 						? caught.message
 						: "Failed to save room review state"
 				);
+			} finally {
+				savingRef.current = false;
 			}
 		}, 250);
 		return () => window.clearTimeout(timer);
