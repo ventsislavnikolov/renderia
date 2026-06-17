@@ -164,6 +164,7 @@ function buildSupabaseStub(opts?: {
 	appearancesChain.delete = vi.fn(() => appearancesChain);
 	appearancesChain.eq = vi.fn(() => appearancesChain);
 	appearancesChain.insert = vi.fn(() => Promise.resolve({ error: null }));
+	appearancesChain.upsert = vi.fn(() => Promise.resolve({ error: null }));
 
 	const objectsSelectChain: Record<string, (...args: unknown[]) => unknown> =
 		{};
@@ -190,6 +191,7 @@ function buildSupabaseStub(opts?: {
 	objectsChain.delete = vi.fn(() => objectsChain);
 	objectsChain.eq = vi.fn(() => objectsChain);
 	objectsChain.insert = vi.fn(() => Promise.resolve({ error: null }));
+	objectsChain.upsert = vi.fn(() => Promise.resolve({ error: null }));
 
 	const previewSelectChain: Record<string, (...args: unknown[]) => unknown> =
 		{};
@@ -411,8 +413,13 @@ describe("room-state server handlers", () => {
 		expect(stub.roomSetChain.upsert).toHaveBeenCalled();
 		expect(stub.previewsChain.update).toHaveBeenCalled();
 		expect(stub.taskPhotosChain.delete).toHaveBeenCalled();
-		expect(stub.appearancesChain.insert).toHaveBeenCalled();
-		expect(stub.objectsChain.insert).toHaveBeenCalled();
+		expect(stub.appearancesChain.upsert).toHaveBeenCalledWith(
+			expect.any(Array),
+			{ onConflict: "id" }
+		);
+		expect(stub.objectsChain.upsert).toHaveBeenCalledWith(expect.any(Array), {
+			onConflict: "id",
+		});
 	});
 
 	it("preserves the active preview link when saving an approved room snapshot", async () => {
