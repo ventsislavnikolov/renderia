@@ -323,7 +323,11 @@ export async function __saveTaskRoomStateHandler(args: {
 				preservation_mode: entry.preservationMode,
 				is_persisted: entry.isPersisted,
 			})),
-			{ onConflict: "id" }
+			// Object ids are deterministic, task-independent slugs (e.g.
+			// "other:new-fixed-element"), so conflicts must be scoped to this
+			// task's composite key — never the global slug, which would try to
+			// steal a row owned by another task and trip the appearance FK.
+			{ onConflict: "id,owner_id,task_id" }
 		);
 		if (objectInsert.error) throw wrapSupabaseError(objectInsert.error);
 	}
