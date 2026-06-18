@@ -418,7 +418,7 @@ describe("room-state server handlers", () => {
 			{ onConflict: "id" }
 		);
 		expect(stub.objectsChain.upsert).toHaveBeenCalledWith(expect.any(Array), {
-			onConflict: "id",
+			onConflict: "id,owner_id,task_id",
 		});
 	});
 
