@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+	allPreviewsApproved,
 	pickReferencePhotoId,
+	setPhotoPreviewApproved,
 	type TaskRoomState,
 } from "@/lib/renovation/room-state";
 import type { Tables } from "@/lib/types/database";
@@ -44,6 +46,15 @@ export function LayoutPreviewStep(props: {
 		[props.roomState.objects]
 	);
 
+	const referencePhotoId = props.roomState.referencePhotoId;
+	const currentApproved = referencePhotoId
+		? props.roomState.approvedPhotoIds.includes(referencePhotoId)
+		: false;
+	const approvedCount = props.photos.filter((photo) =>
+		props.roomState.approvedPhotoIds.includes(photo.id)
+	).length;
+	const allApproved = allPreviewsApproved(props.roomState);
+
 	useEffect(() => {
 		if (props.roomState.referencePhotoId) return;
 		const suggested =
@@ -73,7 +84,11 @@ export function LayoutPreviewStep(props: {
 			const image = response.preview;
 			if (!image) throw new Error("Preview generation returned no image");
 			props.onPreviewGenerated(photoId, image);
-			props.onStateChange({ ...props.roomState, previewApproved: false });
+			// A freshly generated preview is unapproved — revoke this angle only,
+			// leaving any other approved angles intact.
+			props.onStateChange(
+				setPhotoPreviewApproved(props.roomState, photoId, false)
+			);
 		} catch (caught) {
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
 				window.location.assign("/auth");
@@ -88,15 +103,18 @@ export function LayoutPreviewStep(props: {
 	}
 
 	async function approvePreview() {
-		if (!preview) return;
+		const photoId = props.roomState.referencePhotoId;
+		if (!preview || !photoId) return;
 		try {
 			const headers = await getAuthHeaders();
 			await approveStructuralPreview({
 				data: { taskId: props.taskId, previewId: preview.id },
 				headers,
 			});
-			props.onStateChange({ ...props.roomState, previewApproved: true });
-			props.onApproved();
+			const next = setPhotoPreviewApproved(props.roomState, photoId, true);
+			props.onStateChange(next);
+			// Only advance once every kept angle has an approved preview.
+			if (allPreviewsApproved(next)) props.onApproved();
 		} catch (caught) {
 			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
 				window.location.assign("/auth");
@@ -112,12 +130,20 @@ export function LayoutPreviewStep(props: {
 		<div className="grid gap-6 border border-border bg-surface p-10 max-md:p-6">
 			<header className="grid gap-2">
 				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
-					4. Approve the structural preview
+					4. Approve every angle's structural preview
 				</h2>
 				<p className="m-0 max-w-[68ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
-					Generate one empty-room confirmation image from the approved angle. If
-					blue-mode objects are restyled incorrectly or the layout looks wrong,
-					go back and fix the room evidence.
+					Generate and approve an empty-room confirmation image for each photo
+					angle. If an angle looks wrong, re-generate it or delete that photo —
+					a bad angle can't be skipped. You can continue once all{" "}
+					{props.photos.length} angles are approved.
+				</p>
+				<p
+					className="m-0 font-body text-[0.9375rem] text-ink-muted"
+					role="status"
+				>
+					{approvedCount} of {props.photos.length} angles approved
+					{allApproved ? " — ready to continue" : ""}
 				</p>
 			</header>
 
@@ -126,10 +152,11 @@ export function LayoutPreviewStep(props: {
 				<select
 					className="rounded border border-border bg-background px-3 py-2 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					onChange={(event) => {
+						// Switching angle only changes which preview is shown; existing
+						// per-angle approvals are preserved.
 						props.onStateChange({
 							...props.roomState,
 							referencePhotoId: event.target.value,
-							previewApproved: false,
 						});
 					}}
 					value={props.roomState.referencePhotoId ?? ""}
@@ -137,7 +164,11 @@ export function LayoutPreviewStep(props: {
 					{props.photos.map((photo) => (
 						<option key={photo.id} value={photo.id}>
 							{photo.original_name}
-							{props.previews[photo.id] ? " — preview ready" : ""}
+							{props.roomState.approvedPhotoIds.includes(photo.id)
+								? " — ✓ approved"
+								: props.previews[photo.id]
+									? " — preview ready"
+									: ""}
 						</option>
 					))}
 				</select>
@@ -159,10 +190,15 @@ export function LayoutPreviewStep(props: {
 							? "Re-generate preview"
 							: "Generate structural preview"}
 				</Button>
-				{preview ? (
+				{preview && !currentApproved ? (
 					<Button onClick={approvePreview} type="button">
-						Approve preview
+						Approve this angle
 					</Button>
+				) : null}
+				{currentApproved ? (
+					<span className="font-body text-ink-muted text-sm">
+						✓ This angle is approved
+					</span>
 				) : null}
 				{error ? (
 					<p className="m-0 text-sm text-warning" role="alert">

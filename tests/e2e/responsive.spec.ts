@@ -99,7 +99,7 @@ const EMPTY_ROOM_STATE = {
 		referencePhotoId: null,
 		appearances: [],
 		objects: [],
-		previewApproved: false,
+		approvedPhotoIds: [],
 	},
 	previews: {},
 };

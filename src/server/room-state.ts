@@ -5,6 +5,7 @@ import { buildStructuralPreviewPrompt } from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import type { RenovationAiProvider } from "../lib/ai/types";
 import {
+	allPreviewsApproved,
 	clampAppearanceBox,
 	type TaskRoomState,
 } from "../lib/renovation/room-state";
@@ -172,8 +173,17 @@ export async function __loadTaskRoomStateHandler(args: {
 	if (previewQuery.error) throw wrapSupabaseError(previewQuery.error);
 
 	const previews: Record<string, StructuralPreviewPayload> = {};
+	// A photo counts as approved when its *latest* preview is approved. We walk
+	// newest-first and record the verdict the first time we see each photo, so a
+	// fresh "generated" preview correctly revokes a stale "approved" one.
+	const approvedPhotoIds: string[] = [];
+	const seenPhotoIds = new Set<string>();
 	for (const row of previewQuery.data ?? []) {
 		const photoId = String(row.reference_photo_id);
+		if (!seenPhotoIds.has(photoId)) {
+			seenPhotoIds.add(photoId);
+			if (row.status === "approved") approvedPhotoIds.push(photoId);
+		}
 		if (previews[photoId]) continue;
 		const signed = await signPreviewRow({
 			supabase: args.supabase,
@@ -191,7 +201,7 @@ export async function __loadTaskRoomStateHandler(args: {
 			referencePhotoId: roomSet.data?.reference_photo_id
 				? String(roomSet.data.reference_photo_id)
 				: null,
-			previewApproved: Boolean(roomSet.data?.preview_approved),
+			approvedPhotoIds,
 			appearances: (appearances.data ?? []).map((row) => ({
 				id: String(row.id),
 				photoId: String(row.photo_id),
@@ -238,10 +248,14 @@ export async function __saveTaskRoomStateHandler(args: {
 		.eq("owner_id", args.userId)
 		.maybeSingle();
 	if (existingRoomSet.error) throw wrapSupabaseError(existingRoomSet.error);
-	const approvedAt = args.input.roomState.previewApproved
+	// The room-set row keeps an aggregate "every kept photo approved" flag for
+	// cheap reads; per-photo approval is the source of truth and is derived from
+	// the preview rows on load.
+	const allApproved = allPreviewsApproved(args.input.roomState);
+	const approvedAt = allApproved
 		? (existingRoomSet.data?.preview_approved_at ?? new Date().toISOString())
 		: null;
-	const activePreviewId = args.input.roomState.previewApproved
+	const activePreviewId = allApproved
 		? (existingRoomSet.data?.active_preview_id ?? null)
 		: null;
 
@@ -252,7 +266,7 @@ export async function __saveTaskRoomStateHandler(args: {
 			owner_id: args.userId,
 			project_id: task.project_id,
 			reference_photo_id: args.input.roomState.referencePhotoId,
-			preview_approved: args.input.roomState.previewApproved,
+			preview_approved: allApproved,
 			preview_approved_at: approvedAt,
 			active_preview_id: activePreviewId,
 			updated_at: new Date().toISOString(),
@@ -261,10 +275,7 @@ export async function __saveTaskRoomStateHandler(args: {
 		.single();
 	if (roomSetUpsert.error) throw wrapSupabaseError(roomSetUpsert.error);
 
-	if (
-		!args.input.roomState.previewApproved &&
-		existingRoomSet.data?.active_preview_id
-	) {
+	if (!allApproved && existingRoomSet.data?.active_preview_id) {
 		const stalePreview = await args.supabase
 			.from("structural_previews")
 			.update({ status: "superseded" })
@@ -465,12 +476,13 @@ export async function __approveStructuralPreviewHandler(args: {
 	if (previewUpdate.error) throw wrapSupabaseError(previewUpdate.error);
 	if (!previewUpdate.data) throw new Error("Preview not found");
 
+	// Point the room set at the just-approved angle. We deliberately do NOT set
+	// the room-wide `preview_approved` flag here: approval is per photo now, and
+	// the aggregate is recomputed from per-photo approvals on the next autosave.
 	const roomSetUpdate = await args.supabase
 		.from("task_room_sets")
 		.update({
 			reference_photo_id: previewUpdate.data.reference_photo_id,
-			preview_approved: true,
-			preview_approved_at: new Date().toISOString(),
 			active_preview_id: args.input.previewId,
 			updated_at: new Date().toISOString(),
 		})
@@ -485,18 +497,21 @@ export async function __approveStructuralPreviewHandler(args: {
 			owner_id: args.userId,
 			project_id: task.project_id,
 			reference_photo_id: previewUpdate.data.reference_photo_id,
-			preview_approved: true,
-			preview_approved_at: new Date().toISOString(),
+			preview_approved: false,
 			active_preview_id: args.input.previewId,
 			updated_at: new Date().toISOString(),
 		});
 	}
 
+	// Supersede only the *other* previews of this same photo angle, then
+	// re-affirm the chosen one — so each photo keeps exactly one approved
+	// preview while other angles' approvals are untouched.
 	await args.supabase
 		.from("structural_previews")
 		.update({ status: "superseded" })
 		.eq("task_id", args.input.taskId)
-		.eq("owner_id", args.userId);
+		.eq("owner_id", args.userId)
+		.eq("reference_photo_id", previewUpdate.data.reference_photo_id);
 	await args.supabase
 		.from("structural_previews")
 		.update({

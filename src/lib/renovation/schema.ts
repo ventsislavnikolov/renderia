@@ -537,7 +537,7 @@ export const taskRoomStateSchema = z.object({
 	referencePhotoId: z.string().min(1).max(120).nullable(),
 	appearances: z.array(roomAppearanceSchema),
 	objects: z.array(roomObjectSchema),
-	previewApproved: z.boolean(),
+	approvedPhotoIds: z.array(z.string().min(1).max(120)).max(4),
 });
 export type TaskRoomStateInput = z.infer<typeof taskRoomStateSchema>;
 

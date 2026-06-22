@@ -312,7 +312,7 @@ describe("renovation schemas", () => {
 				referencePhotoId: null,
 				appearances: [],
 				objects: [],
-				previewApproved: false,
+				approvedPhotoIds: [],
 			}).success
 		).toBe(true);
 		expect(
@@ -322,7 +322,7 @@ describe("renovation schemas", () => {
 				referencePhotoId: null,
 				appearances: [],
 				objects: [],
-				previewApproved: false,
+				approvedPhotoIds: [],
 			}).success
 		).toBe(false);
 		expect(
@@ -332,7 +332,7 @@ describe("renovation schemas", () => {
 				referencePhotoId: null,
 				appearances: [],
 				objects: [],
-				previewApproved: false,
+				approvedPhotoIds: [],
 			}).success
 		).toBe(false);
 	});
@@ -364,7 +364,7 @@ describe("renovation schemas", () => {
 					referencePhotoId: "p1",
 					appearances: [],
 					objects: [],
-					previewApproved: false,
+					approvedPhotoIds: [],
 				},
 			}).success
 		).toBe(true);

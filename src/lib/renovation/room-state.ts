@@ -41,7 +41,13 @@ export type TaskRoomState = {
 	referencePhotoId: string | null;
 	appearances: RoomAppearance[];
 	objects: RoomObject[];
-	previewApproved: boolean;
+	/**
+	 * Photos whose latest Structural Preview the user has approved. The flow
+	 * needs an approved preview for *every* kept photo before it can synthesise
+	 * the Room Composite, so approval is tracked per photo rather than as a
+	 * single room-wide flag.
+	 */
+	approvedPhotoIds: string[];
 };
 
 function normalizeLabel(label: string) {
@@ -62,7 +68,38 @@ export function buildInitialRoomState(photoIds: string[]): TaskRoomState {
 		referencePhotoId: null,
 		appearances: [],
 		objects: [],
-		previewApproved: false,
+		approvedPhotoIds: [],
+	};
+}
+
+/**
+ * True only when the room set has at least one photo and every kept photo has
+ * an approved Structural Preview. This is the gate that unlocks composite
+ * synthesis (and, until that step lands, the Brief step).
+ */
+export function allPreviewsApproved(state: TaskRoomState): boolean {
+	return (
+		state.photoIds.length > 0 &&
+		state.photoIds.every((photoId) => state.approvedPhotoIds.includes(photoId))
+	);
+}
+
+/**
+ * Add or remove a photo from the approved set, keeping `approvedPhotoIds`
+ * free of duplicates. Approving an already-approved photo is a no-op.
+ */
+export function setPhotoPreviewApproved(
+	state: TaskRoomState,
+	photoId: string,
+	approved: boolean
+): TaskRoomState {
+	const has = state.approvedPhotoIds.includes(photoId);
+	if (approved === has) return state;
+	return {
+		...state,
+		approvedPhotoIds: approved
+			? [...state.approvedPhotoIds, photoId]
+			: state.approvedPhotoIds.filter((id) => id !== photoId),
 	};
 }
 
@@ -154,7 +191,7 @@ export function clampAppearanceBox<
 }
 
 export function invalidatePreview(state: TaskRoomState): TaskRoomState {
-	return { ...state, previewApproved: false };
+	return { ...state, approvedPhotoIds: [] };
 }
 
 export function pickReferencePhotoId(state: TaskRoomState): string | null {

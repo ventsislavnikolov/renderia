@@ -153,7 +153,7 @@ export function PhotoReviewStep(props: {
 			props.onStateChange,
 			props.roomState,
 			props.roomState.appearances,
-			props.roomState.previewApproved,
+			props.roomState.approvedPhotoIds,
 		]
 	);
 

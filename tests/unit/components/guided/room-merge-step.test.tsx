@@ -53,7 +53,7 @@ const roomState: TaskRoomState = {
 	referencePhotoId: "ph-1",
 	appearances: [appearance],
 	objects: [object],
-	previewApproved: false,
+	approvedPhotoIds: [],
 };
 
 function renderStep() {

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	allPreviewsApproved,
 	buildInitialRoomState,
 	clampAppearanceBox,
 	getReferenceProtectedElements,
+	invalidatePreview,
 	pickReferencePhotoId,
 	type RoomAppearance,
+	setPhotoPreviewApproved,
 	suggestRoomObjects,
 } from "../../../src/lib/renovation/room-state";
 
@@ -71,6 +74,50 @@ describe("room-state helpers", () => {
 		expect(() => buildInitialRoomState(["a", "b", "c", "d", "e"])).toThrow(
 			/1 to 4 photos/i
 		);
+	});
+
+	it("builds an initial state with no approved photo previews", () => {
+		expect(buildInitialRoomState(["p1", "p2"]).approvedPhotoIds).toStrictEqual(
+			[]
+		);
+	});
+
+	it("treats the room set as fully approved only when every kept photo is approved", () => {
+		const state = buildInitialRoomState(["p1", "p2"]);
+		expect(allPreviewsApproved(state)).toBe(false);
+
+		const partial = setPhotoPreviewApproved(state, "p1", true);
+		expect(partial.approvedPhotoIds).toStrictEqual(["p1"]);
+		expect(allPreviewsApproved(partial)).toBe(false);
+
+		const full = setPhotoPreviewApproved(partial, "p2", true);
+		expect(allPreviewsApproved(full)).toBe(true);
+	});
+
+	it("never reports an empty room set as approved", () => {
+		expect(allPreviewsApproved(buildInitialRoomState(["p1"]))).toBe(false);
+	});
+
+	it("does not double-add a photo already approved and can revoke approval", () => {
+		const once = setPhotoPreviewApproved(
+			buildInitialRoomState(["p1"]),
+			"p1",
+			true
+		);
+		const twice = setPhotoPreviewApproved(once, "p1", true);
+		expect(twice.approvedPhotoIds).toStrictEqual(["p1"]);
+		expect(
+			setPhotoPreviewApproved(twice, "p1", false).approvedPhotoIds
+		).toStrictEqual([]);
+	});
+
+	it("invalidating a preview clears every photo approval", () => {
+		const approved = setPhotoPreviewApproved(
+			buildInitialRoomState(["p1", "p2"]),
+			"p1",
+			true
+		);
+		expect(invalidatePreview(approved).approvedPhotoIds).toStrictEqual([]);
 	});
 
 	it("auto-suggests canonical room objects by kind + normalized label", () => {
