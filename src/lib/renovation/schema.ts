@@ -571,6 +571,29 @@ export type ApproveStructuralPreviewInput = z.infer<
 >;
 
 /**
+ * Inputs for `generateRoomComposite` — synthesise the wide (3:2) empty-room
+ * Room Composite from the task's approved Structural Previews. The server
+ * resolves which previews are approved from their stored status; the client
+ * only sends the task context and the current room state snapshot.
+ */
+export const createRoomCompositeSchema = z.object({
+	taskId: z.string().uuid(),
+	taskTitle: z.string().min(1).max(200),
+	roomState: taskRoomStateSchema,
+});
+export type CreateRoomCompositeInput = z.infer<
+	typeof createRoomCompositeSchema
+>;
+
+export const approveRoomCompositeSchema = z.object({
+	taskId: z.string().uuid(),
+	compositeId: z.string().uuid(),
+});
+export type ApproveRoomCompositeInput = z.infer<
+	typeof approveRoomCompositeSchema
+>;
+
+/**
  * Inputs for `listProtectedElements`. Returns every persisted protected
  * element for a (task, photo) pair owned by the caller — used by the
  * overlay-confirm step on mount to avoid re-running detection after the

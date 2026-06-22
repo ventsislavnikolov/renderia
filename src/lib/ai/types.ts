@@ -91,6 +91,23 @@ export type GeneratedImageResult = {
 };
 
 /**
+ * Inputs for `generateRoomComposite` — synthesise one wide (3:2) empty-room
+ * Room Composite from the approved per-angle Structural Previews. Unlike
+ * `generateRenovationImages` (one source photo), every supplied image is room
+ * evidence: the model stitches the captured arc into a single continuous empty
+ * room. Produces exactly one image.
+ */
+export type GenerateRoomCompositeInput = {
+	/** The approved Structural Preview images, one per kept photo angle. */
+	previews: Array<{
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+	}>;
+	prompt: string;
+};
+
+/**
  * Inputs for `listRoomContents` — a vision pass over one generated variation
  * that names every visible furniture/decor item so the UI can show a
  * contents list under the image.
@@ -164,6 +181,9 @@ export type RenovationAiProvider = {
 	generateRenovationImages(
 		input: GenerateRenovationImagesInput
 	): Promise<ProviderResult<GeneratedImageResult[]>>;
+	generateRoomComposite(
+		input: GenerateRoomCompositeInput
+	): Promise<ProviderResult<GeneratedImageResult>>;
 	listRoomContents(
 		input: ListRoomContentsInput
 	): Promise<ProviderResult<string[]>>;
