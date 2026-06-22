@@ -334,20 +334,40 @@ export async function __generateRenovationImagesHandler(args: {
 	if (taskLookup.error) throw wrapSupabaseError(taskLookup.error);
 	if (!taskLookup.data) throw new Error("Task not found");
 
-	// Load the source photo's bytes so the provider can run image-edit mode
-	// (preserves room geometry). Missing photoId is an intentional text-only
-	// request; a provided photoId must load successfully or the generation
-	// would look successful while losing the user's chosen source geometry.
-	const sourceImage = args.input.photoId
-		? await loadSourcePhoto({
+	// The approved Room Composite is the preferred generation source: a single
+	// wide (3:2) view of the whole captured room. It takes precedence over a
+	// single reference photo. A provided id must load or we fail loudly rather
+	// than silently dropping the user's chosen source geometry.
+	const compositeImage = args.input.compositeId
+		? await loadCompositeImage({
 				supabase: args.supabase,
 				userId: args.userId,
-				photoId: args.input.photoId,
+				compositeId: args.input.compositeId,
 			})
 		: undefined;
-	if (args.input.photoId && !sourceImage) {
+	if (args.input.compositeId && !compositeImage) {
+		throw new Error("Room composite not found or unavailable");
+	}
+
+	// Fall back to a single source photo only when no composite was supplied
+	// (legacy/text callers). Missing both is an intentional text-only request.
+	const photoImage =
+		!compositeImage && args.input.photoId
+			? await loadSourcePhoto({
+					supabase: args.supabase,
+					userId: args.userId,
+					photoId: args.input.photoId,
+				})
+			: undefined;
+	if (!compositeImage && args.input.photoId && !photoImage) {
 		throw new Error("Source photo not found or unavailable");
 	}
+
+	const sourceImage = compositeImage ?? photoImage;
+	// Preserve the composite's 3:2 ratio; let the model choose for a single photo.
+	const outputSize = compositeImage
+		? ("1536x1024" as const)
+		: ("auto" as const);
 
 	// Furniture references ride along as extra input images on the same edit
 	// call, so they only make sense when a source photo anchors the room.
@@ -401,6 +421,7 @@ export async function __generateRenovationImagesHandler(args: {
 			referenceImages:
 				furnitureReferences.length > 0 ? furnitureReferences : undefined,
 			prompts,
+			outputSize,
 		});
 
 		const uploaded: GeneratedImagePayload[] = [];
@@ -846,6 +867,45 @@ async function loadSourcePhoto(args: {
 		base64: buffer.toString("base64"),
 		contentType,
 		filename: row.data.original_name || "source.png",
+	};
+}
+
+/**
+ * Download the approved Room Composite's bytes for image-edit mode. Like
+ * `loadSourcePhoto`, returns `undefined` when the row or object can't be read
+ * so the caller can decide how to fail.
+ */
+async function loadCompositeImage(args: {
+	supabase: SupabaseScoped;
+	userId: string;
+	compositeId: string;
+}): Promise<
+	| {
+			base64: string;
+			contentType: "image/png" | "image/jpeg" | "image/webp";
+			filename: string;
+	  }
+	| undefined
+> {
+	const row = await args.supabase
+		.from("room_composites")
+		.select("storage_bucket, storage_path")
+		.eq("id", args.compositeId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (row.error || !row.data) return;
+
+	const download = await args.supabase.storage
+		.from(row.data.storage_bucket)
+		.download(row.data.storage_path);
+	if (download.error || !download.data) return;
+
+	const buffer = Buffer.from(await download.data.arrayBuffer());
+	const normalized = await normalizeImageToPng(buffer);
+	return {
+		base64: (normalized ?? buffer).toString("base64"),
+		contentType: "image/png" as const,
+		filename: "composite.png",
 	};
 }
 

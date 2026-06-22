@@ -83,6 +83,11 @@ export type GenerateRenovationImagesInput = {
 	 * room concept while sharing the same architectural rules.
 	 */
 	prompts: string[];
+	/**
+	 * Output aspect/size. Defaults to "auto" (model picks). Set "1536x1024"
+	 * when the source is a 3:2 Room Composite so the wide ratio is preserved.
+	 */
+	outputSize?: "auto" | "1536x1024";
 };
 
 export type GeneratedImageResult = {

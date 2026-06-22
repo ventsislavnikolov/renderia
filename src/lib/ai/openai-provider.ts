@@ -470,6 +470,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			sourceFile && referenceFiles.length > 0
 				? [sourceFile, ...referenceFiles]
 				: sourceFile;
+		const outputSize = input.outputSize ?? "auto";
 		const responses = await Promise.all(
 			input.prompts.map((prompt) =>
 				editImage
@@ -478,14 +479,14 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 							image: editImage,
 							prompt,
 							n: 1,
-							size: "auto",
+							size: outputSize,
 							quality: "high",
 						})
 					: client.images.generate({
 							model: IMAGE_MODEL,
 							prompt,
 							n: 1,
-							size: "auto",
+							size: outputSize,
 							quality: "high",
 						})
 			)

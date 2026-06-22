@@ -378,6 +378,12 @@ export const generateRenovationImagesSchema = z.object({
 	 */
 	photoId: z.string().uuid().nullable().optional(),
 	/**
+	 * The approved Room Composite to generate against. When set, it is the
+	 * source image (3:2 output) and takes precedence over `photoId` — the design
+	 * reflects the whole captured room, not a single angle.
+	 */
+	compositeId: z.string().uuid().nullable().optional(),
+	/**
 	 * Furniture reference items to include in the render. Requires `photoId`
 	 * (image-edit mode) — the references ride along as extra input images.
 	 */
