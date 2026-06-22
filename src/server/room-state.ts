@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
-import { buildStructuralPreviewPrompt } from "../lib/ai/prompts";
+import {
+	buildRoomCompositePrompt,
+	buildStructuralPreviewPrompt,
+} from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import type { RenovationAiProvider } from "../lib/ai/types";
 import {
@@ -10,9 +13,13 @@ import {
 	type TaskRoomState,
 } from "../lib/renovation/room-state";
 import {
+	type ApproveRoomCompositeInput,
 	type ApproveStructuralPreviewInput,
+	approveRoomCompositeSchema,
 	approveStructuralPreviewSchema,
+	type CreateRoomCompositeInput,
 	type CreateStructuralPreviewInput,
+	createRoomCompositeSchema,
 	createStructuralPreviewSchema,
 	type LoadTaskRoomStateInput,
 	loadTaskRoomStateSchema,
@@ -29,6 +36,7 @@ import { normalizeImageToPng } from "./image-normalize";
 
 type SupabaseScoped = SupabaseClient<Database>;
 const PREVIEW_BUCKET = "structural-previews" as const;
+const COMPOSITE_BUCKET = "room-composites" as const;
 const SIGNED_URL_TTL_SECONDS = 600;
 const EDITABLE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -38,6 +46,13 @@ type StructuralPreviewPayload = {
 	signedUrl: string;
 	status: string;
 	referencePhotoId: string;
+};
+
+type RoomCompositePayload = {
+	id: string;
+	storagePath: string;
+	signedUrl: string;
+	status: string;
 };
 
 async function requireOwnedTask(args: {
@@ -111,6 +126,74 @@ async function signPreviewRow(args: {
 	};
 }
 
+async function signCompositeRow(args: {
+	supabase: SupabaseScoped;
+	row: Tables<"room_composites">;
+}): Promise<RoomCompositePayload | null> {
+	const signed = await args.supabase.storage
+		.from(args.row.storage_bucket)
+		.createSignedUrl(args.row.storage_path, SIGNED_URL_TTL_SECONDS);
+	if (signed.error || !signed.data?.signedUrl) return null;
+	return {
+		id: args.row.id,
+		storagePath: args.row.storage_path,
+		signedUrl: signed.data.signedUrl,
+		status: args.row.status,
+	};
+}
+
+/**
+ * Download the task's approved Structural Previews (latest per photo) as
+ * base64 input images for composite synthesis. Walks newest-first and keeps the
+ * first row per photo, so only currently-approved angles feed the stitch.
+ */
+async function loadApprovedPreviewImages(args: {
+	supabase: SupabaseScoped;
+	userId: string;
+	taskId: string;
+}): Promise<{
+	images: Array<{
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+	}>;
+	previewIds: string[];
+}> {
+	const previewQuery = await args.supabase
+		.from("structural_previews")
+		.select("id, storage_bucket, storage_path, status, reference_photo_id")
+		.eq("task_id", args.taskId)
+		.eq("owner_id", args.userId)
+		.order("created_at", { ascending: false });
+	if (previewQuery.error) throw wrapSupabaseError(previewQuery.error);
+
+	const images: Array<{
+		base64: string;
+		contentType: "image/png" | "image/jpeg" | "image/webp";
+		filename: string;
+	}> = [];
+	const previewIds: string[] = [];
+	const seenPhotoIds = new Set<string>();
+	for (const row of previewQuery.data ?? []) {
+		const photoId = String(row.reference_photo_id);
+		if (seenPhotoIds.has(photoId)) continue;
+		seenPhotoIds.add(photoId);
+		if (row.status !== "approved") continue;
+		const download = await args.supabase.storage
+			.from(row.storage_bucket)
+			.download(row.storage_path);
+		if (download.error || !download.data) continue;
+		const buffer = Buffer.from(await download.data.arrayBuffer());
+		images.push({
+			base64: buffer.toString("base64"),
+			contentType: "image/png",
+			filename: `${row.id}.png`,
+		});
+		previewIds.push(String(row.id));
+	}
+	return { images, previewIds };
+}
+
 export async function __loadTaskRoomStateHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -119,6 +202,8 @@ export async function __loadTaskRoomStateHandler(args: {
 	roomState: TaskRoomState;
 	/** Latest preview per reference photo angle, keyed by photo id. */
 	previews: Record<string, StructuralPreviewPayload>;
+	/** Latest Room Composite for the task, or null if none built yet. */
+	composite: RoomCompositePayload | null;
 }> {
 	await requireOwnedTask({
 		supabase: args.supabase,
@@ -192,7 +277,25 @@ export async function __loadTaskRoomStateHandler(args: {
 		if (signed) previews[photoId] = signed;
 	}
 
+	// Latest Room Composite for the task (newest first); null until one is built.
+	const compositeQuery = await args.supabase
+		.from("room_composites")
+		.select("id, storage_bucket, storage_path, status, created_at")
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.order("created_at", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (compositeQuery.error) throw wrapSupabaseError(compositeQuery.error);
+	const composite = compositeQuery.data
+		? await signCompositeRow({
+				supabase: args.supabase,
+				row: compositeQuery.data as Tables<"room_composites">,
+			})
+		: null;
+
 	return {
+		composite,
 		roomState: {
 			photoIds: (taskPhotos.data ?? []).map((row) => String(row.photo_id)),
 			reviewedPhotoIds: (taskPhotos.data ?? [])
@@ -525,6 +628,118 @@ export async function __approveStructuralPreviewHandler(args: {
 	return { ok: true };
 }
 
+export async function __generateRoomCompositeHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	provider: RenovationAiProvider;
+	input: CreateRoomCompositeInput;
+}): Promise<{ composite: RoomCompositePayload }> {
+	const task = await requireOwnedTask({
+		supabase: args.supabase,
+		userId: args.userId,
+		taskId: args.input.taskId,
+	});
+
+	const { images, previewIds } = await loadApprovedPreviewImages({
+		supabase: args.supabase,
+		userId: args.userId,
+		taskId: args.input.taskId,
+	});
+	if (images.length === 0) {
+		throw new Error("No approved previews to build a composite from");
+	}
+
+	const prompt = buildRoomCompositePrompt({
+		taskTitle: args.input.taskTitle,
+		roomObjects: args.input.roomState.objects,
+		sourcePreviewCount: images.length,
+	});
+	const providerResult = await args.provider.generateRoomComposite({
+		previews: images,
+		prompt,
+	});
+	const image = providerResult.value;
+	if (!image) throw new Error("Composite generation returned no image");
+
+	const compositeId = crypto.randomUUID();
+	const storagePath = `${args.userId}/${args.input.taskId}/${compositeId}.png`;
+	const upload = await args.supabase.storage
+		.from(COMPOSITE_BUCKET)
+		.upload(storagePath, Buffer.from(image.base64, "base64"), {
+			contentType: "image/png",
+			upsert: false,
+		});
+	if (upload.error) throw new Error("Failed to upload room composite");
+
+	// A fresh build supersedes any prior composite for the task, so the latest
+	// row is always the current one and approval starts clean.
+	const supersede = await args.supabase
+		.from("room_composites")
+		.update({ status: "superseded" })
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId);
+	if (supersede.error) throw wrapSupabaseError(supersede.error);
+
+	const inserted = await args.supabase
+		.from("room_composites")
+		.insert({
+			id: compositeId,
+			owner_id: args.userId,
+			project_id: task.project_id,
+			task_id: args.input.taskId,
+			storage_bucket: COMPOSITE_BUCKET,
+			storage_path: storagePath,
+			prompt,
+			source_preview_ids: previewIds,
+			room_state_snapshot: args.input.roomState,
+			status: "generated",
+		})
+		.select("id, storage_bucket, storage_path, status")
+		.single();
+	if (inserted.error) throw wrapSupabaseError(inserted.error);
+
+	const composite = await signCompositeRow({
+		supabase: args.supabase,
+		row: inserted.data as Tables<"room_composites">,
+	});
+	if (!composite) throw new Error("Failed to mint composite URL");
+	return { composite };
+}
+
+export async function __approveRoomCompositeHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: ApproveRoomCompositeInput;
+}) {
+	await requireOwnedTask({
+		supabase: args.supabase,
+		userId: args.userId,
+		taskId: args.input.taskId,
+	});
+
+	// Supersede every composite for the task, then approve the chosen one — the
+	// task carries exactly one approved composite at a time.
+	const supersede = await args.supabase
+		.from("room_composites")
+		.update({ status: "superseded" })
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId);
+	if (supersede.error) throw wrapSupabaseError(supersede.error);
+
+	const approved = await args.supabase
+		.from("room_composites")
+		.update({ status: "approved", approved_at: new Date().toISOString() })
+		.eq("id", args.input.compositeId)
+		.eq("task_id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.select("id")
+		.maybeSingle();
+	if (approved.error) throw wrapSupabaseError(approved.error);
+	if (!approved.data) throw new Error("Composite not found");
+
+	return { ok: true };
+}
+
 function readAuthToken(): string | undefined {
 	return readBearerToken(getRequestHeader("authorization"));
 }
@@ -560,6 +775,29 @@ export const approveStructuralPreview = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __approveStructuralPreviewHandler({
+			userId,
+			supabase,
+			input: data,
+		});
+	});
+
+export const generateRoomComposite = createServerFn({ method: "POST" })
+	.validator(createRoomCompositeSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __generateRoomCompositeHandler({
+			userId,
+			supabase,
+			provider: getRenovationAiProvider(),
+			input: data,
+		});
+	});
+
+export const approveRoomComposite = createServerFn({ method: "POST" })
+	.validator(approveRoomCompositeSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __approveRoomCompositeHandler({
 			userId,
 			supabase,
 			input: data,

@@ -278,6 +278,41 @@ export function buildStructuralPreviewPrompt(input: {
 }
 
 /**
+ * Prompt for the Room Composite synthesis. The input images are the approved
+ * per-angle Structural Previews; the model must stitch the *captured arc* into
+ * one continuous wide (3:2) empty room. It must NOT invent walls that were
+ * never photographed and must NOT add furniture — this is still an empty-room
+ * confirmation image, just covering the whole captured room instead of one
+ * angle. See docs/adr/0002.
+ */
+export function buildRoomCompositePrompt(input: {
+	taskTitle: string;
+	roomObjects: RoomObject[];
+	sourcePreviewCount: number;
+}) {
+	const persisted = input.roomObjects.filter((entry) => entry.isPersisted);
+	return [
+		"ROOM COMPOSITE OBJECTIVE:",
+		`Combine the supplied empty-room angle previews into ONE continuous wide empty-room view for ${sanitizePromptField(input.taskTitle)}.`,
+		`- Every input image is an empty-room preview of the same room from a different angle (${input.sourcePreviewCount} angle(s)).`,
+		"- Produce a single wide (3:2 landscape) image that reads as the whole room as captured, stitching the angles into one coherent space.",
+		"- Cover only the walls and areas visible across the previews. Do NOT invent or fabricate walls, openings, or areas that none of the previews show.",
+		"- Keep it an EMPTY room: no furniture, decor, staging, or design personality.",
+		"- Preserve room geometry, proportions, openings, and the structural layout shown in the previews.",
+		"",
+		"ROOM OBJECT RULES:",
+		...persisted.map(roomObjectLine),
+		"",
+		"OUTPUT RULES:",
+		"- One photorealistic wide empty-room image, consistent lighting across the stitched view.",
+		"- Same materials and finishes as the source previews; do not restyle beyond what the previews already show.",
+		"- This is not the final furnished design; it is the empty-room basis the furnished concepts are generated against.",
+	]
+		.filter(Boolean)
+		.join("\n");
+}
+
+/**
  * One furniture piece referenced by a generation run. Dimensions are
  * optional and independently nullable — manual items may leave any subset
  * blank, and Link Import fills whatever the retailer page exposes.
