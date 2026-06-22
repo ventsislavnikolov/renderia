@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
 	allPreviewsApproved,
-	getReferenceProtectedElements,
+	getAllProtectedElements,
 	type TaskRoomState,
 } from "@/lib/renovation/room-state";
 import type { Tables } from "@/lib/types/database";
@@ -432,7 +432,7 @@ export function GuidedFlow(props: {
 					onPromptChange={setPrompt}
 					onStyleRulesChange={setStyleRules}
 					prompt={prompt}
-					protectedElements={getReferenceProtectedElements(roomState)}
+					protectedElements={getAllProtectedElements(roomState)}
 					referencePhotoName={
 						photos.find((photo) => photo.id === roomState.referencePhotoId)
 							?.original_name
@@ -449,7 +449,7 @@ export function GuidedFlow(props: {
 				<GenerationStep
 					brief={brief}
 					briefId={briefId}
-					photoId={roomState.referencePhotoId}
+					compositeId={composite?.id ?? null}
 					prompt={prompt}
 					taskId={props.taskId}
 				/>

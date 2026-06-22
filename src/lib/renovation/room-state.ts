@@ -253,3 +253,47 @@ export function getReferenceProtectedElements(state: TaskRoomState): Array<{
 			confidence: entry.confidence ?? undefined,
 		}));
 }
+
+/**
+ * Protected elements for the whole-room design: one entry per persisted Room
+ * Object, drawn from its appearances across *all* photos (not a single
+ * reference angle). Deduplicates by object so an element seen from several
+ * angles is listed once, using its first appearance's box.
+ */
+export function getAllProtectedElements(state: TaskRoomState): Array<{
+	label: string;
+	kind: RoomElementKind;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	confidence?: number;
+}> {
+	const objectById = new Map(state.objects.map((entry) => [entry.id, entry]));
+	const seenObjectIds = new Set<string>();
+	const result: Array<{
+		label: string;
+		kind: RoomElementKind;
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		confidence?: number;
+	}> = [];
+	for (const entry of state.appearances) {
+		if (!entry.objectId) continue;
+		if (objectById.get(entry.objectId)?.isPersisted !== true) continue;
+		if (seenObjectIds.has(entry.objectId)) continue;
+		seenObjectIds.add(entry.objectId);
+		result.push({
+			label: entry.label,
+			kind: entry.kind,
+			x: entry.x,
+			y: entry.y,
+			width: entry.width,
+			height: entry.height,
+			confidence: entry.confidence ?? undefined,
+		});
+	}
+	return result;
+}
