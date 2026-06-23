@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/ventsislavnikolov/renderia/compare/v1.12.0...v1.13.0) (2026-06-23)
+
+
+### Features
+
+* **ui:** multi-upload photos — batch picker + drag-drop ([#85](https://github.com/ventsislavnikolov/renderia/issues/85)) ([47652ed](https://github.com/ventsislavnikolov/renderia/commit/47652ed288298ad634e1550917a75e72d954d24f)), closes [#84](https://github.com/ventsislavnikolov/renderia/issues/84) [#84](https://github.com/ventsislavnikolov/renderia/issues/84)
+
 # [1.12.0](https://github.com/ventsislavnikolov/renderia/compare/v1.11.0...v1.12.0) (2026-06-23)
 
 
