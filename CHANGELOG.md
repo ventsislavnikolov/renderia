@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/ventsislavnikolov/renderia/compare/v1.10.11...v1.11.0) (2026-06-23)
+
+
+### Features
+
+* **renovation:** per-photo structural preview approval gate ([#75](https://github.com/ventsislavnikolov/renderia/issues/75)) ([#79](https://github.com/ventsislavnikolov/renderia/issues/79)) ([8928fa6](https://github.com/ventsislavnikolov/renderia/commit/8928fa60ef2c2bdba3d5ca81eae7bf1c38c53163)), closes [#77](https://github.com/ventsislavnikolov/renderia/issues/77) [#76](https://github.com/ventsislavnikolov/renderia/issues/76) [#76](https://github.com/ventsislavnikolov/renderia/issues/76)
+
 ## [1.10.11](https://github.com/ventsislavnikolov/renderia/compare/v1.10.10...v1.10.11) (2026-06-18)
 
 ## [1.10.10](https://github.com/ventsislavnikolov/renderia/compare/v1.10.9...v1.10.10) (2026-06-17)
