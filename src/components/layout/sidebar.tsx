@@ -4,12 +4,15 @@ import {
 	Folder,
 	FolderOpen,
 	LogOut,
+	Menu,
 	Search,
 	Sofa,
 	SquarePen,
 	Star,
+	X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Dialog as DialogPrimitive } from "radix-ui";
+import { type ReactNode, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
 	DropdownMenu,
@@ -36,6 +39,7 @@ export function Sidebar() {
 	const { projects, tasksMap, loadError } = useWorkspace();
 	const [signingOut, setSigningOut] = useState(false);
 	const [searchOpen, setSearchOpen] = useState(false);
+	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [userEmail, setUserEmail] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -49,6 +53,13 @@ export function Sidebar() {
 		};
 	}, []);
 
+	// Close the mobile drawer whenever the route changes so a tapped link never
+	// leaves the off-canvas panel open over the new page.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: close on path change only.
+	useEffect(() => {
+		setDrawerOpen(false);
+	}, [location.pathname]);
+
 	const activeProjectId = extractProjectIdFromPath(location.pathname);
 	const activeTaskId = extractTaskIdFromPath(location.pathname);
 
@@ -61,109 +72,42 @@ export function Sidebar() {
 		}
 	}
 
+	const renderContent = (onNavigate?: () => void) => (
+		<SidebarContent
+			activeProjectId={activeProjectId}
+			activeTaskId={activeTaskId}
+			email={userEmail}
+			loadError={loadError}
+			onNavigate={onNavigate}
+			onSearch={() => {
+				onNavigate?.();
+				setSearchOpen(true);
+			}}
+			onSignOut={handleSignOut}
+			projects={projects}
+			signingOut={signingOut}
+			tasksMap={tasksMap}
+		/>
+	);
+
 	return (
 		<>
+			{/* Persistent desktop rail — hidden below the md breakpoint. */}
 			<aside
 				aria-label="Workspace"
 				className={cn(
-					"flex flex-col overflow-hidden bg-surface",
-					"border-border border-b md:sticky md:top-0 md:h-screen md:w-[320px] md:border-r md:border-b-0",
-					"px-3 pt-4 pb-4 md:max-h-none",
-					"max-md:max-h-[50vh]"
+					"hidden bg-surface md:flex md:flex-col md:overflow-hidden",
+					"md:sticky md:top-0 md:h-screen md:w-[320px] md:border-border md:border-r",
+					"md:px-3 md:pt-4 md:pb-4"
 				)}
 			>
-				<nav aria-label="Primary" className="flex flex-col gap-0.5 pb-4">
-					<SidebarActionLink
-						icon={<SquarePen className="size-5" />}
-						label="New"
-						to="/"
-					/>
-					<SidebarActionButton
-						icon={<Search className="size-5" />}
-						label="Search"
-						onClick={() => setSearchOpen(true)}
-					/>
-					<SidebarActionLink
-						icon={<Star className="size-5" />}
-						label="Favorites"
-						to="/favorites"
-					/>
-					<SidebarActionLink
-						icon={<Sofa className="size-5" />}
-						label="Furniture"
-						to="/furniture"
-					/>
-				</nav>
-
-				<ScrollArea className="-mx-3 min-h-0 flex-1 px-3">
-					<div className="px-3 pt-1 pb-3 font-body font-bold text-[0.9375rem] text-foreground">
-						Projects
-					</div>
-
-					{projects === null ? (
-						<div className="flex flex-col gap-0.5">
-							{/* active project skeleton */}
-							<div className="flex items-center gap-3 rounded-lg bg-background px-3 py-2">
-								<Skeleton className="size-[18px] shrink-0 rounded-sm" />
-								<Skeleton className="h-3.5 w-[96px]" />
-							</div>
-							{/* task skeletons */}
-							<div className="flex flex-col gap-0 pl-9">
-								{[100, 140].map((w) => (
-									<div
-										className="flex items-center justify-between px-3 py-1.5"
-										key={w}
-									>
-										<Skeleton className="h-3 rounded" style={{ width: w }} />
-										<Skeleton className="ml-2 h-3 w-6 rounded" />
-									</div>
-								))}
-							</div>
-							{/* inactive project skeletons */}
-							{[80, 112].map((w) => (
-								<div className="flex items-center gap-3 px-3 py-2" key={w}>
-									<Skeleton className="size-[18px] shrink-0 rounded-sm" />
-									<Skeleton className="h-3.5 rounded" style={{ width: w }} />
-								</div>
-							))}
-						</div>
-					) : null}
-					{loadError ? (
-						<p
-							className="px-3 py-2 font-body text-[0.9375rem] text-destructive"
-							role="alert"
-						>
-							{loadError}
-						</p>
-					) : null}
-					{projects && projects.length === 0 ? (
-						<p className="px-3 py-2 font-body text-[0.9375rem] text-ink-muted">
-							No projects yet.
-						</p>
-					) : null}
-					{projects && projects.length > 0 ? (
-						<ul className="m-0 flex flex-col gap-0.5 p-0">
-							{projects.map((project) => (
-								<SidebarProjectEntry
-									activeProjectId={activeProjectId}
-									activeTaskId={activeTaskId}
-									key={project.id}
-									project={project}
-									tasks={tasksMap[project.id]}
-								/>
-							))}
-						</ul>
-					) : null}
-				</ScrollArea>
-
-				<div className="border-border border-t pt-2">
-					<UserMenu
-						email={userEmail}
-						onSignOut={handleSignOut}
-						signingOut={signingOut}
-					/>
-				</div>
+				{renderContent()}
 			</aside>
+
+			{/* Compact top bar + off-canvas drawer — mobile only. */}
+			<MobileNav onOpenChange={setDrawerOpen} open={drawerOpen}>
+				{renderContent(() => setDrawerOpen(false))}
+			</MobileNav>
 
 			<SearchModal
 				onOpenChange={(open) => setSearchOpen(open)}
@@ -171,6 +115,196 @@ export function Sidebar() {
 				projects={projects ?? []}
 			/>
 		</>
+	);
+}
+
+/**
+ * Presentational sidebar body shared by the desktop rail and the mobile
+ * drawer. State lives in {@link Sidebar}; `onNavigate` (when provided by the
+ * drawer) closes the panel as the user activates a link or the search action.
+ */
+function SidebarContent(props: {
+	projects: ProjectRow[] | null;
+	tasksMap: Record<string, TaskRow[]>;
+	loadError: string | null;
+	activeProjectId: string | null;
+	activeTaskId: string | null;
+	email: string | null;
+	signingOut: boolean;
+	onSearch: () => void;
+	onSignOut: () => void;
+	onNavigate?: () => void;
+}) {
+	return (
+		<>
+			<nav aria-label="Primary" className="flex flex-col gap-0.5 pb-4">
+				<SidebarActionLink
+					icon={<SquarePen className="size-5" />}
+					label="New"
+					onNavigate={props.onNavigate}
+					to="/"
+				/>
+				<SidebarActionButton
+					icon={<Search className="size-5" />}
+					label="Search"
+					onClick={props.onSearch}
+				/>
+				<SidebarActionLink
+					icon={<Star className="size-5" />}
+					label="Favorites"
+					onNavigate={props.onNavigate}
+					to="/favorites"
+				/>
+				<SidebarActionLink
+					icon={<Sofa className="size-5" />}
+					label="Furniture"
+					onNavigate={props.onNavigate}
+					to="/furniture"
+				/>
+			</nav>
+
+			<ScrollArea className="-mx-3 min-h-0 flex-1 px-3">
+				<div className="px-3 pt-1 pb-3 font-body font-bold text-[0.9375rem] text-foreground">
+					Projects
+				</div>
+
+				{props.projects === null ? (
+					<div className="flex flex-col gap-0.5">
+						{/* active project skeleton */}
+						<div className="flex items-center gap-3 rounded-lg bg-background px-3 py-2">
+							<Skeleton className="size-[18px] shrink-0 rounded-sm" />
+							<Skeleton className="h-3.5 w-[96px]" />
+						</div>
+						{/* task skeletons */}
+						<div className="flex flex-col gap-0 pl-9">
+							{[100, 140].map((w) => (
+								<div
+									className="flex items-center justify-between px-3 py-1.5"
+									key={w}
+								>
+									<Skeleton className="h-3 rounded" style={{ width: w }} />
+									<Skeleton className="ml-2 h-3 w-6 rounded" />
+								</div>
+							))}
+						</div>
+						{/* inactive project skeletons */}
+						{[80, 112].map((w) => (
+							<div className="flex items-center gap-3 px-3 py-2" key={w}>
+								<Skeleton className="size-[18px] shrink-0 rounded-sm" />
+								<Skeleton className="h-3.5 rounded" style={{ width: w }} />
+							</div>
+						))}
+					</div>
+				) : null}
+				{props.loadError ? (
+					<p
+						className="px-3 py-2 font-body text-[0.9375rem] text-destructive"
+						role="alert"
+					>
+						{props.loadError}
+					</p>
+				) : null}
+				{props.projects && props.projects.length === 0 ? (
+					<p className="px-3 py-2 font-body text-[0.9375rem] text-ink-muted">
+						No projects yet.
+					</p>
+				) : null}
+				{props.projects && props.projects.length > 0 ? (
+					<ul className="m-0 flex flex-col gap-0.5 p-0">
+						{props.projects.map((project) => (
+							<SidebarProjectEntry
+								activeProjectId={props.activeProjectId}
+								activeTaskId={props.activeTaskId}
+								key={project.id}
+								onNavigate={props.onNavigate}
+								project={project}
+								tasks={props.tasksMap[project.id]}
+							/>
+						))}
+					</ul>
+				) : null}
+			</ScrollArea>
+
+			<div className="border-border border-t pt-2">
+				<UserMenu
+					email={props.email}
+					onSignOut={props.onSignOut}
+					signingOut={props.signingOut}
+				/>
+			</div>
+		</>
+	);
+}
+
+/**
+ * Mobile-only navigation: a compact top bar whose menu button opens the shared
+ * sidebar content as a left off-canvas drawer. Built on the Radix Dialog
+ * primitive, so it traps and restores focus, closes on Escape / overlay click,
+ * and — because the panel is portalled only while open — never intercepts
+ * pointer events on the page when closed.
+ */
+function MobileNav(props: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	children: ReactNode;
+}) {
+	return (
+		<DialogPrimitive.Root onOpenChange={props.onOpenChange} open={props.open}>
+			<div className="flex items-center gap-3 border-border border-b bg-surface px-4 py-3 md:hidden">
+				<DialogPrimitive.Trigger asChild>
+					<button
+						aria-label="Open navigation menu"
+						className={cn(
+							"inline-flex size-9 items-center justify-center rounded-lg",
+							"text-foreground transition-colors hover:bg-background",
+							"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+						)}
+						type="button"
+					>
+						<Menu className="size-5" />
+					</button>
+				</DialogPrimitive.Trigger>
+				<span className="font-display font-semibold text-[1.0625rem] text-foreground tracking-tight">
+					Renderia
+				</span>
+			</div>
+
+			<DialogPrimitive.Portal>
+				<DialogPrimitive.Overlay
+					className={cn(
+						"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+						"data-[state=closed]:animate-out data-[state=open]:animate-in md:hidden"
+					)}
+				/>
+				<DialogPrimitive.Content
+					aria-describedby={undefined}
+					className={cn(
+						"fixed inset-y-0 left-0 z-50 flex w-[300px] max-w-[85vw] flex-col overflow-hidden",
+						"bg-surface px-3 pt-4 pb-4 shadow-lg outline-none",
+						"data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+						"duration-200 data-[state=closed]:animate-out data-[state=open]:animate-in md:hidden"
+					)}
+				>
+					<DialogPrimitive.Title className="sr-only">
+						Navigation
+					</DialogPrimitive.Title>
+					<DialogPrimitive.Close asChild>
+						<button
+							aria-label="Close navigation menu"
+							className={cn(
+								"absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-lg",
+								"text-ink-muted transition-colors hover:bg-background hover:text-foreground",
+								"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+							)}
+							type="button"
+						>
+							<X className="size-5" />
+						</button>
+					</DialogPrimitive.Close>
+					{props.children}
+				</DialogPrimitive.Content>
+			</DialogPrimitive.Portal>
+		</DialogPrimitive.Root>
 	);
 }
 
@@ -251,6 +385,7 @@ function SidebarActionLink(props: {
 	to: string;
 	icon: React.ReactNode;
 	label: string;
+	onNavigate?: () => void;
 }) {
 	const baseClass = cn(
 		"flex items-center gap-3 rounded-lg px-3 py-2.5",
@@ -263,6 +398,7 @@ function SidebarActionLink(props: {
 			activeOptions={{ exact: true }}
 			activeProps={{ className: cn(baseClass, "bg-background font-semibold") }}
 			className={baseClass}
+			onClick={props.onNavigate}
 			to={props.to}
 		>
 			<span
@@ -308,6 +444,7 @@ function SidebarProjectEntry(props: {
 	activeProjectId: string | null;
 	activeTaskId: string | null;
 	tasks: TaskRow[] | undefined;
+	onNavigate?: () => void;
 }) {
 	const isActive = props.project.id === props.activeProjectId;
 	const tasks = props.tasks;
@@ -323,6 +460,7 @@ function SidebarProjectEntry(props: {
 						? "bg-background font-semibold"
 						: "font-medium text-ink-muted hover:bg-background hover:text-foreground"
 				)}
+				onClick={props.onNavigate}
 				params={{ projectId: props.project.id }}
 				to="/projects/$projectId"
 			>
@@ -349,6 +487,7 @@ function SidebarProjectEntry(props: {
 										? "bg-background font-medium text-foreground"
 										: "text-ink-muted hover:bg-background hover:text-foreground"
 								)}
+								onClick={props.onNavigate}
 								params={{
 									projectId: props.project.id,
 									taskId: task.id,

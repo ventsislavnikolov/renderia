@@ -6,7 +6,8 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listProjectsMock = vi.fn();
@@ -153,5 +154,46 @@ describe("Sidebar", () => {
 		});
 		expect(trigger.className).toContain("focus-visible:ring-[3px]");
 		expect(trigger.className).toContain("focus-visible:ring-ring/50");
+	});
+
+	it("keeps the navigation drawer (and its overlay) unmounted while closed", async () => {
+		renderSidebar("/projects");
+		await screen.findByRole("complementary", { name: /workspace/i });
+
+		// Nothing is portalled when closed, so the overlay can't intercept page
+		// pointer events.
+		expect(screen.queryByRole("dialog", { name: /navigation/i })).toBeNull();
+	});
+
+	it("opens the navigation drawer from the mobile menu button", async () => {
+		const user = userEvent.setup();
+		renderSidebar("/projects");
+
+		await user.click(
+			await screen.findByRole("button", { name: /open navigation menu/i })
+		);
+
+		const drawer = await screen.findByRole("dialog", { name: /navigation/i });
+		expect(within(drawer).getByRole("link", { name: /^new$/i })).toBeDefined();
+		expect(
+			within(drawer).getByRole("button", { name: /close navigation menu/i })
+		).toBeDefined();
+	});
+
+	it("closes the navigation drawer on Escape", async () => {
+		const user = userEvent.setup();
+		renderSidebar("/projects");
+
+		await user.click(
+			await screen.findByRole("button", { name: /open navigation menu/i })
+		);
+		expect(
+			await screen.findByRole("dialog", { name: /navigation/i })
+		).toBeDefined();
+
+		await user.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog", { name: /navigation/i })).toBeNull()
+		);
 	});
 });
