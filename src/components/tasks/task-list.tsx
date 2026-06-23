@@ -130,9 +130,9 @@ export function TaskList(props: { projectId: string }) {
 		<section className="grid gap-6">
 			<header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<div className="grid gap-1.5">
-					<h1 className="m-0 font-body font-semibold text-[1.625rem] text-foreground tracking-tight">
+					<h2 className="m-0 font-body font-semibold text-[1.625rem] text-foreground tracking-tight">
 						Rooms
-					</h1>
+					</h2>
 					<p className="m-0 max-w-[58ch] font-body text-[0.9375rem] text-ink-muted leading-6">
 						Open a room to upload photos, write the brief, and generate
 						concepts.

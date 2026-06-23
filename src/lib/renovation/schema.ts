@@ -37,6 +37,18 @@ export const getProjectSchema = z.object({
 });
 export type GetProjectInput = z.infer<typeof getProjectSchema>;
 
+export const updateProjectSchema = z.object({
+	projectId: z.string().uuid(),
+	name: z.string().min(1).max(200),
+	description: z.string().max(2000).optional(),
+});
+export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+
+export const deleteProjectSchema = z.object({
+	projectId: z.string().uuid(),
+});
+export type DeleteProjectInput = z.infer<typeof deleteProjectSchema>;
+
 export const createTaskSchema = z.object({
 	projectId: z.string().uuid(),
 	title: z.string().min(1).max(200),

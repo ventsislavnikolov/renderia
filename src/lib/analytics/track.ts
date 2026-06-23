@@ -10,6 +10,8 @@ import type { ConsentChoice } from "./consent";
  */
 export type FunnelEvent =
 	| "project_created"
+	| "project_updated"
+	| "project_deleted"
 	| "photo_uploaded"
 	| "brief_generated"
 	| "variations_generated"

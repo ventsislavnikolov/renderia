@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Folder, Plus } from "lucide-react";
+import { Folder, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,11 +22,13 @@ import {
 } from "../../lib/server-client/auth-headers";
 import { useWorkspace } from "../../lib/workspace-context";
 import { createProject } from "../../server/projects";
+import { ProjectActionsMenu } from "./project-actions-menu";
 
 /**
  * Projects index: reads the signed-in user's projects from the shared
- * workspace context (loaded once by `AppShell`) and renders a create form.
- * Loading + error are exposed in the UI so a blank dashboard isn't ambiguous.
+ * workspace context (loaded once by `AppShell`) and renders a create form plus
+ * per-row edit/delete actions. Loading + error are exposed in the UI so a
+ * blank dashboard isn't ambiguous.
  */
 export function ProjectList() {
 	const { projects, loadError, refreshProjects } = useWorkspace();
@@ -35,9 +37,7 @@ export function ProjectList() {
 	const [description, setDescription] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [createOpen, setCreateOpen] = useState(false);
-	const [createdAnnouncement, setCreatedAnnouncement] = useState<string | null>(
-		null
-	);
+	const [announcement, setAnnouncement] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
 
 	useEffect(() => {
@@ -48,10 +48,10 @@ export function ProjectList() {
 	}, []);
 
 	useEffect(() => {
-		if (!createdAnnouncement) return;
-		const timer = window.setTimeout(() => setCreatedAnnouncement(null), 3000);
+		if (!announcement) return;
+		const timer = window.setTimeout(() => setAnnouncement(null), 3000);
 		return () => window.clearTimeout(timer);
-	}, [createdAnnouncement]);
+	}, [announcement]);
 
 	async function handleCreate(event: React.FormEvent) {
 		event.preventDefault();
@@ -73,7 +73,7 @@ export function ProjectList() {
 			await refreshProjects();
 			if (cancelledRef.current) return;
 			setCreateOpen(false);
-			setCreatedAnnouncement("Project created.");
+			setAnnouncement("Project created.");
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
@@ -186,7 +186,7 @@ export function ProjectList() {
 				</Dialog>
 			</header>
 			<output aria-live="polite" className="sr-only">
-				{createdAnnouncement ?? ""}
+				{announcement ?? ""}
 			</output>
 
 			{projects === null && loadError === null ? (
@@ -229,11 +229,11 @@ export function ProjectList() {
 				<ul className="m-0 grid list-none overflow-hidden rounded-lg border border-border bg-background p-0 shadow-xs">
 					{projects.map((project) => (
 						<li
-							className="border-border border-b last:border-b-0"
+							className="relative border-border border-b last:border-b-0"
 							key={project.id}
 						>
 							<Link
-								className="group grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 no-underline transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
+								className="group grid min-h-20 grid-cols-[auto_1fr] items-center gap-4 px-4 py-3.5 pr-14 no-underline transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5 sm:pr-16"
 								params={{ projectId: project.id }}
 								to="/projects/$projectId"
 							>
@@ -251,13 +251,14 @@ export function ProjectList() {
 										{project.description || "No description"}
 									</span>
 								</span>
-								<span
-									aria-hidden="true"
-									className="inline-flex size-8 items-center justify-center rounded-md text-ink-subtle transition-colors group-hover:bg-background group-hover:text-foreground"
-								>
-									<ArrowRight className="size-4" />
-								</span>
 							</Link>
+							<div className="absolute top-1/2 right-3 -translate-y-1/2 sm:right-4">
+								<ProjectActionsMenu
+									onActionComplete={setAnnouncement}
+									project={project}
+									triggerClassName="text-ink-subtle hover:text-foreground"
+								/>
+							</div>
 						</li>
 					))}
 				</ul>
