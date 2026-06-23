@@ -381,15 +381,15 @@ export type LoadLatestDesignBriefInput = z.infer<
 /**
  * Inputs for `generateRenovationImages` server fn.
  *
- * `count` is capped at 4 so a single request can't burn an unbounded number
- * of `gpt-image-2` generations. `briefId` is nullable for manually edited
- * or legacy briefs that do not have a persisted `design_briefs` row yet.
+ * `count` is capped at 2 — one image per Take — so a single request can't burn
+ * an unbounded number of `gpt-image-2` generations. `briefId` is nullable for
+ * manually edited or legacy briefs without a persisted `design_briefs` row yet.
  */
 export const generateRenovationImagesSchema = z.object({
 	taskId: z.string().uuid(),
 	briefId: z.string().uuid().nullable(),
 	prompt: z.string().min(1).max(8000),
-	count: z.number().int().min(1).max(4).default(4),
+	count: z.number().int().min(1).max(2).default(2),
 	/**
 	 * When set, the server loads the photo bytes from storage and the provider
 	 * uses image-edit mode so the renovation preserves the source room.

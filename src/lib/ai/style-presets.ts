@@ -61,7 +61,7 @@ export const SCANDINAVIAN_PRESET: StylePreset = {
 	],
 	windowRule: [
 		"- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.",
-		"- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.",
+		"- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by this variation's curtain tone.",
 	],
 	flooringRule: [
 		"- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.",

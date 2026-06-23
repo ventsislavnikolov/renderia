@@ -735,7 +735,7 @@ describe("generateRenovationImagesHandler", () => {
 		);
 	});
 
-	it("clamps the variation count to the 1..4 range", async () => {
+	it("clamps the variation count to the 1..2 range (one per Take)", async () => {
 		const stub = buildGenerationSupabaseStub({
 			imageInsertResults: [
 				{
@@ -766,14 +766,14 @@ describe("generateRenovationImagesHandler", () => {
 				taskId: "t1",
 				briefId: null,
 				prompt: "PRESERVE EXACTLY",
-				// Schema would normally reject >4 but we cover the defensive clamp.
+				// Schema would normally reject >2 but we cover the defensive clamp.
 				count: 99 as unknown as number,
 			},
 		});
 
 		expect(
 			provider.generateRenovationImages.mock.calls[0]?.[0]?.prompts
-		).toHaveLength(4);
+		).toHaveLength(2);
 	});
 
 	it("strips the debug payload in production", async () => {

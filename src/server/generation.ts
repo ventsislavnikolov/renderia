@@ -352,7 +352,7 @@ export async function __generateRenovationImagesHandler(args: {
 	data: { jobId: string; images: GeneratedImagePayload[] };
 	debug?: ProviderDebug;
 }> {
-	const clampedCount = Math.max(1, Math.min(args.input.count ?? 4, 4));
+	const clampedCount = Math.max(1, Math.min(args.input.count ?? 2, 2));
 
 	// Verify task ownership up front. RLS would block the job insert anyway,
 	// but a clean "Task not found" is friendlier than the wrapped 42501.

@@ -83,9 +83,8 @@ export type GenerateRenovationImagesInput = {
 	/**
 	 * One prompt per variation. The provider produces exactly
 	 * `prompts.length` images, one per entry. Callers expand a single base
-	 * prompt into N concept-specific prompts via
-	 * `buildConceptVariationPrompts` so each variation can be a different
-	 * room concept while sharing the same architectural rules.
+	 * prompt into N per-Take prompts via `buildConceptVariationPrompts` so each
+	 * variation is a different design Take sharing the same Style and rules.
 	 */
 	prompts: string[];
 	/**

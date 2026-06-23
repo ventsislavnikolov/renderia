@@ -47,39 +47,30 @@ function roomObjectLine(object: RoomObject): string {
 }
 
 /**
- * Ordered concept catalogue used to differentiate the four variations.
+ * The two global **Takes** — contrasting design moods that differentiate the
+ * variations. A Take is independent of both the room's function (which comes
+ * from the task title) and the Style (which comes from the preset):
+ * `buildConceptVariationPrompts` layers one Take onto the already style-aware
+ * base prompt, so the same Take reads correctly under any Style. Two Takes →
+ * two variations (see docs/adr/0004-parameterized-style-presets.md).
  *
- * Each entry pairs a short label (used in the brief markdown so the user
- * can read what they're getting) with a fuller renovation directive that
- * gets appended to the per-image prompt. Order matters: variation 0 is the
- * living room, variation 1 the bedroom, etc. — matches the user's
- * reference brief so favorites stay meaningful across re-runs.
+ * `curtainTone` (light vs dark) feeds the window-treatment rule, which defers
+ * to "this variation's curtain tone".
  */
-export const VARIATION_CONCEPTS = [
+export const TAKES = [
 	{
-		label: "Cozy Scandinavian living room",
+		id: "airy",
+		label: "Airy & minimal",
 		curtainTone: "light",
 		description:
-			"Cozy Scandinavian living room. Comfortable sofa, soft area rug, a low coffee table, a side armchair, simple wall art, indoor plants, and warm task lighting. Light linen or off-white curtains. Keep circulation clear of doors, windows, and radiators.",
+			"Airy and minimal: fewer, larger pieces with generous negative space, light and bright, calm uncluttered surfaces, and only a few well-chosen accents.",
 	},
 	{
-		label: "Warm Scandinavian bedroom / guest bedroom",
-		curtainTone: "light",
-		description:
-			"Warm Scandinavian bedroom or guest bedroom. Low platform or simple-framed bed with neutral linen bedding, a bedside table with a soft lamp, a small wardrobe or storage unit, a textured throw, and a small rug. White or off-white curtains. Keep the bed away from radiators and from blocking door swings.",
-	},
-	{
-		label: "Practical home office / hobby room",
+		id: "layered",
+		label: "Warm & layered",
 		curtainTone: "dark",
 		description:
-			"Practical home office or hobby room. A simple desk facing or beside the window, an ergonomic but plain chair, an open shelving unit, a pinboard or small art piece, a desk lamp, and a soft floor rug. Use taupe or warm grey curtains. Keep the workspace lit by daylight without blocking the window.",
-	},
-	{
-		label:
-			"Multifunctional room with storage, guest sleeping option, and cozy seating",
-		curtainTone: "dark",
-		description:
-			"Multifunctional room. A daybed or sofa-bed for guests, modular storage units along one wall, a small folding table or compact desk, baskets for soft storage, and a cozy reading corner with a floor lamp. Use charcoal or muted earthy curtains. Layout must accommodate both seating and overnight sleeping.",
+			"Warm and layered: cozy textiles, rugs and cushions, richer accent tones, and more pieces arranged into inviting, well-defined zones.",
 	},
 ] as const;
 
@@ -108,9 +99,9 @@ export function buildDesignBriefMarkdown(input: {
 						.join("\n")
 				: "- No protected elements were confirmed. Keep the source photo's visible structural layout stable.";
 
-	const concepts = VARIATION_CONCEPTS.map(
-		(concept, index) =>
-			`${index + 1}. **${sanitizePromptField(concept.label)}** — ${sanitizePromptField(concept.description)}`
+	const takes = TAKES.map(
+		(take, index) =>
+			`${index + 1}. **${sanitizePromptField(take.label)}** — ${sanitizePromptField(take.description)} (${take.curtainTone} curtains)`
 	).join("\n");
 
 	return [
@@ -142,8 +133,8 @@ export function buildDesignBriefMarkdown(input: {
 		"## Style Direction",
 		sanitizePromptField(input.styleRules),
 		"",
-		"## Variation concepts",
-		concepts,
+		"## Variations",
+		takes,
 		"",
 		"## Generation guidance",
 		"- Use the source photo as the geometry and composition reference.",
@@ -156,10 +147,9 @@ export function buildDesignBriefMarkdown(input: {
 /**
  * Base image-generation prompt. Holds the architectural rules, source-photo
  * fidelity requirements, the renovation playbook, and the negative
- * instructions. Per-variation concept text is appended later by
- * `buildConceptVariationPrompts` — keeping the base/per-concept split
- * means the four images share the same room and rules, only the brief
- * differs.
+ * instructions. Per-variation Take text is appended later by
+ * `buildConceptVariationPrompts` — keeping the base/per-Take split means the
+ * variations share the same room, Style, and rules, differing only by Take.
  */
 export function buildDesignPrompt(input: {
 	taskTitle: string;
@@ -394,33 +384,32 @@ export function buildFurnitureReferenceSection(
 }
 
 /**
- * Expand the base prompt into N per-variation prompts. Each variation
- * appends the concept-specific directive from `VARIATION_CONCEPTS` so the
- * provider can be called N times with different concept text but identical
- * architectural and renovation rules.
+ * Expand the style-aware base prompt into N per-variation prompts by layering
+ * one `TAKES` entry onto each. The base prompt already carries the Style; this
+ * appends the Take's mood + curtain tone, so the result is preset × take. The
+ * provider is called once per returned prompt.
  *
- * Wraps the concept index: if the caller asks for more variations than
- * concepts exist, later variations reuse earlier concepts (rare; the
- * current schema caps `count` at 4 which matches the catalogue length).
+ * `count` is capped at the number of Takes — there are only two distinct moods,
+ * so asking for more yields at most two variations rather than repeating a Take.
  */
 export function buildConceptVariationPrompts(
 	basePrompt: string,
 	count: number
 ): string[] {
-	const safeCount = Math.max(1, Math.min(count, 8));
+	const safeCount = Math.max(1, Math.min(count, TAKES.length));
 	const prompts: string[] = [];
 	for (let index = 0; index < safeCount; index += 1) {
-		const concept = VARIATION_CONCEPTS[index % VARIATION_CONCEPTS.length];
-		if (!concept) continue;
+		const take = TAKES[index % TAKES.length];
+		if (!take) continue;
 		prompts.push(
 			[
 				basePrompt,
 				"",
-				`VARIATION CONCEPT (image ${index + 1} of ${safeCount}):`,
-				`- Room type: ${concept.label}.`,
-				`- ${concept.description}`,
-				`- Curtain tone for this variation: ${concept.curtainTone}.`,
-				"- The room must be fully furnished and styled to this concept.",
+				`VARIATION (image ${index + 1} of ${safeCount}):`,
+				`- Take: ${take.label}.`,
+				`- ${take.description}`,
+				`- Curtain tone for this variation: ${take.curtainTone}.`,
+				"- Fully furnish and style the room to this Take, within the chosen Style.",
 			].join("\n")
 		);
 	}

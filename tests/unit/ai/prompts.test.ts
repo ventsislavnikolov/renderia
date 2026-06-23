@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildConceptVariationPrompts,
 	buildDesignBriefMarkdown,
 	buildDesignPrompt,
 	buildFurnitureReferenceSection,
 	buildStructuralPreviewPrompt,
+	TAKES,
 } from "../../../src/lib/ai/prompts";
 import {
 	findStylePreset,
@@ -211,7 +213,7 @@ describe("buildDesignPrompt", () => {
 
 			WINDOW TREATMENT RULE:
 			- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.
-			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.
+			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by this variation's curtain tone.
 
 			FLOORING RULE:
 			- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.
@@ -272,7 +274,7 @@ describe("buildDesignPrompt", () => {
 		expect(markdown).toContain("left window (window)");
 		expect(markdown).toContain("## Renovation rules");
 		expect(markdown).toContain("## Style Direction");
-		expect(markdown).toContain("## Variation concepts");
+		expect(markdown).toContain("## Variations");
 		expect(markdown).toContain("## Generation guidance");
 		expect(markdown).toContain("Keep the same camera viewpoint");
 	});
@@ -383,7 +385,7 @@ describe("buildDesignPrompt", () => {
 			- Prefer simple white, off-white, light wood, or pale oak finishes. JYSK / IKEA aesthetic.
 			**Windows**
 			- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.
-			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.
+			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by this variation's curtain tone.
 			**Flooring**
 			- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.
 			**Walls / ceiling**
@@ -398,11 +400,9 @@ describe("buildDesignPrompt", () => {
 			## Style Direction
 			Scandinavian renovation style with warm neutral palette.
 
-			## Variation concepts
-			1. **Cozy Scandinavian living room** — Cozy Scandinavian living room. Comfortable sofa, soft area rug, a low coffee table, a side armchair, simple wall art, indoor plants, and warm task lighting. Light linen or off-white curtains. Keep circulation clear of doors, windows, and radiators.
-			2. **Warm Scandinavian bedroom / guest bedroom** — Warm Scandinavian bedroom or guest bedroom. Low platform or simple-framed bed with neutral linen bedding, a bedside table with a soft lamp, a small wardrobe or storage unit, a textured throw, and a small rug. White or off-white curtains. Keep the bed away from radiators and from blocking door swings.
-			3. **Practical home office / hobby room** — Practical home office or hobby room. A simple desk facing or beside the window, an ergonomic but plain chair, an open shelving unit, a pinboard or small art piece, a desk lamp, and a soft floor rug. Use taupe or warm grey curtains. Keep the workspace lit by daylight without blocking the window.
-			4. **Multifunctional room with storage, guest sleeping option, and cozy seating** — Multifunctional room. A daybed or sofa-bed for guests, modular storage units along one wall, a small folding table or compact desk, baskets for soft storage, and a cozy reading corner with a floor lamp. Use charcoal or muted earthy curtains. Layout must accommodate both seating and overnight sleeping.
+			## Variations
+			1. **Airy & minimal** — Airy and minimal: fewer, larger pieces with generous negative space, light and bright, calm uncluttered surfaces, and only a few well-chosen accents. (light curtains)
+			2. **Warm & layered** — Warm and layered: cozy textiles, rugs and cushions, richer accent tones, and more pieces arranged into inviting, well-defined zones. (dark curtains)
 
 			## Generation guidance
 			- Use the source photo as the geometry and composition reference.
@@ -515,5 +515,43 @@ describe("buildDesignPrompt — protected elements as natural language", () => {
 		expect(prompt).not.toMatch(/\d+(\.\d+)?%/);
 		expect(prompt).not.toContain("bbox");
 		expect(prompt).not.toMatch(/left=|top=|width=|height=/);
+	});
+});
+
+describe("buildConceptVariationPrompts — Take layer", () => {
+	it("defines exactly two contrasting Takes with opposite curtain tones", () => {
+		expect(TAKES).toHaveLength(2);
+		expect(TAKES.map((take) => take.curtainTone)).toEqual(["light", "dark"]);
+	});
+
+	it("produces one prompt per Take, layering the Take onto the base prompt", () => {
+		const prompts = buildConceptVariationPrompts("BASE PROMPT", 2);
+		expect(prompts).toHaveLength(2);
+		expect(prompts[0]).toContain("BASE PROMPT");
+		expect(prompts[0]).toContain("Take: Airy & minimal");
+		expect(prompts[0]).toContain("Curtain tone for this variation: light");
+		expect(prompts[1]).toContain("Take: Warm & layered");
+		expect(prompts[1]).toContain("Curtain tone for this variation: dark");
+		expect(prompts[0]).toContain("VARIATION (image 1 of 2)");
+	});
+
+	it("caps at the number of Takes — never repeats a Take", () => {
+		const prompts = buildConceptVariationPrompts("BASE", 8);
+		expect(prompts).toHaveLength(TAKES.length);
+	});
+
+	it("composes preset × take: the same Take rides on any Style's base prompt", () => {
+		for (const styleRules of ["scandinavian", "industrial"]) {
+			const basePrompt = buildDesignPrompt({
+				taskTitle: "room",
+				styleRules,
+				briefMarkdown: "## Goal\nA room.",
+				protectedElements: [],
+			});
+			const [first] = buildConceptVariationPrompts(basePrompt, 1);
+			// Base prompt (Style + fidelity) is preserved verbatim, Take appended.
+			expect(first).toContain(basePrompt);
+			expect(first).toContain("Take: Airy & minimal");
+		}
 	});
 });
