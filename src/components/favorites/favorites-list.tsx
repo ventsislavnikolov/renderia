@@ -93,7 +93,7 @@ export function FavoritesList() {
 							className="grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
 							key={i}
 						>
-							<Skeleton className="aspect-[4/3] w-full rounded-none" />
+							<Skeleton className="aspect-[3/2] w-full rounded-none" />
 							<div className="flex items-center justify-between gap-3 border-border border-t px-5 py-3">
 								<div className="grid gap-1.5">
 									<Skeleton className="h-3.5 w-[140px]" />
@@ -135,7 +135,7 @@ export function FavoritesList() {
 						>
 							<img
 								alt={`Variation ${image.variationIndex + 1} — ${image.projectName}`}
-								className="block aspect-[4/3] w-full bg-background object-cover"
+								className="block aspect-[3/2] w-full bg-background object-contain"
 								src={image.signedUrl}
 							/>
 							<div className="flex items-center justify-between gap-3 border-border border-t px-5 py-3">

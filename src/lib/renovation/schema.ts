@@ -378,6 +378,12 @@ export const generateRenovationImagesSchema = z.object({
 	 */
 	photoId: z.string().uuid().nullable().optional(),
 	/**
+	 * The approved Room Composite to generate against. When set, it is the
+	 * source image (3:2 output) and takes precedence over `photoId` — the design
+	 * reflects the whole captured room, not a single angle.
+	 */
+	compositeId: z.string().uuid().nullable().optional(),
+	/**
 	 * Furniture reference items to include in the render. Requires `photoId`
 	 * (image-edit mode) — the references ride along as extra input images.
 	 */
@@ -568,6 +574,29 @@ export const approveStructuralPreviewSchema = z.object({
 });
 export type ApproveStructuralPreviewInput = z.infer<
 	typeof approveStructuralPreviewSchema
+>;
+
+/**
+ * Inputs for `generateRoomComposite` — synthesise the wide (3:2) empty-room
+ * Room Composite from the task's approved Structural Previews. The server
+ * resolves which previews are approved from their stored status; the client
+ * only sends the task context and the current room state snapshot.
+ */
+export const createRoomCompositeSchema = z.object({
+	taskId: z.string().uuid(),
+	taskTitle: z.string().min(1).max(200),
+	roomState: taskRoomStateSchema,
+});
+export type CreateRoomCompositeInput = z.infer<
+	typeof createRoomCompositeSchema
+>;
+
+export const approveRoomCompositeSchema = z.object({
+	taskId: z.string().uuid(),
+	compositeId: z.string().uuid(),
+});
+export type ApproveRoomCompositeInput = z.infer<
+	typeof approveRoomCompositeSchema
 >;
 
 /**

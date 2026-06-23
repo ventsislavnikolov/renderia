@@ -15,6 +15,8 @@ export type GenerationJobStatus =
 	| "failed";
 export type StructuralPreviewStatus = "generated" | "approved" | "superseded";
 
+export type RoomCompositeStatus = "generated" | "approved" | "superseded";
+
 type Nullable<T> = T | null;
 
 export type Database = {
@@ -746,6 +748,58 @@ export type Database = {
 						foreignKeyName: "structural_previews_reference_photo_id_owner_id_project_id_fkey";
 						columns: ["reference_photo_id", "owner_id", "project_id"];
 						referencedRelation: "photos";
+						referencedColumns: ["id", "owner_id", "project_id"];
+					},
+				];
+			};
+			room_composites: {
+				Row: {
+					id: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					storage_bucket: "room-composites";
+					storage_path: string;
+					prompt: string;
+					source_preview_ids: Json;
+					room_state_snapshot: Json;
+					status: RoomCompositeStatus;
+					approved_at: Nullable<string>;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					owner_id: string;
+					project_id: string;
+					task_id: string;
+					storage_bucket?: "room-composites";
+					storage_path: string;
+					prompt: string;
+					source_preview_ids?: Json;
+					room_state_snapshot?: Json;
+					status?: RoomCompositeStatus;
+					approved_at?: Nullable<string>;
+					created_at?: string;
+				};
+				Update: {
+					id?: string;
+					owner_id?: string;
+					project_id?: string;
+					task_id?: string;
+					storage_bucket?: "room-composites";
+					storage_path?: string;
+					prompt?: string;
+					source_preview_ids?: Json;
+					room_state_snapshot?: Json;
+					status?: RoomCompositeStatus;
+					approved_at?: Nullable<string>;
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: "room_composites_task_id_owner_id_project_id_fkey";
+						columns: ["task_id", "owner_id", "project_id"];
+						referencedRelation: "renovation_tasks";
 						referencedColumns: ["id", "owner_id", "project_id"];
 					},
 				];
