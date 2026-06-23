@@ -284,7 +284,7 @@ type TaskRoomStateMock = {
 	referencePhotoId: string | null;
 	appearances: RoomAppearanceMock[];
 	objects: RoomObjectMock[];
-	previewApproved: boolean;
+	approvedPhotoIds: string[];
 };
 
 /** Track in-memory photos so the second list call sees the upload. */
@@ -305,7 +305,7 @@ function buildPageState(overrides: Partial<PageState> = {}): PageState {
 			referencePhotoId: null,
 			appearances: [],
 			objects: [],
-			previewApproved: false,
+			approvedPhotoIds: [],
 		},
 		preview: null,
 		...overrides,
@@ -365,7 +365,7 @@ function buildReviewedRoomState(): TaskRoomStateMock {
 		referencePhotoId: PHOTO_ID,
 		appearances,
 		objects: reconcileObjects(appearances),
-		previewApproved: false,
+		approvedPhotoIds: [],
 	};
 }
 
@@ -524,18 +524,27 @@ async function installApiMocks(page: Page, state: PageState) {
 				data?: { referencePhotoId?: string };
 			} | null;
 			state.preview = FAKE_PREVIEW;
+			const generatedPhotoId = body?.data?.referencePhotoId ?? PHOTO_ID;
 			state.roomState = {
 				...state.roomState,
-				referencePhotoId: body?.data?.referencePhotoId ?? PHOTO_ID,
-				previewApproved: false,
+				referencePhotoId: generatedPhotoId,
+				// A fresh preview revokes that angle's approval.
+				approvedPhotoIds: state.roomState.approvedPhotoIds.filter(
+					(id) => id !== generatedPhotoId
+				),
 			};
 			return serializedResult({ preview: FAKE_PREVIEW });
 		}
 		if (fnId.includes("approveStructuralPreview")) {
+			const approvedPhotoId = state.roomState.referencePhotoId ?? PHOTO_ID;
 			state.roomState = {
 				...state.roomState,
-				referencePhotoId: state.roomState.referencePhotoId ?? PHOTO_ID,
-				previewApproved: true,
+				referencePhotoId: approvedPhotoId,
+				approvedPhotoIds: state.roomState.approvedPhotoIds.includes(
+					approvedPhotoId
+				)
+					? state.roomState.approvedPhotoIds
+					: [...state.roomState.approvedPhotoIds, approvedPhotoId],
 			};
 			state.preview = { ...FAKE_PREVIEW, status: "approved" };
 			return serializedResult({ ok: true });

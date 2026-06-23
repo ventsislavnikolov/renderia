@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+	allPreviewsApproved,
 	getReferenceProtectedElements,
 	type TaskRoomState,
 } from "@/lib/renovation/room-state";
@@ -212,8 +213,9 @@ export function GuidedFlow(props: {
 		review: photos.length > 0 && roomState !== null,
 		merge: reviewedAll,
 		preview: reviewedAll,
-		brief: roomState?.previewApproved === true,
-		generate: roomState?.previewApproved === true && brief.length > 0,
+		brief: roomState !== null && allPreviewsApproved(roomState),
+		generate:
+			roomState !== null && allPreviewsApproved(roomState) && brief.length > 0,
 	};
 
 	function goTo(target: StepId) {
@@ -237,7 +239,7 @@ export function GuidedFlow(props: {
 				referencePhotoId: null,
 				appearances: [],
 				objects: [],
-				previewApproved: false,
+				approvedPhotoIds: [],
 			});
 			setPreviews({});
 			setBrief("");
@@ -269,7 +271,7 @@ export function GuidedFlow(props: {
 				appearances: prev.appearances.filter(
 					(appearance) => appearance.photoId !== photoId
 				),
-				previewApproved: photoIds.length === 0 ? false : prev.previewApproved,
+				approvedPhotoIds: prev.approvedPhotoIds.filter((id) => id !== photoId),
 			};
 		});
 		setPreviews((prev) => {

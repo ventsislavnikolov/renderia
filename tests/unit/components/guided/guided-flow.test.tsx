@@ -187,20 +187,24 @@ vi.mock("../../../../src/components/guided/room-merge-step", () => ({
 
 vi.mock("../../../../src/components/guided/layout-preview-step", () => ({
 	LayoutPreviewStep: (props: {
-		roomState: { previewApproved: boolean; referencePhotoId: string | null };
+		roomState: {
+			approvedPhotoIds: string[];
+			photoIds: string[];
+			referencePhotoId: string | null;
+		};
 		onStateChange: (next: unknown) => void;
 		onApproved: () => void;
 	}) => (
 		<div data-testid="preview-step">
-			<span data-testid="preview-approved">
-				{String(props.roomState.previewApproved)}
+			<span data-testid="preview-approved-count">
+				{props.roomState.approvedPhotoIds.length}
 			</span>
 			<button
 				onClick={() => {
 					props.onStateChange({
 						...props.roomState,
 						referencePhotoId: "ph-2",
-						previewApproved: true,
+						approvedPhotoIds: props.roomState.photoIds,
 					});
 					props.onApproved();
 				}}
@@ -271,7 +275,7 @@ describe("GuidedFlow orchestrator", () => {
 				referencePhotoId: null,
 				appearances: [],
 				objects: [],
-				previewApproved: false,
+				approvedPhotoIds: [],
 			},
 			preview: null,
 		});

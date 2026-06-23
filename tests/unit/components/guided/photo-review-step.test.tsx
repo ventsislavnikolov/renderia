@@ -68,7 +68,7 @@ function roomState(overrides?: Partial<TaskRoomState>): TaskRoomState {
 		referencePhotoId: null,
 		appearances: [],
 		objects: [],
-		previewApproved: false,
+		approvedPhotoIds: [],
 		...overrides,
 	};
 }

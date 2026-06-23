@@ -321,7 +321,7 @@ describe("room-state server handlers", () => {
 		expect(result.roomState.photoIds).toStrictEqual(["photo-1", "photo-2"]);
 		expect(result.roomState.reviewedPhotoIds).toStrictEqual(["photo-1"]);
 		expect(result.roomState.referencePhotoId).toBe("photo-2");
-		expect(result.roomState.previewApproved).toBe(true);
+		expect(result.roomState.approvedPhotoIds).toStrictEqual(["photo-2"]);
 		expect(result.roomState.objects).toHaveLength(1);
 		expect(result.previews["photo-2"]?.signedUrl).toContain("preview-1.png");
 		expect(result.previews["photo-2"]?.referencePhotoId).toBe("photo-2");
@@ -366,6 +366,9 @@ describe("room-state server handlers", () => {
 		expect(Object.keys(result.previews)).toHaveLength(2);
 		expect(result.previews["photo-1"]?.id).toBe("preview-3");
 		expect(result.previews["photo-2"]?.id).toBe("preview-1");
+		// photo-1's newest preview is "generated" (a re-generation), so its stale
+		// "approved" row no longer counts; only photo-2 stays approved.
+		expect(result.roomState.approvedPhotoIds).toStrictEqual(["photo-2"]);
 	});
 
 	it("saves the task room state by replacing task photo metadata, appearances, and objects", async () => {
@@ -380,7 +383,7 @@ describe("room-state server handlers", () => {
 					photoIds: ["photo-1", "photo-2"],
 					reviewedPhotoIds: ["photo-1"],
 					referencePhotoId: "photo-2",
-					previewApproved: false,
+					approvedPhotoIds: [],
 					appearances: [
 						{
 							id: "appearance-1",
@@ -434,7 +437,7 @@ describe("room-state server handlers", () => {
 					photoIds: ["photo-1"],
 					reviewedPhotoIds: ["photo-1"],
 					referencePhotoId: "photo-1",
-					previewApproved: true,
+					approvedPhotoIds: ["photo-1"],
 					appearances: [],
 					objects: [],
 				},
@@ -465,7 +468,7 @@ describe("room-state server handlers", () => {
 					photoIds: ["photo-1", "photo-2"],
 					reviewedPhotoIds: ["photo-1", "photo-2"],
 					referencePhotoId: "photo-2",
-					previewApproved: false,
+					approvedPhotoIds: [],
 					appearances: [],
 					objects: [
 						{
