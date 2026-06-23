@@ -3,6 +3,7 @@ import {
 	allPreviewsApproved,
 	buildInitialRoomState,
 	clampAppearanceBox,
+	getAllProtectedElements,
 	getReferenceProtectedElements,
 	invalidatePreview,
 	pickReferencePhotoId,
@@ -217,6 +218,64 @@ describe("room-state helpers", () => {
 				width: 0.15,
 				height: 0.3,
 			}),
+		]);
+	});
+
+	it("collects persisted protected elements across all photos, deduped per object", () => {
+		const state = buildInitialRoomState(["p1", "p2"]);
+		state.appearances = [
+			// Same persisted object seen from two angles → one entry (first wins).
+			appearance({ id: "a1", photoId: "p1", objectId: "o1" }),
+			appearance({ id: "a2", photoId: "p2", objectId: "o1" }),
+			// A persisted object only visible in p2 → still included.
+			appearance({
+				id: "a3",
+				photoId: "p2",
+				objectId: "o2",
+				label: "left window",
+				kind: "window",
+			}),
+			// A non-persisted object → excluded.
+			appearance({
+				id: "a4",
+				photoId: "p1",
+				objectId: "o3",
+				label: "hall radiator",
+				kind: "radiator",
+			}),
+		];
+		state.objects = [
+			{
+				id: "o1",
+				label: "main door",
+				kind: "door",
+				preservationMode: "exact_preserve",
+				appearanceIds: ["a1", "a2"],
+				isPersisted: true,
+			},
+			{
+				id: "o2",
+				label: "left window",
+				kind: "window",
+				preservationMode: "keep_type_restyle",
+				appearanceIds: ["a3"],
+				isPersisted: true,
+			},
+			{
+				id: "o3",
+				label: "hall radiator",
+				kind: "radiator",
+				preservationMode: "exact_preserve",
+				appearanceIds: ["a4"],
+				isPersisted: false,
+			},
+		];
+
+		const elements = getAllProtectedElements(state);
+		expect(elements).toHaveLength(2);
+		expect(elements.map((entry) => entry.label)).toStrictEqual([
+			"main door",
+			"left window",
 		]);
 	});
 });

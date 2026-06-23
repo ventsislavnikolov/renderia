@@ -470,6 +470,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			sourceFile && referenceFiles.length > 0
 				? [sourceFile, ...referenceFiles]
 				: sourceFile;
+		const outputSize = input.outputSize ?? "auto";
 		const responses = await Promise.all(
 			input.prompts.map((prompt) =>
 				editImage
@@ -478,14 +479,14 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 							image: editImage,
 							prompt,
 							n: 1,
-							size: "auto",
+							size: outputSize,
 							quality: "high",
 						})
 					: client.images.generate({
 							model: IMAGE_MODEL,
 							prompt,
 							n: 1,
-							size: "auto",
+							size: outputSize,
 							quality: "high",
 						})
 			)
@@ -516,5 +517,53 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 			},
 		};
 		return result;
+	},
+	async generateRoomComposite(input) {
+		const client = getOpenAiClient();
+		const startedAt = Date.now();
+		// All previews are room evidence: pass them as the edit image array so the
+		// model stitches the captured angles into one empty room. Force a 3:2
+		// landscape output (the widest gpt-image-2 supports) — "auto" would more
+		// often return a square, which is not the wide view we want.
+		const previewFiles = await Promise.all(
+			input.previews.map((preview) =>
+				toFile(Buffer.from(preview.base64, "base64"), preview.filename, {
+					type: preview.contentType,
+				})
+			)
+		);
+		if (previewFiles.length === 0) {
+			throw new Error("Room composite needs at least one approved preview");
+		}
+		const response = await client.images.edit({
+			model: IMAGE_MODEL,
+			image: previewFiles.length === 1 ? previewFiles[0] : previewFiles,
+			prompt: input.prompt,
+			n: 1,
+			size: "1536x1024",
+			quality: "high",
+		});
+		const durationMs = Date.now() - startedAt;
+		const first = response.data?.[0];
+		if (!first?.b64_json) {
+			throw new Error("Room composite generation returned no image");
+		}
+		return {
+			value: { base64: first.b64_json, contentType: "image/png" as const },
+			debug: {
+				model: IMAGE_MODEL,
+				prompt: input.prompt,
+				rawResponse: JSON.stringify(
+					{
+						mode: "edit",
+						sourcePreviews: previewFiles.length,
+						size: "1536x1024",
+					},
+					null,
+					2
+				),
+				durationMs,
+			},
+		};
 	},
 };

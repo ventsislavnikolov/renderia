@@ -216,6 +216,33 @@ vi.mock("../../../../src/components/guided/layout-preview-step", () => ({
 	),
 }));
 
+vi.mock("../../../../src/components/guided/room-composite-step", () => ({
+	RoomCompositeStep: (props: {
+		composite: { id: string; signedUrl: string; status: string } | null;
+		onCompositeChange: (next: unknown) => void;
+		onApproved: () => void;
+	}) => (
+		<div data-testid="composite-step">
+			<span data-testid="composite-status">
+				{props.composite?.status ?? "none"}
+			</span>
+			<button
+				onClick={() => {
+					props.onCompositeChange({
+						id: "composite-1",
+						signedUrl: "https://signed/composite-1.png",
+						status: "approved",
+					});
+					props.onApproved();
+				}}
+				type="button"
+			>
+				build-and-approve-composite
+			</button>
+		</div>
+	),
+}));
+
 vi.mock("../../../../src/components/guided/brief-step", () => ({
 	BriefStep: (props: {
 		brief: string;
@@ -248,12 +275,14 @@ vi.mock("../../../../src/components/guided/generation-step", () => ({
 	GenerationStep: (props: {
 		briefId: string | null;
 		prompt: string;
-		photoId?: string | null;
+		compositeId?: string | null;
 	}) => (
 		<div data-testid="generation-step">
 			<span data-testid="generation-brief-id">{props.briefId ?? "null"}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
-			<span data-testid="generation-photo-id">{props.photoId ?? "null"}</span>
+			<span data-testid="generation-composite-id">
+				{props.compositeId ?? "null"}
+			</span>
 		</div>
 	),
 }));
@@ -278,29 +307,31 @@ describe("GuidedFlow orchestrator", () => {
 				approvedPhotoIds: [],
 			},
 			preview: null,
+			composite: null,
 		});
 		saveTaskRoomStateMock.mockResolvedValue({ ok: true });
 	});
 
-	it("starts on the Upload step with the new six-step workflow gated", () => {
+	it("starts on the Upload step with the new seven-step workflow gated", () => {
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		const stepper = screen.getByRole("navigation", {
 			name: /guided renovation steps/i,
 		});
 		const buttons = within(stepper).getAllByRole("button");
-		expect(buttons).toHaveLength(6);
+		expect(buttons).toHaveLength(7);
 		expect(buttons[0]?.textContent).toMatch(/Upload/i);
 		expect(buttons[1]?.textContent).toMatch(/Review/i);
 		expect(buttons[2]?.textContent).toMatch(/Merge/i);
 		expect(buttons[3]?.textContent).toMatch(/Preview/i);
-		expect(buttons[4]?.textContent).toMatch(/Brief/i);
-		expect(buttons[5]?.textContent).toMatch(/Generate/i);
+		expect(buttons[4]?.textContent).toMatch(/360/i);
+		expect(buttons[5]?.textContent).toMatch(/Brief/i);
+		expect(buttons[6]?.textContent).toMatch(/Generate/i);
 		expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
 		expect(buttons[1]?.hasAttribute("disabled")).toBe(true);
-		expect(buttons[5]?.hasAttribute("disabled")).toBe(true);
+		expect(buttons[6]?.hasAttribute("disabled")).toBe(true);
 	});
 
-	it("advances upload → review → merge → preview → brief → generate", async () => {
+	it("advances upload → review → merge → preview → 360 → brief → generate", async () => {
 		const user = userEvent.setup();
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 
@@ -314,6 +345,9 @@ describe("GuidedFlow orchestrator", () => {
 		expect(screen.getByTestId("preview-step")).toBeDefined();
 
 		await user.click(screen.getByText("approve-preview"));
+		expect(screen.getByTestId("composite-step")).toBeDefined();
+
+		await user.click(screen.getByText("build-and-approve-composite"));
 		expect(screen.getByTestId("brief-step")).toBeDefined();
 
 		await user.click(screen.getByText("generate-brief"));
@@ -327,7 +361,7 @@ describe("GuidedFlow orchestrator", () => {
 			within(generation).getByTestId("generation-prompt").textContent
 		).toBe("APPROVED ROOM OBJECTS");
 		expect(
-			within(generation).getByTestId("generation-photo-id").textContent
-		).toBe("ph-2");
+			within(generation).getByTestId("generation-composite-id").textContent
+		).toBe("composite-1");
 	});
 });
