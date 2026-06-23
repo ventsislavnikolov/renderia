@@ -21,7 +21,8 @@ export function Breadcrumbs({ children }: { children: ReactNode }) {
  * above the main body so routes that had breadcrumbs before keep them.
  *
  * On screens narrower than `md` (768px) the grid collapses to a single
- * column and the sidebar becomes a horizontal strip at the top — see the
+ * column: the persistent rail is hidden and the Sidebar renders a compact top
+ * bar whose menu button opens the navigation as an off-canvas drawer — see the
  * Sidebar component for its own responsive behavior.
  */
 export function AppShell(props: {

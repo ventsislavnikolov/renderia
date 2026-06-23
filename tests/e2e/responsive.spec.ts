@@ -232,3 +232,49 @@ test.describe("responsive overflow guard", () => {
 		});
 	}
 });
+
+test.describe("mobile navigation drawer", () => {
+	test("collapses the sidebar into an off-canvas drawer", async ({
+		page,
+		context,
+	}) => {
+		await installFakeSession(context);
+		await installBaseMocks(page, {
+			listProjects: () => PROJECTS,
+			listProjectTasks: () => TASKS,
+		});
+		await page.setViewportSize({ width: 375, height: 667 });
+		await page.goto("/projects");
+		await expect(
+			page.getByRole("heading", { name: /Projects/i })
+		).toBeVisible();
+
+		// The persistent desktop rail is hidden on mobile; a menu button stands in.
+		await expect(
+			page.getByRole("complementary", { name: /workspace/i })
+		).toBeHidden();
+		const menuButton = page.getByRole("button", {
+			name: /open navigation menu/i,
+		});
+		await expect(menuButton).toBeVisible();
+
+		// Opening reveals the navigation as a drawer dialog with the nav links.
+		await menuButton.click();
+		const drawer = page.getByRole("dialog", { name: /navigation/i });
+		await expect(drawer).toBeVisible();
+		await expect(
+			drawer.getByRole("link", { name: /^favorites$/i })
+		).toBeVisible();
+
+		// Escape closes it (and the portal unmounts, so no overlay lingers).
+		await page.keyboard.press("Escape");
+		await expect(drawer).toBeHidden();
+
+		// Desktop keeps the persistent rail and shows no menu button.
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await expect(
+			page.getByRole("complementary", { name: /workspace/i })
+		).toBeVisible();
+		await expect(menuButton).toBeHidden();
+	});
+});
