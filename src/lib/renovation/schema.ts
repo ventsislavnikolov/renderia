@@ -334,7 +334,7 @@ export type SetTaskFurnitureInput = z.infer<typeof setTaskFurnitureSchema>;
 
 /**
  * Optional per-call AI model selection. When omitted, the provider falls
- * back to its built-in default (currently Gemini 2.5 Flash for text — see
+ * back to its built-in default (currently Gemini 3.5 Flash for text — see
  * `DEFAULT_TEXT_MODEL` in `src/lib/ai/models.ts`). The schema is
  * intentionally permissive on the `model` string so we can add new SDK
  * model ids without a wire-level schema bump; the catalog in

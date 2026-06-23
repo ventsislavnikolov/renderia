@@ -22,10 +22,16 @@ export type AiProviderId =
 /**
  * `kind` mirrors the broad capability the model is used for. Each model
  * declares which kinds it can serve; the picker filters by the calling
- * site's kind so the UI never shows e.g. a brief-only model on the
- * detection picker.
+ * site's kind so the UI never shows e.g. a text-only model on the
+ * detection (vision) picker.
+ *
+ * - `text-vision`: accepts images as input (detection, task suggestion,
+ *   contents listing) and plain text.
+ * - `text`: text-only — safe for prose tasks (e.g. dimension extraction) but
+ *   NOT for any surface that attaches an image.
+ * - `image`: image generation.
  */
-export type ModelKind = "text-vision" | "image";
+export type ModelKind = "text-vision" | "image" | "text";
 
 export type ModelEntry = {
 	id: string;
@@ -73,23 +79,28 @@ export const MODEL_CATALOG: readonly ModelEntry[] = [
 		envVar: "OPENAI_API_KEY",
 	},
 
-	// Google
+	// Google — the multimodal workhorse. Gemini ships a purpose-trained
+	// `box_2d` grounding head, so even Flash returns tighter detection boxes
+	// than GPT-class models, which lack native grounding (see the per-surface
+	// note below). 2.5 Flash / 2.0 Flash were removed: 2.0 Flash is shut down,
+	// 2.5 Flash is deprecated (EOL 2026-10-16, replaced by 3.5 Flash).
 	{
-		id: "gemini-2.5-flash",
+		id: "gemini-3.5-flash",
 		provider: "google",
-		label: "Gemini 2.5 Flash",
+		label: "Gemini 3.5 Flash",
 		kinds: ["text-vision"],
 		freeTier: true,
 		envVar: "GEMINI_API_KEY",
-		notes: "Generous free tier (~1500 req/day).",
+		notes: "GA workhorse; native bounding-box grounding; free tier.",
 	},
 	{
-		id: "gemini-2.0-flash",
+		id: "gemini-3.1-pro-preview",
 		provider: "google",
-		label: "Gemini 2.0 Flash",
+		label: "Gemini 3.1 Pro",
 		kinds: ["text-vision"],
 		freeTier: true,
 		envVar: "GEMINI_API_KEY",
+		notes: "Detection-precision escalation — tighter boxes than Flash.",
 	},
 
 	// Anthropic
@@ -111,46 +122,47 @@ export const MODEL_CATALOG: readonly ModelEntry[] = [
 		envVar: "ANTHROPIC_API_KEY",
 	},
 
-	// Z.AI (Zhipu) — OpenAI-compatible endpoint. Models marked `text-vision`
-	// support multimodal input via the same content-parts shape OpenAI uses.
+	// Z.AI (Zhipu) — OpenAI-compatible endpoint. GLM-4.5 / GLM-4.5 Air are
+	// TEXT-ONLY (they cannot accept images); GLM-4.5V is the multimodal sibling.
 	{
 		id: "glm-4.5",
 		provider: "zai",
 		label: "GLM-4.5",
-		kinds: ["text-vision"],
+		kinds: ["text"],
 		freeTier: false,
 		envVar: "ZAI_API_KEY",
-		notes: "Z.AI flagship; competitive with GPT-5 at a fraction of the cost.",
+		notes: "Text-only flagship; competitive at a fraction of the cost.",
 	},
 	{
 		id: "glm-4.5-air",
 		provider: "zai",
 		label: "GLM-4.5 Air",
-		kinds: ["text-vision"],
+		kinds: ["text"],
 		freeTier: false,
 		envVar: "ZAI_API_KEY",
-		notes: "Faster + cheaper than GLM-4.5.",
+		notes: "Text-only; faster + cheaper than GLM-4.5.",
 	},
 	{
-		id: "glm-4v-plus",
+		id: "glm-4.5v",
 		provider: "zai",
-		label: "GLM-4V Plus",
+		label: "GLM-4.5V",
 		kinds: ["text-vision"],
 		freeTier: false,
 		envVar: "ZAI_API_KEY",
-		notes: "Vision-tuned variant.",
+		notes: "Multimodal sibling with native grounding (replaces GLM-4V Plus).",
 	},
 
-	// Moonshot (Kimi) — OpenAI-compatible endpoint. Vision variants are
-	// suffixed `-vision-preview`; the K2 flagship is multimodal natively.
+	// Moonshot (Kimi) — OpenAI-compatible endpoint. The original K2 flagship is
+	// TEXT-ONLY (vision arrived in later K2.5+); the `-vision-preview` models
+	// below are multimodal.
 	{
 		id: "kimi-k2-0905-preview",
 		provider: "moonshot",
 		label: "Kimi K2",
-		kinds: ["text-vision"],
+		kinds: ["text"],
 		freeTier: false,
 		envVar: "MOONSHOT_API_KEY",
-		notes: "Moonshot's flagship — strong instruction following, long context.",
+		notes: "Text-only flagship — strong instruction following, long context.",
 	},
 	{
 		id: "moonshot-v1-32k-vision-preview",
@@ -177,13 +189,28 @@ export type ModelSelection = {
 };
 
 /**
- * Defaults used when the caller doesn't pass an explicit choice. The text
- * default points at the cheapest free model so unattended cron jobs / tests
+ * Per-surface model choice (why the defaults look the way they do):
+ *
+ * - detectProtectedElements (vision → bounding boxes): Gemini. Its native
+ *   `box_2d` grounding returns tighter boxes than GPT-class models, which have
+ *   no native grounding — so the cheaper free model wins here on capability,
+ *   not just cost. Escalate to `gemini-3.1-pro-preview` only if real photos
+ *   show loose boxes or malformed JSON.
+ * - suggestTasks / listRoomContents (vision) and extractFurnitureDimensions
+ *   (text): the same Gemini default — none of these benefit enough from a
+ *   frontier model to justify metered spend.
+ * - generateRenovationImages (image): `gpt-image-2` only; no other wired model
+ *   matches its interior-render quality.
+ *
+ * GPT-5.x stays in the catalogue as a manual option but is the default for
+ * nothing — it loses to Gemini on grounding and is overkill elsewhere.
+ *
+ * The text default points at a free model so unattended cron jobs / tests
  * don't burn paid credits unexpectedly.
  */
 export const DEFAULT_TEXT_MODEL: ModelSelection = {
 	provider: "google",
-	model: "gemini-2.5-flash",
+	model: "gemini-3.5-flash",
 };
 
 export const DEFAULT_IMAGE_MODEL: ModelSelection = {
