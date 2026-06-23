@@ -1,3 +1,10 @@
+## [1.13.1](https://github.com/ventsislavnikolov/renderia/compare/v1.13.0...v1.13.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **e2e:** update guided-workspace locators for multi-upload + 360 UI ([#86](https://github.com/ventsislavnikolov/renderia/issues/86)) ([b5bed60](https://github.com/ventsislavnikolov/renderia/commit/b5bed607fa7486b87e90731db38413de8a7cbd39)), closes [#85](https://github.com/ventsislavnikolov/renderia/issues/85) [#83](https://github.com/ventsislavnikolov/renderia/issues/83)
+
 # [1.13.0](https://github.com/ventsislavnikolov/renderia/compare/v1.12.0...v1.13.0) (2026-06-23)
 
 
