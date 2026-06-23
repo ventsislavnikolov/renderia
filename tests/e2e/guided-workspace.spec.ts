@@ -660,7 +660,7 @@ async function installApiMocks(page: Page, state: PageState) {
 
 async function selectSamplePhotoAndContinue(page: Page) {
 	await expect(
-		page.getByRole("heading", { name: /Upload a source photo/i })
+		page.getByRole("heading", { name: /Upload source photos/i })
 	).toBeVisible();
 	// Anchor on the filename so we hit the photo tile, not the
 	// `Delete sample.png` button that sits in the same card.
@@ -686,7 +686,9 @@ async function reviewSamplePhotoAndContinue(page: Page) {
 		.getByRole("button", { name: /Continue to structural preview/i })
 		.click();
 	await expect(
-		page.getByRole("heading", { name: /Approve the structural preview/i })
+		page.getByRole("heading", {
+			name: /Approve every angle's structural preview/i,
+		})
 	).toBeVisible();
 }
 
@@ -760,14 +762,19 @@ test.describe("guided renovation workspace", () => {
 
 		await page.goto(TASK_URL);
 
-		const fileInput = page.getByLabel(/Choose a photo to upload/i);
+		const fileInput = page.getByLabel(/Choose photos to upload/i);
 		await fileInput.setInputFiles({
 			name: "sample.png",
 			mimeType: "image/png",
 			buffer: FIXTURE_BYTES,
 		});
 
-		await selectSamplePhotoAndContinue(page);
+		// A successful upload auto-selects the new photo, so Continue is ready
+		// without an extra tile click.
+		await page.getByRole("button", { name: /Continue with 1 photo/i }).click();
+		await expect(
+			page.getByRole("heading", { name: /Review each uploaded photo/i })
+		).toBeVisible();
 	});
 
 	test("review step detects fixed objects and merge stays reachable", async ({
@@ -820,7 +827,9 @@ test.describe("guided renovation workspace", () => {
 			.getByRole("button", { name: /Continue to structural preview/i })
 			.click();
 		await expect(
-			page.getByRole("heading", { name: /Approve the structural preview/i })
+			page.getByRole("heading", {
+				name: /Approve every angle's structural preview/i,
+			})
 		).toBeVisible();
 	});
 
