@@ -32,6 +32,22 @@ import {
  */
 type PhotoRow = Tables<"photos">;
 
+/**
+ * One file in an in-flight batch upload. Successful items are removed once their
+ * `photos` row lands in the grid; failed items linger as a tile with an inline
+ * Retry so a partial-batch failure never loses the user's other uploads.
+ */
+type UploadItem = {
+	tempId: string;
+	file: File;
+	name: string;
+	status: "uploading" | "error";
+	error?: string;
+};
+
+/** Hard cap on photos per Room Set (task) — mirrors `taskRoomStateSchema`. */
+const ROOM_SET_MAX = 4;
+
 /** MIME types accepted by both the storage bucket and the `createPhotoSchema`. */
 const ACCEPTED_MIME = new Set(["image/png", "image/jpeg", "image/webp"]);
 const BUCKET = "source-photos" as const;
@@ -91,8 +107,11 @@ export function PhotoUploadStep(props: {
 		() => new Map()
 	);
 	const [loadError, setLoadError] = useState<string | null>(null);
+	// Batch-level message: skipped invalid files, or an over-cap rejection.
 	const [uploadError, setUploadError] = useState<string | null>(null);
-	const [uploading, setUploading] = useState(false);
+	// In-flight and failed files in the current batch (successes drop out).
+	const [uploads, setUploads] = useState<UploadItem[]>([]);
+	const [dragActive, setDragActive] = useState(false);
 	const [announcement, setAnnouncement] = useState<string | null>(null);
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(
 		() => new Set(props.selectedPhotoIds ?? [])
@@ -175,67 +194,104 @@ export function PhotoUploadStep(props: {
 		};
 	}, [photos, signedUrls]);
 
-	async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
-		const file = event.target.files?.[0];
-		// Reset the input so picking the same file twice still re-fires `change`.
-		event.target.value = "";
-		if (!file) return;
+	const isUploading = uploads.some((item) => item.status === "uploading");
 
+	/** Split a batch into uploadable files and skipped ones (with a reason). */
+	function classifyFiles(files: File[]): { valid: File[]; skipped: string[] } {
+		const valid: File[] = [];
+		const skipped: string[] = [];
+		for (const file of files) {
+			if (!ACCEPTED_MIME.has(file.type)) {
+				skipped.push(`${file.name} (use PNG/JPEG/WEBP)`);
+			} else if (file.size > MAX_BYTES) {
+				skipped.push(`${file.name} (over 10 MB)`);
+			} else {
+				valid.push(file);
+			}
+		}
+		return { valid, skipped };
+	}
+
+	/**
+	 * Entry point for both the file picker and the drop zone. Validates per
+	 * file, enforces the Room Set cap on the whole batch, then uploads the valid
+	 * files in parallel.
+	 */
+	function handleFiles(fileList: FileList | null) {
+		const files = fileList ? Array.from(fileList) : [];
+		if (files.length === 0) return;
 		setUploadError(null);
 
-		if (!ACCEPTED_MIME.has(file.type)) {
-			setUploadError("Use a PNG, JPEG, or WEBP image.");
-			return;
-		}
-		if (file.size > MAX_BYTES) {
-			setUploadError("Image must be 10 MB or smaller.");
+		const { valid, skipped } = classifyFiles(files);
+
+		// The cap is the whole Room Set: existing task photos + this batch <= 4.
+		// Reject the batch as a unit so we never partially fill past the limit.
+		const existing = photos?.length ?? 0;
+		if (valid.length > 0 && existing + valid.length > ROOM_SET_MAX) {
+			const remaining = Math.max(0, ROOM_SET_MAX - existing);
+			setUploadError(
+				remaining === 0
+					? "This room already has 4 photos (the max). Delete one to add more."
+					: `You can add ${remaining} more photo${
+							remaining === 1 ? "" : "s"
+						} (4 max per room). Nothing was uploaded — choose fewer files.`
+			);
 			return;
 		}
 
-		setUploading(true);
+		if (skipped.length > 0) {
+			setUploadError(
+				`${skipped.length} file${
+					skipped.length === 1 ? "" : "s"
+				} skipped: ${skipped.join(", ")}.`
+			);
+		}
+		if (valid.length === 0) return;
+		void uploadBatch(valid);
+	}
+
+	async function uploadBatch(files: File[]) {
+		// Resolve the signed-in user once so each upload can prefix its path with
+		// `<uid>/` (required by the bucket policy); bail to auth if there's none.
+		const { data: sessionResult } = await supabaseBrowser.auth.getSession();
+		const userId = sessionResult.session?.user?.id;
+		if (!userId) {
+			window.location.assign("/sign-in");
+			return;
+		}
+		const items: UploadItem[] = files.map((file) => ({
+			tempId: crypto.randomUUID(),
+			file,
+			name: file.name,
+			status: "uploading",
+		}));
+		setUploads((prev) => [...prev, ...items]);
+		// Parallel, independent: one file's failure never blocks the others.
+		await Promise.allSettled(items.map((item) => uploadOne(item, userId)));
+	}
+
+	async function uploadOne(item: UploadItem, userId: string) {
 		try {
-			// Resolve the signed-in user first so we can prefix the storage path
-			// with `<uid>/`. Bucket policies require this so the user can only
-			// write under their own folder; if there is no session we hand off
-			// to the auth route before doing any network work.
-			const { data: sessionResult } = await supabaseBrowser.auth.getSession();
-			const userId = sessionResult.session?.user?.id;
-			if (!userId) {
-				window.location.assign("/sign-in");
-				return;
-			}
-
-			const safeName = sanitizeFilename(file.name);
-			// Ensure the sanitised name still passes the server-side regex —
-			// the leading `<uid>/` segment is added inside this function.
+			const safeName = sanitizeFilename(item.file.name);
 			if (!SAFE_FILENAME.test(safeName)) {
-				setUploadError("Filename has no usable characters.");
-				return;
+				throw new Error("Filename has no usable characters.");
 			}
-			// `storagePath` matches the server-side regex `^[a-f0-9-]+\/[A-Za-z0-9._-]+$`
-			// — first segment is the user's UUID (required by the storage
-			// bucket policy `(storage.foldername(name))[1] = auth.uid()`),
-			// second segment is the sanitised filename. The Date.now() prefix
-			// keeps the path unique without collisions on repeated uploads.
-			const objectName = `${Date.now()}-${safeName}`;
-			const storagePath = `${userId}/${objectName}`;
+			// A UUID segment keeps parallel uploads collision-free (Date.now()
+			// alone can repeat within a batch) and still satisfies the server
+			// path regex `^[a-f0-9-]+\/[A-Za-z0-9._-]+$`.
+			const storagePath = `${userId}/${crypto.randomUUID()}-${safeName}`;
 
 			const upload = await supabaseBrowser.storage
 				.from(BUCKET)
-				.upload(storagePath, file, {
+				.upload(storagePath, item.file, {
 					cacheControl: "3600",
-					contentType: file.type,
+					contentType: item.file.type,
 					upsert: false,
 				});
+			if (upload.error) throw new Error(upload.error.message);
 
-			if (upload.error) {
-				throw new Error(upload.error.message);
-			}
-
-			// If `createPhotoRecord` throws after the upload succeeds, the
-			// object would otherwise sit in the bucket with no `photos` row
-			// pointing at it. Wrap the metadata insert so we can `remove()` the
-			// orphan before surfacing the original error to the user.
+			// If the metadata insert fails after a successful upload, remove the
+			// orphaned object before surfacing the error.
 			let row: PhotoRow;
 			try {
 				const headers = await getAuthHeaders();
@@ -244,8 +300,11 @@ export function PhotoUploadStep(props: {
 						projectId: props.projectId,
 						taskId: props.taskId,
 						storagePath,
-						originalName: file.name.slice(0, 255),
-						contentType: file.type as "image/png" | "image/jpeg" | "image/webp",
+						originalName: item.file.name.slice(0, 255),
+						contentType: item.file.type as
+							| "image/png"
+							| "image/jpeg"
+							| "image/webp",
 					},
 					headers,
 				});
@@ -253,8 +312,6 @@ export function PhotoUploadStep(props: {
 				try {
 					await supabaseBrowser.storage.from(BUCKET).remove([storagePath]);
 				} catch (cleanupError) {
-					// Cleanup is best-effort — never let it mask the real failure
-					// the user needs to see.
 					console.error(
 						"Failed to remove orphaned storage object",
 						cleanupError
@@ -265,19 +322,60 @@ export function PhotoUploadStep(props: {
 
 			if (cancelledRef.current) return;
 			track("photo_uploaded");
-			setAnnouncement("Photo uploaded.");
-			props.onPhotoSelected?.(row);
-			await refresh();
+			// Drop the in-flight tile and surface the real photo immediately.
+			setUploads((prev) =>
+				prev.filter((entry) => entry.tempId !== item.tempId)
+			);
+			setPhotos((prev) => (prev ? [...prev, row] : [row]));
+			if (isMultiSelectMode()) {
+				setSelectedIds((prev) => {
+					if (prev.has(row.id) || prev.size >= ROOM_SET_MAX) return prev;
+					const next = new Set(prev);
+					next.add(row.id);
+					return next;
+				});
+			} else {
+				props.onPhotoSelected?.(row);
+			}
+			setAnnouncement(`${item.name} uploaded.`);
 		} catch (error) {
 			if (cancelledRef.current) return;
 			if (error instanceof Error && error.message === UNAUTHENTICATED_ERROR) {
 				window.location.assign("/sign-in");
 				return;
 			}
-			setUploadError(error instanceof Error ? error.message : "Upload failed");
-		} finally {
-			if (!cancelledRef.current) setUploading(false);
+			const message = error instanceof Error ? error.message : "Upload failed";
+			setUploads((prev) =>
+				prev.map((entry) =>
+					entry.tempId === item.tempId
+						? { ...entry, status: "error", error: message }
+						: entry
+				)
+			);
 		}
+	}
+
+	async function retryUpload(item: UploadItem) {
+		const { data: sessionResult } = await supabaseBrowser.auth.getSession();
+		const userId = sessionResult.session?.user?.id;
+		if (!userId) {
+			window.location.assign("/sign-in");
+			return;
+		}
+		setUploads((prev) =>
+			prev.map((entry) =>
+				entry.tempId === item.tempId
+					? { ...entry, status: "uploading", error: undefined }
+					: entry
+			)
+		);
+		await uploadOne(item, userId);
+	}
+
+	function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+		event.preventDefault();
+		setDragActive(false);
+		handleFiles(event.dataTransfer.files);
 	}
 
 	async function confirmDeletePhoto() {
@@ -352,50 +450,78 @@ export function PhotoUploadStep(props: {
 
 	return (
 		<div
-			aria-busy={uploading}
+			aria-busy={isUploading}
 			className="grid gap-6 border border-border bg-surface p-10 max-md:p-6"
 		>
 			<header className="grid gap-2">
 				<h2 className="m-0 font-display font-medium text-2xl text-foreground tracking-tight">
-					1. Upload a source photo
+					1. Upload source photos
 				</h2>
 				<p className="m-0 max-w-[60ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
-					Pick between 1 and 4 photos of the same room. Allowed formats: PNG,
-					JPEG, WEBP. Max 10 MB.
+					Add 1 to 4 photos of the same room — choose several files at once or
+					drag and drop. Allowed formats: PNG, JPEG, WEBP. Max 10 MB each.
 				</p>
 			</header>
 
-			<div className="flex flex-wrap items-center gap-4">
-				<Button disabled={uploading} onClick={pickFile} type="button">
-					{uploading ? "Uploading…" : "Upload photo"}
-				</Button>
-				<input
-					accept="image/png,image/jpeg,image/webp"
-					aria-label="Choose a photo to upload"
-					className="sr-only"
-					onChange={handleUpload}
-					ref={fileInputRef}
-					type="file"
-				/>
-				{uploadError ? (
-					<p
-						className="m-0 font-medium text-[0.9375rem] text-warning"
-						role="alert"
-					>
-						{uploadError}
-					</p>
-				) : null}
-				{isMultiSelectMode() ? (
-					<Button
-						disabled={selectedIds.size === 0}
-						onClick={confirmSelectedPhotos}
-						type="button"
-						variant="outline"
-					>
-						Continue with {selectedIds.size} photo
-						{selectedIds.size === 1 ? "" : "s"}
+			<div className="grid gap-4">
+				{/** biome-ignore lint/a11y/noStaticElementInteractions: drop zone is a mouse enhancement; the button is the keyboard/AT path. */}
+				<div
+					className={cn(
+						"flex flex-wrap items-center gap-4 rounded-lg border border-dashed px-5 py-5 transition-colors",
+						dragActive ? "border-foreground bg-background" : "border-border"
+					)}
+					onDragLeave={(event) => {
+						event.preventDefault();
+						setDragActive(false);
+					}}
+					onDragOver={(event) => {
+						event.preventDefault();
+						setDragActive(true);
+					}}
+					onDrop={handleDrop}
+				>
+					<Button disabled={isUploading} onClick={pickFile} type="button">
+						{isUploading ? "Uploading…" : "Upload photos"}
 					</Button>
-				) : null}
+					<span className="font-body text-[0.875rem] text-ink-muted">
+						or drag and drop here
+					</span>
+					<input
+						accept="image/png,image/jpeg,image/webp"
+						aria-label="Choose photos to upload"
+						className="sr-only"
+						multiple
+						onChange={(event) => {
+							handleFiles(event.target.files);
+							// Reset so re-picking the same files still fires `change`.
+							event.target.value = "";
+						}}
+						ref={fileInputRef}
+						type="file"
+					/>
+				</div>
+
+				<div className="flex flex-wrap items-center gap-4">
+					{isMultiSelectMode() ? (
+						<Button
+							disabled={selectedIds.size === 0}
+							onClick={confirmSelectedPhotos}
+							type="button"
+							variant="outline"
+						>
+							Continue with {selectedIds.size} photo
+							{selectedIds.size === 1 ? "" : "s"}
+						</Button>
+					) : null}
+					{uploadError ? (
+						<p
+							className="m-0 font-medium text-[0.9375rem] text-warning"
+							role="alert"
+						>
+							{uploadError}
+						</p>
+					) : null}
+				</div>
 			</div>
 
 			{photos === null && loadError === null ? (
@@ -419,22 +545,52 @@ export function PhotoUploadStep(props: {
 				</p>
 			) : null}
 
-			{photos && photos.length === 0 && !loadError && !uploading ? (
+			{photos && photos.length === 0 && !loadError && uploads.length === 0 ? (
 				<p className="m-0 text-[0.9375rem] text-ink-muted italic">
 					No photos yet. Upload one above to continue.
 				</p>
 			) : null}
 
-			{(photos && photos.length > 0) || uploading ? (
+			{(photos && photos.length > 0) || uploads.length > 0 ? (
 				<ul
 					aria-label="Existing project photos"
 					className="m-0 grid list-none gap-6 p-0 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]"
 				>
-					{uploading ? (
-						<li>
-							<Skeleton className="aspect-[4/3] w-full rounded-md" />
+					{uploads.map((item) => (
+						<li key={item.tempId}>
+							<div className="grid grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover">
+								{item.status === "uploading" ? (
+									<Skeleton className="aspect-[4/3] w-full rounded-none" />
+								) : (
+									<div className="flex aspect-[4/3] w-full items-center justify-center bg-background px-4 text-center">
+										<span className="font-body text-[0.8125rem] text-destructive">
+											{item.error ?? "Upload failed"}
+										</span>
+									</div>
+								)}
+								<span className="grid gap-1 px-4 py-3">
+									<span className="break-words font-body font-medium text-[0.8125rem] text-foreground">
+										{item.name}
+									</span>
+									{item.status === "uploading" ? (
+										<span className="font-body font-semibold text-[0.6875rem] text-ink-subtle uppercase tracking-[0.06em]">
+											Uploading…
+										</span>
+									) : (
+										<Button
+											className="justify-self-start"
+											onClick={() => void retryUpload(item)}
+											size="sm"
+											type="button"
+											variant="outline"
+										>
+											Retry
+										</Button>
+									)}
+								</span>
+							</div>
 						</li>
-					) : null}
+					))}
 					{(photos ?? []).map((photo) => {
 						const isSelected = isMultiSelectMode()
 							? selectedIds.has(photo.id)

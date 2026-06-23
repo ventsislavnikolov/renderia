@@ -220,7 +220,7 @@ describe("PhotoUploadStep", () => {
 		);
 
 		const hiddenInput = (await screen.findByLabelText(
-			/choose a photo to upload/i
+			/choose photos to upload/i
 		)) as HTMLInputElement;
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -255,7 +255,7 @@ describe("PhotoUploadStep", () => {
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i
+			/choose photos to upload/i
 		);
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -266,7 +266,9 @@ describe("PhotoUploadStep", () => {
 		expect(onPhotoSelected).toHaveBeenCalledWith(samplePhoto);
 		expect(fromMock).toHaveBeenCalledWith("source-photos");
 		const uploadCall = uploadMock.mock.calls[0];
-		expect(uploadCall?.[0]).toMatch(/^user-1\/\d+-photo\.png$/);
+		// Path is `<uid>/<uuid>-<name>` — a UUID segment keeps batch uploads
+		// collision-free.
+		expect(uploadCall?.[0]).toMatch(/^user-1\/[0-9a-f-]+-photo\.png$/);
 		expect(createPhotoRecordMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({
@@ -291,14 +293,12 @@ describe("PhotoUploadStep", () => {
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i
+			/choose photos to upload/i
 		);
 		const badFile = new File(["nope"], "diagram.gif", { type: "image/gif" });
 		pickFile(hiddenInput, badFile);
 
-		expect(
-			await screen.findByText(/Use a PNG, JPEG, or WEBP image/i)
-		).toBeDefined();
+		expect(await screen.findByText(/skipped/i)).toBeDefined();
 		expect(uploadMock).not.toHaveBeenCalled();
 		expect(createPhotoRecordMock).not.toHaveBeenCalled();
 	});
@@ -321,7 +321,7 @@ describe("PhotoUploadStep", () => {
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i
+			/choose photos to upload/i
 		);
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
@@ -330,10 +330,11 @@ describe("PhotoUploadStep", () => {
 
 		await waitFor(() => expect(removeMock).toHaveBeenCalledTimes(1));
 		const removedPaths = removeMock.mock.calls[0]?.[0] as string[];
-		expect(removedPaths?.[0]).toMatch(/^user-1\/\d+-photo\.png$/);
-		// Original error is surfaced to the user, not the cleanup error.
-		const alert = await screen.findByRole("alert");
-		expect(alert.textContent).toMatch(/Database error/);
+		expect(removedPaths?.[0]).toMatch(/^user-1\/[0-9a-f-]+-photo\.png$/);
+		// The original error is surfaced on the file's tile (with a Retry), not
+		// the cleanup error.
+		expect(await screen.findByText(/Database error/)).toBeDefined();
+		expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
 	});
 
 	it("redirects to /sign-in when there is no Supabase session", async () => {
@@ -351,7 +352,7 @@ describe("PhotoUploadStep", () => {
 		);
 
 		const hiddenInput = await screen.findByLabelText(
-			/choose a photo to upload/i
+			/choose photos to upload/i
 		);
 		const file = new File([new Uint8Array([1, 2, 3])], "photo.png", {
 			type: "image/png",
