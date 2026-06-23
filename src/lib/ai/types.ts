@@ -49,6 +49,11 @@ export type CreateDesignBriefInput = {
 	roomObjects?: RoomObject[];
 	referencePhotoName?: string;
 	supportingPhotoCount?: number;
+	/**
+	 * The Task's chosen Style id (see `STYLE_PRESETS`). Resolved to a preset by
+	 * the provider; falls back to Scandinavian when absent or unknown.
+	 */
+	style?: string;
 	model?: ModelSelection;
 };
 

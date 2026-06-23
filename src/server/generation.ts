@@ -8,6 +8,7 @@ import {
 	buildFurnitureReferenceSection,
 } from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
+import { findStylePreset } from "../lib/ai/style-presets";
 import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
 	type CreateDesignBriefInput,
@@ -163,6 +164,26 @@ function formatProviderError(err: unknown): string {
 			: "Detection failed";
 }
 
+/**
+ * Resolve a Task's chosen Style id from the DB so the design prompt is built
+ * against the authoritative server-side value rather than a client-supplied
+ * one. The prompt builders fall back to Scandinavian when this is undefined.
+ */
+async function __resolveTaskStyle(
+	supabase: SupabaseScoped,
+	userId: string,
+	taskId: string
+): Promise<string | undefined> {
+	const { data, error } = await supabase
+		.from("renovation_tasks")
+		.select("style")
+		.eq("id", taskId)
+		.eq("owner_id", userId)
+		.maybeSingle();
+	if (error) throw wrapSupabaseError(error);
+	return data?.style ?? undefined;
+}
+
 /** @internal */
 export async function __createDesignBriefHandler(args: {
 	userId: string;
@@ -170,7 +191,13 @@ export async function __createDesignBriefHandler(args: {
 	provider: RenovationAiProvider;
 	input: CreateDesignBriefInput;
 }) {
-	const result = await args.provider.createDesignBrief(args.input);
+	const style = await __resolveTaskStyle(
+		args.supabase,
+		args.userId,
+		args.input.taskId
+	);
+	const providerInput = { ...args.input, style };
+	const result = await args.provider.createDesignBrief(providerInput);
 	const { data, error } = await args.supabase
 		.from("design_briefs")
 		.insert({
@@ -235,6 +262,9 @@ export async function __saveDesignBriefHandler(args: {
 	supabase: SupabaseScoped;
 	input: SaveDesignBriefInput;
 }) {
+	const stylePreset = findStylePreset(
+		await __resolveTaskStyle(args.supabase, args.userId, args.input.taskId)
+	);
 	const prompt = buildDesignPrompt({
 		taskTitle: args.input.taskTitle,
 		styleRules: args.input.styleRules,
@@ -243,6 +273,7 @@ export async function __saveDesignBriefHandler(args: {
 		roomObjects: args.input.roomObjects,
 		referencePhotoName: args.input.referencePhotoName,
 		supportingPhotoCount: args.input.supportingPhotoCount,
+		stylePreset,
 	});
 	const { data, error } = await args.supabase
 		.from("design_briefs")

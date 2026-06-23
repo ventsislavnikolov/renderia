@@ -15,6 +15,7 @@ import {
 	buildDesignPrompt,
 	sanitizePromptField,
 } from "./prompts";
+import { findStylePreset } from "./style-presets";
 import type {
 	GeneratedImageResult,
 	ProviderDebug,
@@ -328,11 +329,13 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 	async createDesignBrief(input) {
 		const safeTaskTitle = sanitizePromptField(input.taskTitle);
 		const safeStyleRules = sanitizePromptField(input.styleRules);
+		const stylePreset = findStylePreset(input.style);
 		const markdown = buildDesignBriefMarkdown({
 			taskTitle: safeTaskTitle,
 			styleRules: safeStyleRules,
 			protectedElements: input.protectedElements,
 			roomObjects: input.roomObjects,
+			stylePreset,
 		});
 		return {
 			value: {
@@ -345,6 +348,7 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 					roomObjects: input.roomObjects,
 					referencePhotoName: input.referencePhotoName,
 					supportingPhotoCount: input.supportingPhotoCount,
+					stylePreset,
 				}),
 			},
 		};

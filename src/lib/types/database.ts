@@ -57,6 +57,7 @@ export type Database = {
 					title: string;
 					category: string;
 					status: RenovationTaskStatus;
+					style: string;
 					notes: Nullable<string>;
 					created_at: string;
 					updated_at: string;
@@ -68,6 +69,7 @@ export type Database = {
 					title: string;
 					category: string;
 					status?: RenovationTaskStatus;
+					style?: string;
 					notes?: Nullable<string>;
 					created_at?: string;
 					updated_at?: string;
@@ -79,6 +81,7 @@ export type Database = {
 					title?: string;
 					category?: string;
 					status?: RenovationTaskStatus;
+					style?: string;
 					notes?: Nullable<string>;
 					created_at?: string;
 					updated_at?: string;

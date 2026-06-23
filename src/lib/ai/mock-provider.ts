@@ -1,4 +1,5 @@
 import { buildDesignBriefMarkdown, buildDesignPrompt } from "./prompts";
+import { findStylePreset } from "./style-presets";
 import type { RenovationAiProvider } from "./types";
 
 // 1x1 transparent PNG, used so mock outputs are renderable as data URLs during dev.
@@ -47,10 +48,12 @@ export const mockRenovationProvider: RenovationAiProvider = {
 		};
 	},
 	async createDesignBrief(input) {
+		const stylePreset = findStylePreset(input.style);
 		const markdown = buildDesignBriefMarkdown({
 			taskTitle: input.taskTitle,
 			styleRules: input.styleRules,
 			protectedElements: input.protectedElements,
+			stylePreset,
 		});
 		return {
 			value: {
@@ -60,6 +63,7 @@ export const mockRenovationProvider: RenovationAiProvider = {
 					styleRules: input.styleRules,
 					briefMarkdown: markdown,
 					protectedElements: input.protectedElements,
+					stylePreset,
 				}),
 			},
 		};

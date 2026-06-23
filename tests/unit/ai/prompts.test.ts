@@ -5,6 +5,11 @@ import {
 	buildFurnitureReferenceSection,
 	buildStructuralPreviewPrompt,
 } from "../../../src/lib/ai/prompts";
+import {
+	findStylePreset,
+	INDUSTRIAL_PRESET,
+	SCANDINAVIAN_PRESET,
+} from "../../../src/lib/ai/style-presets";
 
 describe("buildFurnitureReferenceSection", () => {
 	it("returns an empty string when there are no labels", () => {
@@ -196,6 +201,8 @@ describe("buildDesignPrompt", () => {
 			- arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%
 			- Do not move, remove, resize, crop, cover, or replace any protected element.
 
+			STYLE: SCANDINAVIAN
+
 			DOOR RENOVATION RULE:
 			- Door openings stay in place. Door panels may be replaced with new Scandinavian interior doors.
 			- Prefer simple white, off-white, light wood, or pale oak finishes. JYSK / IKEA aesthetic.
@@ -204,7 +211,7 @@ describe("buildDesignPrompt", () => {
 			- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.
 			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.
 
-			FLOORING / LAMINATE RULE:
+			FLOORING RULE:
 			- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.
 
 			WALL / CEILING RULE:
@@ -217,7 +224,7 @@ describe("buildDesignPrompt", () => {
 			- Light oak, pale wood, beige, grey, black metal accents, woven baskets, simple lamps, rugs, cushions, curtains, practical storage.
 			- No luxury custom-made or dramatic non-Scandinavian furniture.
 
-			STYLE AND MATERIAL DIRECTION (user override layer):
+			STYLE DIRECTION (user refinement layer):
 			warm oak, lime plaster, integrated linear lighting
 
 			DESIGN BRIEF:
@@ -262,7 +269,7 @@ describe("buildDesignPrompt", () => {
 		expect(markdown).toContain("## Must preserve");
 		expect(markdown).toContain("left window (window)");
 		expect(markdown).toContain("## Renovation rules");
-		expect(markdown).toContain("## Style direction");
+		expect(markdown).toContain("## Style Direction");
 		expect(markdown).toContain("## Variation concepts");
 		expect(markdown).toContain("## Generation guidance");
 		expect(markdown).toContain("Keep the same camera viewpoint");
@@ -357,7 +364,7 @@ describe("buildDesignPrompt", () => {
 			"# 2nd floor - ceiling
 
 			## Goal
-			Create 4 realistic, fully furnished Scandinavian renovation concepts for 2nd floor - ceiling that look like the same real room after renovation — not a different room.
+			Create realistic, fully furnished Scandinavian renovation concepts for 2nd floor - ceiling that look like the same real room after renovation — not a different room.
 
 			## Must preserve
 			- left window (window) bbox left=10%, top=20%, width=20%, height=30%
@@ -368,15 +375,25 @@ describe("buildDesignPrompt", () => {
 			- Room shape, proportions, ceiling height, corners, niches, beams, columns, stairs, slopes.
 			- Camera angle and perspective matching the source photo.
 
-			## Renovation rules
-			- **Doors**: replace panels with simple Scandinavian doors in white, off-white, light wood, or pale oak. Keep openings in place.
-			- **Windows**: remove any blinds. Always use realistic Scandinavian curtains. Mix two light-curtain concepts with two darker-curtain concepts.
-			- **Flooring**: replace existing laminate with new Scandinavian laminate — whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood.
-			- **Walls / ceiling**: white walls and white-or-very-light ceiling. Small accent details allowed.
-			- **Furniture**: only IKEA / JYSK-style affordable Scandinavian pieces — clean lines, light oak, pale wood, beige, grey, simple lamps, woven baskets, rugs, cushions.
-			- **Lighting and decor**: photorealistic daylight, soft task lighting, indoor plants, simple wall art.
+			## Renovation rules (Scandinavian)
+			**Doors**
+			- Door openings stay in place. Door panels may be replaced with new Scandinavian interior doors.
+			- Prefer simple white, off-white, light wood, or pale oak finishes. JYSK / IKEA aesthetic.
+			**Windows**
+			- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.
+			- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.
+			**Flooring**
+			- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.
+			**Walls / ceiling**
+			- White walls as the main color. White or very-light ceiling. Small Scandinavian accent details allowed.
+			- No dark wall colors or heavy decorative wall treatments.
+			**Furniture**
+			- Fully furnish the room. Empty rooms are not acceptable.
+			- Use only furniture that looks like real IKEA or JYSK products: affordable, ready-made, clean-lined Scandinavian pieces.
+			- Light oak, pale wood, beige, grey, black metal accents, woven baskets, simple lamps, rugs, cushions, curtains, practical storage.
+			- No luxury custom-made or dramatic non-Scandinavian furniture.
 
-			## Style direction (override layer)
+			## Style Direction
 			Scandinavian renovation style with warm neutral palette.
 
 			## Variation concepts
@@ -389,7 +406,65 @@ describe("buildDesignPrompt", () => {
 			- Use the source photo as the geometry and composition reference.
 			- Keep the same camera viewpoint, lens feel, room proportions, wall openings, ceiling lines, stair positions, and major edges.
 			- Do not block windows, doors, or radiators with furniture.
-			- Avoid luxury custom-made furniture and dramatic non-Scandinavian design."
+			- Keep furniture and finishes consistent with the Scandinavian Style; avoid pieces that contradict it."
 		`);
+	});
+});
+
+describe("findStylePreset", () => {
+	it("returns Scandinavian for undefined, null, or unknown ids", () => {
+		expect(findStylePreset(undefined).id).toBe("scandinavian");
+		expect(findStylePreset(null).id).toBe("scandinavian");
+		expect(findStylePreset("does-not-exist").id).toBe("scandinavian");
+	});
+
+	it("resolves a known style id to its preset", () => {
+		expect(findStylePreset("industrial")).toBe(INDUSTRIAL_PRESET);
+	});
+});
+
+describe("buildDesignPrompt — Style layer", () => {
+	const base = {
+		taskTitle: "spare room",
+		styleRules: "warm neutral palette",
+		briefMarkdown: "## Goal\nA calm room.",
+		protectedElements: [],
+	};
+
+	it("defaults to the Scandinavian Style when no preset is passed", () => {
+		const prompt = buildDesignPrompt(base);
+		expect(prompt).toContain("STYLE: SCANDINAVIAN");
+		expect(prompt).toContain("IKEA or JYSK products");
+	});
+
+	it("renders the Industrial vocabulary and omits Scandinavian-only rules", () => {
+		const prompt = buildDesignPrompt({
+			...base,
+			stylePreset: INDUSTRIAL_PRESET,
+		});
+		expect(prompt).toContain("STYLE: INDUSTRIAL");
+		expect(prompt).toContain("industrial loft");
+		expect(prompt).toContain("exposed brick");
+		// Scandinavian-only material rules must not leak into another Style.
+		expect(prompt).not.toContain("IKEA or JYSK products");
+		expect(prompt).not.toContain("Scandinavian laminate");
+	});
+
+	it("keeps the universal fidelity layer under every Style", () => {
+		for (const preset of [SCANDINAVIAN_PRESET, INDUSTRIAL_PRESET]) {
+			const prompt = buildDesignPrompt({ ...base, stylePreset: preset });
+			expect(prompt).toContain("STRICT ARCHITECTURAL RULES");
+			expect(prompt).toContain("Keep all windows in exactly the same position");
+			expect(prompt).toContain("Do not change the position of windows");
+		}
+	});
+
+	it("threads the user's Style Direction through unchanged", () => {
+		const prompt = buildDesignPrompt({
+			...base,
+			stylePreset: INDUSTRIAL_PRESET,
+		});
+		expect(prompt).toContain("STYLE DIRECTION (user refinement layer):");
+		expect(prompt).toContain("warm neutral palette");
 	});
 });

@@ -1,4 +1,5 @@
 import type { RoomObject } from "../renovation/room-state";
+import { SCANDINAVIAN_PRESET, type StylePreset } from "./style-presets";
 import type { BoundingBox } from "./types";
 
 const SECTION_HEADER_PATTERN =
@@ -80,7 +81,9 @@ export function buildDesignBriefMarkdown(input: {
 	styleRules: string;
 	protectedElements: BoundingBox[];
 	roomObjects?: RoomObject[];
+	stylePreset?: StylePreset;
 }) {
+	const preset = input.stylePreset ?? SCANDINAVIAN_PRESET;
 	const canonicalObjects = input.roomObjects?.filter(
 		(entry) => entry.isPersisted
 	);
@@ -102,7 +105,7 @@ export function buildDesignBriefMarkdown(input: {
 		`# ${sanitizePromptField(input.taskTitle)}`,
 		"",
 		"## Goal",
-		`Create 4 realistic, fully furnished Scandinavian renovation concepts for ${sanitizePromptField(input.taskTitle)} that look like the same real room after renovation — not a different room.`,
+		`Create realistic, fully furnished ${sanitizePromptField(preset.aesthetic)} renovation concepts for ${sanitizePromptField(input.taskTitle)} that look like the same real room after renovation — not a different room.`,
 		"",
 		"## Must preserve",
 		preserved,
@@ -112,15 +115,19 @@ export function buildDesignBriefMarkdown(input: {
 		"- Room shape, proportions, ceiling height, corners, niches, beams, columns, stairs, slopes.",
 		"- Camera angle and perspective matching the source photo.",
 		"",
-		"## Renovation rules",
-		"- **Doors**: replace panels with simple Scandinavian doors in white, off-white, light wood, or pale oak. Keep openings in place.",
-		"- **Windows**: remove any blinds. Always use realistic Scandinavian curtains. Mix two light-curtain concepts with two darker-curtain concepts.",
-		"- **Flooring**: replace existing laminate with new Scandinavian laminate — whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood.",
-		"- **Walls / ceiling**: white walls and white-or-very-light ceiling. Small accent details allowed.",
-		"- **Furniture**: only IKEA / JYSK-style affordable Scandinavian pieces — clean lines, light oak, pale wood, beige, grey, simple lamps, woven baskets, rugs, cushions.",
-		"- **Lighting and decor**: photorealistic daylight, soft task lighting, indoor plants, simple wall art.",
+		`## Renovation rules (${sanitizePromptField(preset.label)})`,
+		"**Doors**",
+		...preset.doorRule,
+		"**Windows**",
+		...preset.windowRule,
+		"**Flooring**",
+		...preset.flooringRule,
+		"**Walls / ceiling**",
+		...preset.wallCeilingRule,
+		"**Furniture**",
+		...preset.furnitureRule,
 		"",
-		"## Style direction (override layer)",
+		"## Style Direction",
 		sanitizePromptField(input.styleRules),
 		"",
 		"## Variation concepts",
@@ -130,7 +137,7 @@ export function buildDesignBriefMarkdown(input: {
 		"- Use the source photo as the geometry and composition reference.",
 		"- Keep the same camera viewpoint, lens feel, room proportions, wall openings, ceiling lines, stair positions, and major edges.",
 		"- Do not block windows, doors, or radiators with furniture.",
-		"- Avoid luxury custom-made furniture and dramatic non-Scandinavian design.",
+		`- Keep furniture and finishes consistent with the ${sanitizePromptField(preset.label)} Style; avoid pieces that contradict it.`,
 	].join("\n");
 }
 
@@ -151,7 +158,9 @@ export function buildDesignPrompt(input: {
 	referencePhotoId?: string;
 	referencePhotoName?: string;
 	supportingPhotoCount?: number;
+	stylePreset?: StylePreset;
 }) {
+	const preset = input.stylePreset ?? SCANDINAVIAN_PRESET;
 	const preserved = input.protectedElements
 		.map((element) => `- ${protectedElementLine(element)}`)
 		.join("\n");
@@ -177,7 +186,7 @@ export function buildDesignPrompt(input: {
 
 	return [
 		"RENOVATION OBJECTIVE:",
-		`Using the source photo as reference, create a realistic Scandinavian renovation render for ${sanitizePromptField(input.taskTitle)}. The output must look like the same real room after renovation, not a different room.`,
+		`Using the source photo as reference, create a realistic ${sanitizePromptField(preset.aesthetic)} renovation render for ${sanitizePromptField(input.taskTitle)}. The output must look like the same real room after renovation, not a different room.`,
 		"",
 		"SOURCE PHOTO FIDELITY:",
 		"- Use the supplied source photo as the geometry, camera, and composition reference.",
@@ -197,44 +206,38 @@ export function buildDesignPrompt(input: {
 		"- Do not move, remove, resize, crop, cover, or replace any protected element.",
 		...(objectSection ? [objectSection] : []),
 		"",
+		`STYLE: ${preset.label.toUpperCase()}`,
+		"",
 		"DOOR RENOVATION RULE:",
-		"- Door openings stay in place. Door panels may be replaced with new Scandinavian interior doors.",
-		"- Prefer simple white, off-white, light wood, or pale oak finishes. JYSK / IKEA aesthetic.",
+		...preset.doorRule,
 		"",
 		"WINDOW TREATMENT RULE:",
-		"- Remove any blinds from the source photo. Always use realistic Scandinavian curtains.",
-		"- Choose either light curtains (white, off-white, beige, linen, light grey) or darker curtains (taupe, warm grey, charcoal, muted brown), as instructed by the variation concept.",
+		...preset.windowRule,
 		"",
-		"FLOORING / LAMINATE RULE:",
-		"- Do not keep the current floor. Use new Scandinavian laminate: whitewashed oak, off-white oak, light ash, soft greige, or pale natural wood. No dark heavy wood.",
+		"FLOORING RULE:",
+		...preset.flooringRule,
 		"",
 		"WALL / CEILING RULE:",
-		"- White walls as the main color. White or very-light ceiling. Small Scandinavian accent details allowed.",
-		"- No dark wall colors or heavy decorative wall treatments.",
+		...preset.wallCeilingRule,
 		"",
 		"FURNITURE REQUIREMENTS:",
-		"- Fully furnish the room. Empty rooms are not acceptable.",
-		"- Use only furniture that looks like real IKEA or JYSK products: affordable, ready-made, clean-lined Scandinavian pieces.",
-		"- Light oak, pale wood, beige, grey, black metal accents, woven baskets, simple lamps, rugs, cushions, curtains, practical storage.",
-		"- No luxury custom-made or dramatic non-Scandinavian furniture.",
+		...preset.furnitureRule,
 		"",
-		"STYLE AND MATERIAL DIRECTION (user override layer):",
+		"STYLE DIRECTION (user refinement layer):",
 		sanitizePromptField(input.styleRules),
 		"",
 		"DESIGN BRIEF:",
 		sanitizePromptField(input.briefMarkdown),
 		"",
 		"VISUAL STYLE:",
-		"Photorealistic architectural renovation render. Realistic daylight, realistic proportions, cozy and budget-friendly Scandinavian interior, practical and buildable.",
+		preset.visualStyle,
 		"",
 		"NEGATIVE INSTRUCTIONS:",
 		"- Do not change the position of windows, doors, or radiators.",
 		"- Do not invent extra openings, walls, or architectural features.",
 		"- Do not redesign the room into a different shape or size.",
 		"- Do not block windows, doors, or radiators with furniture.",
-		"- Do not use blinds, dark heavy flooring, or non-Scandinavian style.",
-		"- Do not use luxury furniture or pieces that do not look like JYSK / IKEA.",
-		"- Do not leave the room empty or unfurnished.",
+		...preset.negativeStyle,
 		"",
 		"OUTPUT REQUIREMENTS:",
 		"- Photorealistic renovation concept, not a technical drawing.",

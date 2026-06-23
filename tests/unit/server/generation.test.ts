@@ -277,6 +277,12 @@ function buildDesignBriefSupabaseStub(opts: {
 	const chain: Record<string, (...args: unknown[]) => unknown> = {};
 	chain.insert = vi.fn(() => chain);
 	chain.select = vi.fn(() => chain);
+	chain.eq = vi.fn(() => chain);
+	// The brief handlers resolve the Task's Style via
+	// renovation_tasks.select("style").eq().eq().maybeSingle().
+	chain.maybeSingle = vi.fn(() =>
+		Promise.resolve({ data: { style: "scandinavian" }, error: null })
+	);
 	chain.single = vi.fn(() =>
 		Promise.resolve(
 			opts.insertResult ?? {
