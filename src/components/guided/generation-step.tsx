@@ -68,7 +68,8 @@ export function GenerationStep(props: {
 	briefId: string | null;
 	brief: string;
 	prompt: string;
-	photoId?: string | null;
+	/** The approved Room Composite to generate against (the generation source). */
+	compositeId?: string | null;
 }) {
 	const [images, setImages] = useState<GeneratedImage[] | null>(null);
 	const [selectedFurnitureIds, setSelectedFurnitureIds] = useState<string[]>(
@@ -177,9 +178,9 @@ export function GenerationStep(props: {
 					briefId: props.briefId,
 					prompt: props.prompt,
 					count: VARIATION_COUNT,
-					photoId: props.photoId ?? null,
+					compositeId: props.compositeId ?? null,
 					furnitureItemIds:
-						props.photoId && selectedFurnitureIds.length > 0
+						props.compositeId && selectedFurnitureIds.length > 0
 							? selectedFurnitureIds
 							: undefined,
 				},
@@ -390,7 +391,7 @@ export function GenerationStep(props: {
 							className="grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
 							key={i}
 						>
-							<Skeleton className="aspect-[4/3] w-full rounded-none" />
+							<Skeleton className="aspect-[3/2] w-full rounded-none" />
 							<div className="flex items-center justify-between gap-3 border-border border-t px-5 py-3">
 								<Skeleton className="h-3 w-16" />
 								<Skeleton className="h-8 w-28" />
@@ -409,7 +410,7 @@ export function GenerationStep(props: {
 						>
 							<img
 								alt={`Variation ${image.variationIndex + 1}`}
-								className="block aspect-[4/3] w-full bg-background object-cover"
+								className="block aspect-[3/2] w-full bg-background object-contain"
 								src={image.signedUrl}
 							/>
 							<div className="flex items-center justify-between gap-3 border-border border-t px-5 py-3">

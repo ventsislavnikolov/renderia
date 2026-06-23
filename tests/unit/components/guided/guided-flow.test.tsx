@@ -275,12 +275,14 @@ vi.mock("../../../../src/components/guided/generation-step", () => ({
 	GenerationStep: (props: {
 		briefId: string | null;
 		prompt: string;
-		photoId?: string | null;
+		compositeId?: string | null;
 	}) => (
 		<div data-testid="generation-step">
 			<span data-testid="generation-brief-id">{props.briefId ?? "null"}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
-			<span data-testid="generation-photo-id">{props.photoId ?? "null"}</span>
+			<span data-testid="generation-composite-id">
+				{props.compositeId ?? "null"}
+			</span>
 		</div>
 	),
 }));
@@ -359,7 +361,7 @@ describe("GuidedFlow orchestrator", () => {
 			within(generation).getByTestId("generation-prompt").textContent
 		).toBe("APPROVED ROOM OBJECTS");
 		expect(
-			within(generation).getByTestId("generation-photo-id").textContent
-		).toBe("ph-2");
+			within(generation).getByTestId("generation-composite-id").textContent
+		).toBe("composite-1");
 	});
 });
