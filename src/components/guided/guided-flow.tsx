@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DEFAULT_STYLE_ID } from "@/lib/ai/style-presets";
 import {
 	allPreviewsApproved,
 	getAllProtectedElements,
@@ -13,6 +14,7 @@ import {
 import { loadLatestDesignBrief } from "../../server/generation";
 import { listProjectPhotos } from "../../server/photos";
 import { loadTaskRoomState, saveTaskRoomState } from "../../server/room-state";
+import { getTaskStyle, setTaskStyle } from "../../server/tasks";
 import { BriefStep } from "./brief-step";
 import { GenerationStep } from "./generation-step";
 import { LayoutPreviewStep } from "./layout-preview-step";
@@ -78,6 +80,7 @@ export function GuidedFlow(props: {
 	const [brief, setBrief] = useState("");
 	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
+	const [style, setStyle] = useState(DEFAULT_STYLE_ID);
 	const [styleRules, setStyleRules] = useState(DEFAULT_STYLE_RULES);
 	const [saveError, setSaveError] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
@@ -99,6 +102,12 @@ export function GuidedFlow(props: {
 		(async () => {
 			try {
 				const headers = await getAuthHeaders();
+				const taskStyle = await getTaskStyle({
+					data: { taskId: props.taskId },
+					headers,
+				});
+				if (cancelledRef.current) return;
+				if (taskStyle?.style) setStyle(taskStyle.style);
 				const loaded = await loadLatestDesignBrief({
 					data: { taskId: props.taskId },
 					headers,
@@ -260,6 +269,25 @@ export function GuidedFlow(props: {
 	function handleBriefChange(nextBrief: string) {
 		setBrief(nextBrief);
 		setBriefId(null);
+	}
+
+	// Persist the chosen Style to the Task. Optimistic: reflect the pick
+	// immediately, fire-and-forget the write. A failed write is non-fatal — the
+	// brief still generates against whatever Style the row holds; the user can
+	// re-pick. Auth failures redirect, matching the other server calls here.
+	async function handleStyleChange(nextStyle: string) {
+		setStyle(nextStyle);
+		try {
+			const headers = await getAuthHeaders();
+			await setTaskStyle({
+				data: { taskId: props.taskId, style: nextStyle },
+				headers,
+			});
+		} catch (caught) {
+			if (caught instanceof Error && caught.message === UNAUTHENTICATED_ERROR) {
+				window.location.assign("/sign-in");
+			}
+		}
 	}
 
 	// Keep local flow state in sync after a photo is deleted on the server. The
@@ -430,6 +458,7 @@ export function GuidedFlow(props: {
 					onBriefIdChange={setBriefId}
 					onNext={() => setStep("generate")}
 					onPromptChange={setPrompt}
+					onStyleChange={handleStyleChange}
 					onStyleRulesChange={setStyleRules}
 					prompt={prompt}
 					protectedElements={getAllProtectedElements(roomState)}
@@ -438,6 +467,7 @@ export function GuidedFlow(props: {
 							?.original_name
 					}
 					roomObjects={roomState.objects}
+					style={style}
 					styleRules={styleRules}
 					supportingPhotoCount={photos.length}
 					taskId={props.taskId}

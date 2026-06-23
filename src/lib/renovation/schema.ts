@@ -51,6 +51,24 @@ export const listTasksSchema = z.object({
 export type ListTasksInput = z.infer<typeof listTasksSchema>;
 
 /**
+ * A Task's chosen Style id (see `STYLE_PRESETS`). Kept permissive — the valid
+ * set lives in code, not the DB, so new Styles ship without a schema bump; the
+ * prompt builder falls back to Scandinavian for any unknown id.
+ */
+const styleIdField = z.string().min(1).max(60);
+
+export const getTaskStyleSchema = z.object({
+	taskId: z.string().uuid(),
+});
+export type GetTaskStyleInput = z.infer<typeof getTaskStyleSchema>;
+
+export const setTaskStyleSchema = z.object({
+	taskId: z.string().uuid(),
+	style: styleIdField,
+});
+export type SetTaskStyleInput = z.infer<typeof setTaskStyleSchema>;
+
+/**
  * Bounding box for a protected element. Coordinates and dimensions are
  * normalised to the 0..1 range relative to the photo so we can render the
  * same overlay across image sizes without re-running detection.

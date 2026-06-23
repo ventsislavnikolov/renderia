@@ -1,7 +1,9 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
+import { StylePicker } from "@/components/ui/style-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { DEFAULT_STYLE_ID } from "@/lib/ai/style-presets";
 import type { BoundingBox, ProviderDebug } from "../../lib/ai/types";
 import { track } from "../../lib/analytics/track";
 import type { RoomObject } from "../../lib/renovation/room-state";
@@ -38,14 +40,17 @@ export function BriefStep(props: {
 	supportingPhotoCount?: number;
 	brief: string;
 	prompt: string;
+	style?: string;
 	styleRules: string;
 	onBriefChange: (brief: string) => void;
 	onBriefIdChange: (briefId: string | null) => void;
 	onPromptChange: (prompt: string) => void;
+	onStyleChange?: (styleId: string) => void;
 	onStyleRulesChange: (styleRules: string) => void;
 	onNext: () => void;
 }) {
 	const styleRules = props.styleRules;
+	const style = props.style ?? DEFAULT_STYLE_ID;
 	const [generating, setGenerating] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -190,11 +195,24 @@ export function BriefStep(props: {
 				</p>
 			</header>
 
+			<div className="grid max-w-3xl gap-2 font-body font-medium text-foreground text-sm">
+				<span id="brief-style-label">Style</span>
+				<StylePicker
+					disabled={generating || saving}
+					onChange={(next) => props.onStyleChange?.(next)}
+					value={style}
+				/>
+				<p className="m-0 font-normal text-ink-muted text-xs">
+					The aesthetic the renders are generated in. Fine-tune it below with
+					Style direction.
+				</p>
+			</div>
+
 			<label
 				className="grid max-w-3xl gap-2 font-body font-medium text-foreground text-sm"
 				htmlFor="brief-style-rules"
 			>
-				<span>Style rules</span>
+				<span>Style direction</span>
 				<Textarea
 					className="min-h-24 resize-y bg-background font-body font-normal leading-relaxed"
 					id="brief-style-rules"

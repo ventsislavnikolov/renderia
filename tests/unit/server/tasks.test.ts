@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RenovationAiProvider } from "../../../src/lib/ai/types";
 import {
 	__createTaskHandler,
+	__getTaskStyleHandler,
 	__listProjectTasksHandler,
+	__setTaskStyleHandler,
 	__suggestTasksForProjectHandler,
 } from "../../../src/server/tasks";
 
@@ -26,6 +28,7 @@ function buildSupabaseStub(opts: {
 	photosResult?: { data: Row[] | null; error: unknown };
 	singleResult?: { data: Row | null; error: unknown };
 	projectsResult?: { data: Row | null; error: unknown };
+	styleResult?: { data: Row | null; error: unknown };
 	signedUrlResult?: {
 		data: { signedUrl: string } | null;
 		error: unknown;
@@ -42,6 +45,13 @@ function buildSupabaseStub(opts: {
 		Promise.resolve(opts.singleResult ?? { data: null, error: null })
 	);
 	tasksChain.insert = vi.fn(() => tasksChain);
+	tasksChain.update = vi.fn(() => tasksChain);
+	// getTaskStyle / setTaskStyle both resolve via .maybeSingle().
+	tasksChain.maybeSingle = vi.fn(() =>
+		Promise.resolve(
+			opts.styleResult ?? { data: { style: "scandinavian" }, error: null }
+		)
+	);
 
 	const photosChain: Record<string, (...args: unknown[]) => unknown> = {};
 	photosChain.select = vi.fn(() => photosChain);
@@ -330,5 +340,81 @@ describe("suggestTasksForProjectHandler", () => {
 			})
 		).rejects.toThrow("Failed to mint signed URL");
 		expect(provider.suggestTasks).not.toHaveBeenCalled();
+	});
+});
+
+describe("getTaskStyleHandler", () => {
+	it("returns the task's stored Style", async () => {
+		const { supabase, fromMock } = buildSupabaseStub({
+			styleResult: { data: { style: "industrial" }, error: null },
+		});
+
+		const result = await __getTaskStyleHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1" },
+		});
+
+		expect(result).toEqual({ style: "industrial" });
+		expect(fromMock).toHaveBeenCalledWith("renovation_tasks");
+	});
+
+	it("falls back to the default Style when the column is null", async () => {
+		const { supabase } = buildSupabaseStub({
+			styleResult: { data: { style: null }, error: null },
+		});
+
+		const result = await __getTaskStyleHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1" },
+		});
+
+		expect(result).toEqual({ style: "scandinavian" });
+	});
+
+	it("throws when the task is not owned / not found", async () => {
+		const { supabase } = buildSupabaseStub({
+			styleResult: { data: null, error: null },
+		});
+
+		await expect(
+			__getTaskStyleHandler({
+				userId: "user-1",
+				supabase,
+				input: { taskId: "task-1" },
+			})
+		).rejects.toThrow("Task not found");
+	});
+});
+
+describe("setTaskStyleHandler", () => {
+	it("persists the chosen Style and echoes it back", async () => {
+		const { supabase, tasksChain } = buildSupabaseStub({
+			styleResult: { data: { style: "industrial" }, error: null },
+		});
+
+		const result = await __setTaskStyleHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1", style: "industrial" },
+		});
+
+		expect(result).toEqual({ style: "industrial" });
+		expect(tasksChain.update).toHaveBeenCalledWith({ style: "industrial" });
+	});
+
+	it("throws when the update matches no owned task", async () => {
+		const { supabase } = buildSupabaseStub({
+			styleResult: { data: null, error: null },
+		});
+
+		await expect(
+			__setTaskStyleHandler({
+				userId: "user-1",
+				supabase,
+				input: { taskId: "task-1", style: "industrial" },
+			})
+		).rejects.toThrow("Task not found");
 	});
 });

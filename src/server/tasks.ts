@@ -2,13 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { getRenovationAiProvider } from "../lib/ai/provider";
+import { DEFAULT_STYLE_ID } from "../lib/ai/style-presets";
 import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
 	type CreateTaskInput,
 	createTaskSchema,
+	type GetTaskStyleInput,
+	getTaskStyleSchema,
 	type ListTasksInput,
 	listTasksSchema,
+	type SetTaskStyleInput,
 	type SuggestTasksInput,
+	setTaskStyleSchema,
 	suggestTasksSchema,
 } from "../lib/renovation/schema";
 import {
@@ -99,6 +104,41 @@ export async function __createTaskHandler(args: {
 }
 
 /** @internal */
+export async function __getTaskStyleHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: GetTaskStyleInput;
+}): Promise<{ style: string }> {
+	const { data, error } = await args.supabase
+		.from("renovation_tasks")
+		.select("style")
+		.eq("id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.maybeSingle();
+	if (error) throw wrapSupabaseError(error);
+	if (!data) throw new Error("Task not found");
+	return { style: data.style ?? DEFAULT_STYLE_ID };
+}
+
+/** @internal */
+export async function __setTaskStyleHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: SetTaskStyleInput;
+}): Promise<{ style: string }> {
+	const { data, error } = await args.supabase
+		.from("renovation_tasks")
+		.update({ style: args.input.style })
+		.eq("id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.select("style")
+		.maybeSingle();
+	if (error) throw wrapSupabaseError(error);
+	if (!data) throw new Error("Task not found");
+	return { style: data.style ?? DEFAULT_STYLE_ID };
+}
+
+/** @internal */
 export async function __suggestTasksForProjectHandler(args: {
 	userId: string;
 	supabase: SupabaseScoped;
@@ -164,6 +204,20 @@ export const createTask = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createTaskHandler({ userId, supabase, input: data });
+	});
+
+export const getTaskStyle = createServerFn({ method: "GET" })
+	.validator(getTaskStyleSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __getTaskStyleHandler({ userId, supabase, input: data });
+	});
+
+export const setTaskStyle = createServerFn({ method: "POST" })
+	.validator(setTaskStyleSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __setTaskStyleHandler({ userId, supabase, input: data });
 	});
 
 export const suggestTasksForProject = createServerFn({ method: "POST" })
