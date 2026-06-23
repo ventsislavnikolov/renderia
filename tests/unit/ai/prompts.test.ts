@@ -155,8 +155,10 @@ describe("buildDesignPrompt", () => {
 		expect(prompt).toContain("Use the supplied source photo as the geometry");
 		expect(prompt).toContain("Keep the same camera viewpoint");
 		expect(prompt).toContain(
-			"arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%"
+			"arched window (window) — in the left of the source photo; keep it exactly where and as it is"
 		);
+		expect(prompt).not.toMatch(/\d+(\.\d+)?%/);
+		expect(prompt).not.toContain("bbox");
 		expect(prompt).toContain("Do not move, remove, resize, crop, cover");
 		expect(prompt).toContain(
 			"Do not invent extra windows, door openings, walls"
@@ -198,7 +200,7 @@ describe("buildDesignPrompt", () => {
 			- Do not make the room larger or smaller than it really is.
 
 			PRESERVE EXACTLY:
-			- arched window (window) bbox left=12.5%, top=20%, width=30%, height=40%
+			- arched window (window) — in the left of the source photo; keep it exactly where and as it is
 			- Do not move, remove, resize, crop, cover, or replace any protected element.
 
 			STYLE: SCANDINAVIAN
@@ -367,8 +369,8 @@ describe("buildDesignPrompt", () => {
 			Create realistic, fully furnished Scandinavian renovation concepts for 2nd floor - ceiling that look like the same real room after renovation — not a different room.
 
 			## Must preserve
-			- left window (window) bbox left=10%, top=20%, width=20%, height=30%
-			- ceiling beam (ceiling_line) bbox left=40%, top=8%, width=50%, height=5%
+			- left window (window) — in the left of the source photo; keep it exactly where and as it is
+			- ceiling beam (ceiling_line) — in the top of the source photo; keep it exactly where and as it is
 			- Window positions, sizes, and walls (do not move, resize, or invent).
 			- Door openings (positions, sizes, walls). Door panels may be replaced with Scandinavian-style interior doors.
 			- Radiator positions.
@@ -466,5 +468,52 @@ describe("buildDesignPrompt — Style layer", () => {
 		});
 		expect(prompt).toContain("STYLE DIRECTION (user refinement layer):");
 		expect(prompt).toContain("warm neutral palette");
+	});
+});
+
+describe("buildDesignPrompt — protected elements as natural language", () => {
+	const base = {
+		taskTitle: "loft",
+		styleRules: "neutral",
+		briefMarkdown: "## Goal\nA room.",
+	};
+
+	function box(x: number, y: number) {
+		return {
+			label: "feature",
+			kind: "window" as const,
+			x,
+			y,
+			width: 0.1,
+			height: 0.1,
+		};
+	}
+
+	it("buckets a box centre into a coarse 3×3 position phrase", () => {
+		const cases: [number, number, string][] = [
+			[0.05, 0.05, "top-left"],
+			[0.45, 0.05, "top"],
+			[0.9, 0.05, "top-right"],
+			[0.05, 0.45, "left"],
+			[0.45, 0.45, "center"],
+			[0.9, 0.9, "bottom-right"],
+		];
+		for (const [x, y, phrase] of cases) {
+			const prompt = buildDesignPrompt({
+				...base,
+				protectedElements: [box(x, y)],
+			});
+			expect(prompt).toContain(`in the ${phrase} of the source photo`);
+		}
+	});
+
+	it("never emits numeric coordinates or bbox text in the prompt", () => {
+		const prompt = buildDesignPrompt({
+			...base,
+			protectedElements: [box(0.2, 0.7), box(0.8, 0.1)],
+		});
+		expect(prompt).not.toMatch(/\d+(\.\d+)?%/);
+		expect(prompt).not.toContain("bbox");
+		expect(prompt).not.toMatch(/left=|top=|width=|height=/);
 	});
 });

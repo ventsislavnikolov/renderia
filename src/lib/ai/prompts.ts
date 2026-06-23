@@ -18,12 +18,24 @@ export function sanitizePromptField(value: string, maxLength = 2000): string {
 	return neutralized;
 }
 
-function formatPercent(value: number): string {
-	return `${Number((value * 100).toFixed(1))}%`;
+/**
+ * Coarse, image-model-friendly position phrase for a box. In edit mode
+ * `gpt-image-2` already sees the photo, so it anchors on a natural description
+ * ("the tall window on the left wall") far better than on numeric coordinates.
+ * Buckets the box centre into a 3×3 grid; the exact percentages stay on the UI
+ * overlay and the `protected_elements` rows, never in the prompt.
+ */
+function coarsePosition(element: BoundingBox): string {
+	const centerX = element.x + element.width / 2;
+	const centerY = element.y + element.height / 2;
+	const horizontal = centerX < 1 / 3 ? "left" : centerX >= 2 / 3 ? "right" : "";
+	const vertical = centerY < 1 / 3 ? "top" : centerY >= 2 / 3 ? "bottom" : "";
+	const parts = [vertical, horizontal].filter(Boolean);
+	return parts.length > 0 ? parts.join("-") : "center";
 }
 
 function protectedElementLine(element: BoundingBox): string {
-	return `${sanitizePromptField(element.label)} (${sanitizePromptField(element.kind)}) bbox left=${formatPercent(element.x)}, top=${formatPercent(element.y)}, width=${formatPercent(element.width)}, height=${formatPercent(element.height)}`;
+	return `${sanitizePromptField(element.label)} (${sanitizePromptField(element.kind)}) — in the ${coarsePosition(element)} of the source photo; keep it exactly where and as it is`;
 }
 
 function roomObjectLine(object: RoomObject): string {
