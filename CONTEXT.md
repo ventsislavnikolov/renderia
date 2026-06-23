@@ -6,6 +6,14 @@ task.
 
 ## Language
 
+**Project**:
+The top-level grouping a user owns — a property, floor, or client under which
+renovation Tasks (rooms) and all their Photos, previews, composites, and
+generated concepts live. Has a name and optional description. Deleting one is
+permanent and cascades to everything beneath it; the Furniture Library is
+account-wide and is _not_ scoped to a Project, so it survives.
+_Avoid_: workspace (the whole signed-in account is the workspace), folder
+
 **Furniture Library**:
 The account-wide collection of Furniture Items a user builds up over time.
 Not scoped to a project — any item is a candidate for any task.
@@ -79,3 +87,19 @@ the design reflects the whole captured room rather than one angle. Not a literal
 wrap-around despite the user's informal terms. Code, types, and tables use
 "Room Composite"; the user-facing label is "360 view".
 _Avoid_: 360 layout (informal), panorama (informal — implies full wrap)
+
+**Style**:
+A named aesthetic preset governing the palette, materials, and furniture
+vocabulary a generated concept is rendered in (e.g. Scandinavian). Scandinavian
+is the only Style today and the current default, but Style is meant to become
+one of several a user picks per Task. Distinct from the architectural-fidelity
+rules (keep windows, doors, walls, radiators where they are) — those are
+universal and apply under _every_ Style, not part of any one Style.
+_Avoid_: theme, template, look
+
+**Style Direction**:
+The user's free-text refinement layered on top of the chosen Style for one
+generation — accent colours, a specific material, a mood. Narrows or seasons
+the Style; it does not replace the Style's vocabulary and never overrides the
+architectural-fidelity rules.
+_Avoid_: style rules, override layer, prompt
