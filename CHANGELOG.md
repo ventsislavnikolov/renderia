@@ -1,3 +1,11 @@
+# [1.12.0](https://github.com/ventsislavnikolov/renderia/compare/v1.11.0...v1.12.0) (2026-06-23)
+
+
+### Features
+
+* **renovation:** re-land Room Composite 360 step + composite generation ([#77](https://github.com/ventsislavnikolov/renderia/issues/77), [#78](https://github.com/ventsislavnikolov/renderia/issues/78)) ([#83](https://github.com/ventsislavnikolov/renderia/issues/83)) ([ead042c](https://github.com/ventsislavnikolov/renderia/commit/ead042c6e6bd3ecc0490e3a3ac280f88ec420fb4))
+* **ui:** collapse mobile sidebar into an off-canvas drawer ([#70](https://github.com/ventsislavnikolov/renderia/issues/70)) ([#82](https://github.com/ventsislavnikolov/renderia/issues/82)) ([b53ac0b](https://github.com/ventsislavnikolov/renderia/commit/b53ac0bd5cbe7f24c66afa1d6ebfdd5b007ed617))
+
 # [1.11.0](https://github.com/ventsislavnikolov/renderia/compare/v1.10.11...v1.11.0) (2026-06-23)
 
 
