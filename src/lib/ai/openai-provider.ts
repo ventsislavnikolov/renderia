@@ -3,7 +3,6 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import OpenAI, { toFile } from "openai";
-import sharp from "sharp";
 import { z } from "zod";
 import { requireEnv } from "../env";
 import {
@@ -221,6 +220,19 @@ const TILE_H = 1024;
 const TILE_SEAM_W = 512;
 const TILE_EXT_W = TILE_W - TILE_SEAM_W; // 1024
 
+/**
+ * sharp is imported lazily, never at module scope. This file is reachable from
+ * the client bundle through the server-fn import chain (room-state.ts →
+ * provider.ts → here), and sharp's native bindings call `createRequire` at
+ * module load, which throws in the browser. Mirrors `image-normalize.ts`; the
+ * import only runs inside the server-only composite handler.
+ */
+type Sharp = typeof import("sharp")["default"];
+async function loadSharp(): Promise<Sharp> {
+	const { default: sharp } = await import("sharp");
+	return sharp;
+}
+
 type CompositePreview = {
 	base64: string;
 	contentType: "image/png" | "image/jpeg" | "image/webp";
@@ -319,6 +331,7 @@ async function editToBuffer(
  * later extension grows rightward from.
  */
 async function renderAnchorTile(
+	sharp: Sharp,
 	client: OpenAI,
 	preview: CompositePreview,
 	baseObjective: string
@@ -342,6 +355,7 @@ async function renderAnchorTile(
  * section to the running panorama.
  */
 async function extendPanorama(
+	sharp: Sharp,
 	client: OpenAI,
 	panorama: Buffer,
 	preview: CompositePreview,
@@ -764,12 +778,19 @@ export const openAiRenovationProvider: RenovationAiProvider = {
 		// view we order the angles left→right, render an anchor tile, then
 		// progressively outpaint the canvas one angle at a time and stitch the
 		// fresh sections into one wide panorama. See docs/adr/0002.
+		const sharp = await loadSharp();
 		const order = await orderRoomAngles(input.previews);
 		const ordered = order.map((index) => input.previews[index]);
 
-		let panorama = await renderAnchorTile(client, ordered[0], input.prompt);
+		let panorama = await renderAnchorTile(
+			sharp,
+			client,
+			ordered[0],
+			input.prompt
+		);
 		for (let i = 1; i < ordered.length; i++) {
 			panorama = await extendPanorama(
+				sharp,
 				client,
 				panorama,
 				ordered[i],
