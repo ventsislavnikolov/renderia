@@ -607,7 +607,7 @@ export type ApproveStructuralPreviewInput = z.infer<
 >;
 
 /**
- * Inputs for `generateRoomComposite` — synthesise the wide (3:2) empty-room
+ * Inputs for `generateRoomComposite` — synthesise the wide panoramic empty-room
  * Room Composite from the task's approved Structural Previews. The server
  * resolves which previews are approved from their stored status; the client
  * only sends the task context and the current room state snapshot.

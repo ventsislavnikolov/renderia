@@ -100,11 +100,13 @@ export type GeneratedImageResult = {
 };
 
 /**
- * Inputs for `generateRoomComposite` — synthesise one wide (3:2) empty-room
+ * Inputs for `generateRoomComposite` — synthesise one wide panoramic empty-room
  * Room Composite from the approved per-angle Structural Previews. Unlike
  * `generateRenovationImages` (one source photo), every supplied image is room
- * evidence: the model stitches the captured arc into a single continuous empty
- * room. Produces exactly one image.
+ * evidence. Because `gpt-image-2` caps a single render at 1536×1024, the live
+ * provider orders the angles left→right and progressively outpaints them into
+ * one continuous wide panorama (anchor tile + one extension per extra angle),
+ * rather than a single 3:2 frame. Produces exactly one (wide) image.
  */
 export type GenerateRoomCompositeInput = {
 	/** The approved Structural Preview images, one per kept photo angle. */
@@ -113,6 +115,10 @@ export type GenerateRoomCompositeInput = {
 		contentType: "image/png" | "image/jpeg" | "image/webp";
 		filename: string;
 	}>;
+	/**
+	 * The shared objective prompt (also persisted for provenance). The provider
+	 * wraps it with per-step scaffolding for the anchor and extension tiles.
+	 */
 	prompt: string;
 };
 
