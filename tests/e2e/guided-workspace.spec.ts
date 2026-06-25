@@ -663,7 +663,7 @@ async function reviewSamplePhotoAndContinue(page: Page) {
 		page.getByRole("button", { name: /Edit ceiling beam/i })
 	).toBeVisible();
 	await page.getByRole("button", { name: /Mark this photo reviewed/i }).click();
-	// Single-photo tasks skip the merge step and continue straight to preview.
+	// Review continues straight to the structural preview.
 	await page
 		.getByRole("button", { name: /Continue to structural preview/i })
 		.click();
@@ -703,7 +703,7 @@ async function advanceToBriefStep(page: Page) {
 }
 
 test.describe("guided renovation workspace", () => {
-	test("authenticated user sees the seven-step stepper", async ({
+	test("authenticated user sees the six-step stepper", async ({
 		page,
 		context,
 	}) => {
@@ -720,7 +720,6 @@ test.describe("guided renovation workspace", () => {
 		for (const label of [
 			"Upload",
 			"Review",
-			"Merge",
 			"Preview",
 			"Room",
 			"Brief",
@@ -755,29 +754,6 @@ test.describe("guided renovation workspace", () => {
 		await expect(
 			page.getByRole("heading", { name: /Review each uploaded photo/i })
 		).toBeVisible();
-	});
-
-	test("review step detects fixed objects and merge stays reachable", async ({
-		page,
-		context,
-	}) => {
-		await installFakeSession(context);
-		const state = buildPageState({ photos: [FAKE_PHOTO] });
-		await installApiMocks(page, state);
-
-		await page.goto(TASK_URL);
-		await selectSamplePhotoAndContinue(page);
-		await reviewSamplePhotoAndContinue(page);
-
-		// Merge is skipped for single-photo tasks but remains reachable from
-		// the stepper for optional preservation-mode edits.
-		await page.getByRole("button", { name: /^03 Merge$/i }).click();
-		await expect(
-			page.getByRole("heading", { name: /Merge room objects/i })
-		).toBeVisible();
-		await expect(page.getByLabel(/Object label/i).first()).toHaveValue(
-			"main window"
-		);
 	});
 
 	test("saved room state can be reopened without rerunning detection", async ({

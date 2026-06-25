@@ -147,44 +147,6 @@ vi.mock("../../../../src/components/guided/photo-review-step", () => ({
 	),
 }));
 
-vi.mock("../../../../src/components/guided/room-merge-step", () => ({
-	RoomMergeStep: (props: {
-		roomState: {
-			objects: Array<{ id: string; label: string }>;
-			appearances: Array<{ id: string }>;
-		};
-		onStateChange: (next: unknown) => void;
-		onContinue: () => void;
-	}) => (
-		<div data-testid="merge-step">
-			<span data-testid="merge-object-count">
-				{props.roomState.objects.length}
-			</span>
-			<button
-				onClick={() => {
-					props.onStateChange({
-						...props.roomState,
-						objects: [
-							{
-								id: "obj-1",
-								label: "main door",
-								kind: "door",
-								preservationMode: "keep_type_restyle",
-								appearanceIds: ["app-1"],
-								isPersisted: true,
-							},
-						],
-					});
-					props.onContinue();
-				}}
-				type="button"
-			>
-				merge-room-objects
-			</button>
-		</div>
-	),
-}));
-
 vi.mock("../../../../src/components/guided/layout-preview-step", () => ({
 	LayoutPreviewStep: (props: {
 		roomState: {
@@ -288,26 +250,25 @@ describe("GuidedFlow orchestrator", () => {
 		saveTaskRoomStateMock.mockResolvedValue({ ok: true });
 	});
 
-	it("starts on the Upload step with the new seven-step workflow gated", () => {
+	it("starts on the Upload step with the six-step workflow gated", () => {
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 		const stepper = screen.getByRole("navigation", {
 			name: /guided renovation steps/i,
 		});
 		const buttons = within(stepper).getAllByRole("button");
-		expect(buttons).toHaveLength(7);
+		expect(buttons).toHaveLength(6);
 		expect(buttons[0]?.textContent).toMatch(/Upload/i);
 		expect(buttons[1]?.textContent).toMatch(/Review/i);
-		expect(buttons[2]?.textContent).toMatch(/Merge/i);
-		expect(buttons[3]?.textContent).toMatch(/Preview/i);
-		expect(buttons[4]?.textContent).toMatch(/Room/i);
-		expect(buttons[5]?.textContent).toMatch(/Brief/i);
-		expect(buttons[6]?.textContent).toMatch(/Generate/i);
+		expect(buttons[2]?.textContent).toMatch(/Preview/i);
+		expect(buttons[3]?.textContent).toMatch(/Room/i);
+		expect(buttons[4]?.textContent).toMatch(/Brief/i);
+		expect(buttons[5]?.textContent).toMatch(/Generate/i);
 		expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
 		expect(buttons[1]?.hasAttribute("disabled")).toBe(true);
-		expect(buttons[6]?.hasAttribute("disabled")).toBe(true);
+		expect(buttons[5]?.hasAttribute("disabled")).toBe(true);
 	});
 
-	it("advances upload → review → merge → preview → room → brief → generate", async () => {
+	it("advances upload → review → preview → room → brief → generate", async () => {
 		const user = userEvent.setup();
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 
@@ -315,9 +276,6 @@ describe("GuidedFlow orchestrator", () => {
 		expect(screen.getByTestId("review-step")).toBeDefined();
 
 		await user.click(screen.getByText("review-all-photos"));
-		expect(screen.getByTestId("merge-step")).toBeDefined();
-
-		await user.click(screen.getByText("merge-room-objects"));
 		expect(screen.getByTestId("preview-step")).toBeDefined();
 
 		// Approving every angle unlocks the read-only room review step.

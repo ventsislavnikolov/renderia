@@ -20,7 +20,6 @@ import { GenerationStep } from "./generation-step";
 import { LayoutPreviewStep } from "./layout-preview-step";
 import { PhotoReviewStep } from "./photo-review-step";
 import { PhotoUploadStep } from "./photo-upload-step";
-import { RoomMergeStep } from "./room-merge-step";
 import { RoomReviewStep } from "./room-review-step";
 
 const DEFAULT_STYLE_RULES =
@@ -36,7 +35,6 @@ type PreviewImage = { id: string; signedUrl: string };
 const STEPS = [
 	"upload",
 	"review",
-	"merge",
 	"preview",
 	"composite",
 	"brief",
@@ -47,7 +45,6 @@ type StepId = (typeof STEPS)[number];
 const STEP_LABELS: Record<StepId, string> = {
 	upload: "Upload",
 	review: "Review",
-	merge: "Merge",
 	preview: "Preview",
 	composite: "Room",
 	brief: "Brief",
@@ -227,7 +224,6 @@ export function GuidedFlow(props: {
 	const reached: Record<StepId, boolean> = {
 		upload: true,
 		review: photos.length > 0 && roomState !== null,
-		merge: reviewedAll,
 		preview: reviewedAll,
 		composite: allApproved,
 		brief: allApproved,
@@ -395,28 +391,13 @@ export function GuidedFlow(props: {
 
 			{step === "review" && roomState ? (
 				<PhotoReviewStep
-					onContinue={() =>
-						// With one photo there are no cross-angle objects to merge, so
-						// jump straight to the preview. Merge stays reachable in the
-						// stepper for optional preservation-mode edits.
-						setStep(roomState.photoIds.length > 1 ? "merge" : "preview")
-					}
+					onContinue={() => setStep("preview")}
 					onInvalidatePreview={() => setPreviews({})}
 					onStateChange={setRoomState}
 					photos={photos}
 					roomState={roomState}
 					taskId={props.taskId}
 					taskTitle={props.taskTitle}
-				/>
-			) : null}
-
-			{step === "merge" && roomState ? (
-				<RoomMergeStep
-					onContinue={() => setStep("preview")}
-					onInvalidatePreview={() => setPreviews({})}
-					onStateChange={setRoomState}
-					photos={photos}
-					roomState={roomState}
 				/>
 			) : null}
 

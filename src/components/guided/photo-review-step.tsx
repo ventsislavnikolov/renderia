@@ -372,14 +372,12 @@ export function PhotoReviewStep(props: {
 					</h2>
 					<p className="m-0 max-w-[68ch] font-body text-[0.9375rem] text-ink-muted leading-relaxed">
 						Run AI detection across all uploaded photos, then review each angle.
-						You can add, edit, or remove fixed elements manually before merge.
+						You can add, edit, or remove fixed elements manually.
 					</p>
 				</div>
 				{allReviewed ? (
 					<Button onClick={props.onContinue} type="button">
-						{props.photos.length > 1
-							? "Continue to merge review"
-							: "Continue to structural preview"}
+						Continue to structural preview
 					</Button>
 				) : null}
 			</header>
