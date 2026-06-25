@@ -127,7 +127,7 @@ export function TaskList(props: { projectId: string }) {
 	const formValid = title.trim().length > 0 && category.trim().length > 0;
 
 	return (
-		<section className="grid gap-6">
+		<section className="mt-8 grid gap-6">
 			<header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<div className="grid gap-1.5">
 					<h2 className="m-0 font-body font-semibold text-[1.625rem] text-foreground tracking-tight">
