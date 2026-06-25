@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, DoorOpen, Plus } from "lucide-react";
+import { DoorOpen, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
 import type { Tables } from "../../lib/types/database";
 import { useWorkspace } from "../../lib/workspace-context";
 import { createTask, listProjectTasks } from "../../server/tasks";
+import { RoomActionsMenu } from "./task-actions-menu";
 
 type TaskRow = Tables<"renovation_tasks">;
 
@@ -282,11 +283,11 @@ export function TaskList(props: { projectId: string }) {
 				<ul className="m-0 grid list-none overflow-hidden rounded-lg border border-border bg-background p-0 shadow-xs">
 					{tasks.map((task) => (
 						<li
-							className="border-border border-b last:border-b-0"
+							className="relative border-border border-b last:border-b-0"
 							key={task.id}
 						>
 							<Link
-								className="group grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3.5 no-underline transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
+								className="group grid min-h-20 grid-cols-[auto_1fr] items-center gap-4 px-4 py-3.5 pr-14 no-underline transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5 sm:pr-16"
 								params={{ projectId: props.projectId, taskId: task.id }}
 								to="/projects/$projectId/tasks/$taskId"
 							>
@@ -314,13 +315,15 @@ export function TaskList(props: { projectId: string }) {
 										{task.notes || "No notes"}
 									</span>
 								</span>
-								<span
-									aria-hidden="true"
-									className="inline-flex size-8 items-center justify-center rounded-md text-ink-subtle transition-colors group-hover:bg-background group-hover:text-foreground"
-								>
-									<ArrowRight className="size-4" />
-								</span>
 							</Link>
+							<div className="absolute top-1/2 right-3 -translate-y-1/2 sm:right-4">
+								<RoomActionsMenu
+									onActionComplete={setCreatedAnnouncement}
+									onMutated={refresh}
+									task={task}
+									triggerClassName="text-ink-subtle hover:text-foreground"
+								/>
+							</div>
 						</li>
 					))}
 				</ul>

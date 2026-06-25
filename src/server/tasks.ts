@@ -7,6 +7,8 @@ import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
 import {
 	type CreateTaskInput,
 	createTaskSchema,
+	type DeleteTaskInput,
+	deleteTaskSchema,
 	type GetTaskStyleInput,
 	getTaskStyleSchema,
 	type ListTasksInput,
@@ -15,6 +17,8 @@ import {
 	type SuggestTasksInput,
 	setTaskStyleSchema,
 	suggestTasksSchema,
+	type UpdateTaskInput,
+	updateTaskSchema,
 } from "../lib/renovation/schema";
 import {
 	readBearerToken,
@@ -101,6 +105,165 @@ export async function __createTaskHandler(args: {
 
 	if (error) throw wrapSupabaseError(error);
 	return data;
+}
+
+/** @internal */
+export async function __updateTaskHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: UpdateTaskInput;
+}) {
+	const { data, error } = await args.supabase
+		.from("renovation_tasks")
+		.update({
+			title: args.input.title,
+			category: args.input.category,
+			notes: args.input.notes ?? null,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", args.input.taskId)
+		.eq("owner_id", args.userId)
+		.select()
+		.maybeSingle();
+
+	if (error) throw wrapSupabaseError(error);
+	if (!data) throw new Error("Task not found");
+	return data;
+}
+
+/**
+ * Collect non-empty `storage_path` values into a removal batch keyed by bucket.
+ * Skips empty batches so we never issue a no-op `storage.remove([])`. Mirrors
+ * the helper in `src/server/projects.ts`.
+ */
+function pushRemoval(
+	removals: { bucket: string; paths: string[] }[],
+	bucket: string,
+	rows: { storage_path: string | null }[] | null
+) {
+	const paths = (rows ?? [])
+		.map((row) => row.storage_path)
+		.filter((path): path is string => Boolean(path));
+	if (paths.length > 0) removals.push({ bucket, paths });
+}
+
+/**
+ * @internal
+ *
+ * Hard-delete a single room (task). The FK `ON DELETE CASCADE` chain clears
+ * every task-scoped descendant row (briefs, jobs, generated images, structural
+ * previews, room state, protected elements, and the `task_photos` links), but
+ * the cascade is row-only — it never touches Storage, and `photos` rows are
+ * project-scoped so they survive the cascade. So we:
+ *   1. gather the task's own Storage objects (generated outputs, previews),
+ *   2. find source photos linked *only* to this room (a photo shared with
+ *      another room must stay), delete those orphaned rows, and queue their
+ *      objects for removal,
+ *   3. delete the task row,
+ *   4. remove the Storage objects best-effort.
+ * Same philosophy as the project delete — see
+ * docs/adr/0003-project-delete-storage-cleanup.md.
+ */
+export async function __deleteTaskHandler(args: {
+	userId: string;
+	supabase: SupabaseScoped;
+	input: DeleteTaskInput;
+}) {
+	const { taskId } = args.input;
+	const removals: { bucket: string; paths: string[] }[] = [];
+
+	const generated = await args.supabase
+		.from("generated_images")
+		.select("storage_path")
+		.eq("task_id", taskId)
+		.eq("owner_id", args.userId);
+	if (generated.error) throw wrapSupabaseError(generated.error);
+	pushRemoval(removals, "generated-outputs", generated.data);
+
+	const previews = await args.supabase
+		.from("structural_previews")
+		.select("storage_path")
+		.eq("task_id", taskId)
+		.eq("owner_id", args.userId);
+	if (previews.error) throw wrapSupabaseError(previews.error);
+	pushRemoval(removals, "structural-previews", previews.data);
+
+	// Source photos are project-scoped and reached through the `task_photos`
+	// join, so a photo can in principle belong to more than one room. Only the
+	// photos linked *exclusively* to this room are safe to delete.
+	const links = await args.supabase
+		.from("task_photos")
+		.select("photo_id")
+		.eq("task_id", taskId)
+		.eq("owner_id", args.userId);
+	if (links.error) throw wrapSupabaseError(links.error);
+	const photoIds = (links.data ?? []).map((row) => String(row.photo_id));
+
+	let exclusivePhotoIds: string[] = [];
+	if (photoIds.length > 0) {
+		const shared = await args.supabase
+			.from("task_photos")
+			.select("photo_id")
+			.in("photo_id", photoIds)
+			.neq("task_id", taskId)
+			.eq("owner_id", args.userId);
+		if (shared.error) throw wrapSupabaseError(shared.error);
+		const sharedIds = new Set(
+			(shared.data ?? []).map((row) => String(row.photo_id))
+		);
+		exclusivePhotoIds = photoIds.filter((id) => !sharedIds.has(id));
+
+		if (exclusivePhotoIds.length > 0) {
+			const exclusivePhotos = await args.supabase
+				.from("photos")
+				.select("storage_path")
+				.in("id", exclusivePhotoIds)
+				.eq("owner_id", args.userId);
+			if (exclusivePhotos.error) throw wrapSupabaseError(exclusivePhotos.error);
+			pushRemoval(removals, "source-photos", exclusivePhotos.data);
+		}
+	}
+
+	// Delete the task row; the cascade clears every task-scoped descendant.
+	const deleted = await args.supabase
+		.from("renovation_tasks")
+		.delete()
+		.eq("id", taskId)
+		.eq("owner_id", args.userId);
+	if (deleted.error) throw wrapSupabaseError(deleted.error);
+
+	// The cascade dropped the `task_photos` links but not the project-scoped
+	// `photos` rows, so remove the now-orphaned exclusive photos explicitly.
+	// Best-effort: the room is already gone, so don't fail the user on cleanup.
+	if (exclusivePhotoIds.length > 0) {
+		const removedPhotos = await args.supabase
+			.from("photos")
+			.delete()
+			.in("id", exclusivePhotoIds)
+			.eq("owner_id", args.userId);
+		if (removedPhotos.error) {
+			console.error(
+				"Failed to remove orphaned photos",
+				removedPhotos.error.message
+			);
+		}
+	}
+
+	// Best-effort Storage cleanup. The rows are already gone, so a failure here
+	// only leaves orphaned objects — never block the user on it.
+	for (const removal of removals) {
+		const result = await args.supabase.storage
+			.from(removal.bucket)
+			.remove(removal.paths);
+		if (result.error) {
+			console.error(
+				`Failed to remove ${removal.bucket} objects`,
+				result.error.message
+			);
+		}
+	}
+
+	return { taskId };
 }
 
 /** @internal */
@@ -204,6 +367,20 @@ export const createTask = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
 		return __createTaskHandler({ userId, supabase, input: data });
+	});
+
+export const updateTask = createServerFn({ method: "POST" })
+	.validator(updateTaskSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __updateTaskHandler({ userId, supabase, input: data });
+	});
+
+export const deleteTask = createServerFn({ method: "POST" })
+	.validator(deleteTaskSchema)
+	.handler(async ({ data }) => {
+		const { userId, supabase } = await requireAuthedSupabase(readAuthToken());
+		return __deleteTaskHandler({ userId, supabase, input: data });
 	});
 
 export const getTaskStyle = createServerFn({ method: "GET" })

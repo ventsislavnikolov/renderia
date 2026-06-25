@@ -62,6 +62,19 @@ export const listTasksSchema = z.object({
 });
 export type ListTasksInput = z.infer<typeof listTasksSchema>;
 
+export const updateTaskSchema = z.object({
+	taskId: z.string().uuid(),
+	title: z.string().min(1).max(200),
+	category: z.string().min(1).max(200),
+	notes: z.string().max(4000).optional(),
+});
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+export const deleteTaskSchema = z.object({
+	taskId: z.string().uuid(),
+});
+export type DeleteTaskInput = z.infer<typeof deleteTaskSchema>;
+
 /**
  * A Task's chosen Style id (see `STYLE_PRESETS`). Kept permissive — the valid
  * set lives in code, not the DB, so new Styles ship without a schema bump; the

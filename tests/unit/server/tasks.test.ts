@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RenovationAiProvider } from "../../../src/lib/ai/types";
 import {
 	__createTaskHandler,
+	__deleteTaskHandler,
 	__getTaskStyleHandler,
 	__listProjectTasksHandler,
 	__setTaskStyleHandler,
 	__suggestTasksForProjectHandler,
+	__updateTaskHandler,
 } from "../../../src/server/tasks";
 
 type Row = Record<string, unknown>;
@@ -416,5 +418,223 @@ describe("setTaskStyleHandler", () => {
 				input: { taskId: "task-1", style: "industrial" },
 			})
 		).rejects.toThrow("Task not found");
+	});
+});
+
+describe("updateTaskHandler", () => {
+	it("updates title, category, and notes scoped to the owner", async () => {
+		const updated = {
+			id: "task-1",
+			title: "Master bedroom",
+			category: "bedroom",
+			notes: "north-facing",
+		};
+		// The handler terminates on `.maybeSingle()`, which the stub resolves
+		// from `styleResult`.
+		const { supabase, tasksChain } = buildSupabaseStub({
+			styleResult: { data: updated, error: null },
+		});
+
+		const result = await __updateTaskHandler({
+			userId: "user-1",
+			supabase,
+			input: {
+				taskId: "task-1",
+				title: "Master bedroom",
+				category: "bedroom",
+				notes: "north-facing",
+			},
+		});
+
+		expect(result).toEqual(updated);
+		expect(tasksChain.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Master bedroom",
+				category: "bedroom",
+				notes: "north-facing",
+			})
+		);
+	});
+
+	it("coerces an omitted notes value to null so the column can be cleared", async () => {
+		const { supabase, tasksChain } = buildSupabaseStub({
+			styleResult: { data: { id: "task-1" }, error: null },
+		});
+
+		await __updateTaskHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1", title: "Kitchen", category: "kitchen" },
+		});
+
+		expect(tasksChain.update).toHaveBeenCalledWith(
+			expect.objectContaining({ notes: null })
+		);
+	});
+
+	it("throws when the update matches no owned task", async () => {
+		const { supabase } = buildSupabaseStub({
+			styleResult: { data: null, error: null },
+		});
+
+		await expect(
+			__updateTaskHandler({
+				userId: "user-1",
+				supabase,
+				input: { taskId: "task-1", title: "x", category: "y" },
+			})
+		).rejects.toThrow("Task not found");
+	});
+
+	it("wraps update errors instead of leaking raw messages", async () => {
+		const { supabase } = buildSupabaseStub({
+			styleResult: { data: null, error: { message: "boom" } },
+		});
+
+		await expect(
+			__updateTaskHandler({
+				userId: "user-1",
+				supabase,
+				input: { taskId: "task-1", title: "x", category: "y" },
+			})
+		).rejects.toThrow("Database error");
+	});
+});
+
+/**
+ * Build a stub for the room-delete handler. Each table name maps to a queue of
+ * terminal results consumed in call order, so the two `task_photos` lookups
+ * (links, then shared) and the two `photos` calls (select, then delete) can
+ * return different rows. Storage exposes one shared `remove` mock.
+ */
+function buildTaskDeleteStub(opts: {
+	generated?: { data: Row[] | null; error: unknown };
+	previews?: { data: Row[] | null; error: unknown };
+	taskPhotos?: { data: Row[] | null; error: unknown }[];
+	photos?: { data?: Row[] | null; error: unknown }[];
+	taskDelete?: { error: unknown };
+}) {
+	const queues: Record<string, { data?: Row[] | null; error: unknown }[]> = {
+		generated_images: [opts.generated ?? { data: [], error: null }],
+		structural_previews: [opts.previews ?? { data: [], error: null }],
+		task_photos: opts.taskPhotos ?? [{ data: [], error: null }],
+		photos: opts.photos ?? [],
+		renovation_tasks: [opts.taskDelete ?? { error: null }],
+	};
+
+	const makeChain = (table: string) => {
+		const chain: Record<string, unknown> = {};
+		chain.select = vi.fn(() => chain);
+		chain.eq = vi.fn(() => chain);
+		chain.in = vi.fn(() => chain);
+		chain.neq = vi.fn(() => chain);
+		chain.delete = vi.fn(() => chain);
+		chain.then = (
+			resolve: (value: unknown) => unknown,
+			reject: (reason: unknown) => unknown
+		) => {
+			const queue = queues[table] ?? [];
+			const terminal = queue.length > 1 ? queue.shift() : queue[0];
+			return Promise.resolve(terminal ?? { data: [], error: null }).then(
+				resolve,
+				reject
+			);
+		};
+		return chain;
+	};
+
+	const fromMock = vi.fn((table: string) => makeChain(table));
+	const remove = vi.fn(
+		(): Promise<{ error: { message: string } | null }> =>
+			Promise.resolve({ error: null })
+	);
+	const storageFrom = vi.fn(() => ({ remove }));
+
+	return {
+		supabase: {
+			from: fromMock,
+			storage: { from: storageFrom },
+		} as unknown as Parameters<typeof __deleteTaskHandler>[0]["supabase"],
+		fromMock,
+		storageFrom,
+		remove,
+	};
+}
+
+describe("deleteTaskHandler", () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it("removes task storage + exclusively-owned photos, then deletes the room", async () => {
+		const { supabase, fromMock, storageFrom, remove } = buildTaskDeleteStub({
+			generated: { data: [{ storage_path: "u/g1.png" }], error: null },
+			previews: { data: [{ storage_path: "u/sp1.png" }], error: null },
+			// ph1 is exclusive to this room; ph2 is shared with another room.
+			taskPhotos: [
+				{ data: [{ photo_id: "ph1" }, { photo_id: "ph2" }], error: null },
+				{ data: [{ photo_id: "ph2" }], error: null },
+			],
+			photos: [
+				{ data: [{ storage_path: "u/src1.png" }], error: null },
+				{ error: null },
+			],
+		});
+
+		const result = await __deleteTaskHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1" },
+		});
+
+		expect(result).toEqual({ taskId: "task-1" });
+		expect(fromMock).toHaveBeenCalledWith("renovation_tasks");
+		expect(storageFrom).toHaveBeenCalledWith("generated-outputs");
+		expect(storageFrom).toHaveBeenCalledWith("structural-previews");
+		expect(storageFrom).toHaveBeenCalledWith("source-photos");
+		expect(remove).toHaveBeenCalledWith(["u/g1.png"]);
+		expect(remove).toHaveBeenCalledWith(["u/sp1.png"]);
+		// Only the exclusive photo's object is removed — the shared one stays.
+		expect(remove).toHaveBeenCalledWith(["u/src1.png"]);
+	});
+
+	it("skips photo cleanup when the room has no linked photos", async () => {
+		const { supabase, fromMock, storageFrom } = buildTaskDeleteStub({
+			taskPhotos: [{ data: [], error: null }],
+		});
+
+		await __deleteTaskHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1" },
+		});
+
+		expect(fromMock).not.toHaveBeenCalledWith("photos");
+		expect(storageFrom).not.toHaveBeenCalledWith("source-photos");
+	});
+
+	it("deletes the room even when it owns no storage objects", async () => {
+		const { supabase, storageFrom } = buildTaskDeleteStub({});
+
+		const result = await __deleteTaskHandler({
+			userId: "user-1",
+			supabase,
+			input: { taskId: "task-1" },
+		});
+
+		expect(result).toEqual({ taskId: "task-1" });
+		expect(storageFrom).not.toHaveBeenCalled();
+	});
+
+	it("wraps a lookup error instead of leaking raw messages", async () => {
+		const { supabase } = buildTaskDeleteStub({
+			generated: { data: null, error: { message: "boom" } },
+		});
+
+		await expect(
+			__deleteTaskHandler({
+				userId: "user-1",
+				supabase,
+				input: { taskId: "task-1" },
+			})
+		).rejects.toThrow("Database error");
 	});
 });

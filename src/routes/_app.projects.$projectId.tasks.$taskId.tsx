@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuidedFlow } from "../components/guided/guided-flow";
 import { Breadcrumbs } from "../components/layout/app-shell";
+import { RoomActionsMenu } from "../components/tasks/task-actions-menu";
 import {
 	getAuthHeaders,
 	UNAUTHENTICATED_ERROR,
@@ -30,12 +31,20 @@ export const Route = createFileRoute("/_app/projects/$projectId/tasks/$taskId")(
 
 function TaskWorkspaceRoute() {
 	const { projectId, taskId } = Route.useParams();
+	const navigate = useNavigate();
 	const { projects, tasksMap } = useWorkspace();
 	const cachedTask =
 		tasksMap[projectId]?.find((row) => row.id === taskId) ?? null;
 	const [task, setTask] = useState<TaskRow | null>(cachedTask);
 	const [loadError, setLoadError] = useState<string | null>(null);
+	const [announcement, setAnnouncement] = useState<string | null>(null);
 	const cancelledRef = useRef(false);
+
+	useEffect(() => {
+		if (!announcement) return;
+		const timer = window.setTimeout(() => setAnnouncement(null), 3000);
+		return () => window.clearTimeout(timer);
+	}, [announcement]);
 
 	useEffect(() => {
 		cancelledRef.current = false;
@@ -97,15 +106,33 @@ function TaskWorkspaceRoute() {
 	return (
 		<>
 			<Breadcrumbs>{breadcrumbs}</Breadcrumbs>
+			<output aria-live="polite" className="sr-only">
+				{announcement ?? ""}
+			</output>
 			<section className="grid gap-8">
-				<header className="grid gap-2">
-					<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
-						{task?.title ?? "Renovation task"}
-					</h1>
-					{task?.notes ? (
-						<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted leading-relaxed">
-							{task.notes}
-						</p>
+				<header className="flex items-start justify-between gap-4">
+					<div className="grid min-w-0 gap-2">
+						<h1 className="m-0 font-display font-medium text-4xl text-foreground tracking-tight">
+							{task?.title ?? "Renovation task"}
+						</h1>
+						{task?.notes ? (
+							<p className="m-0 max-w-[60ch] font-body text-base text-ink-muted leading-relaxed">
+								{task.notes}
+							</p>
+						) : null}
+					</div>
+					{task ? (
+						<RoomActionsMenu
+							onActionComplete={setAnnouncement}
+							onDeleted={() =>
+								navigate({
+									params: { projectId },
+									to: "/projects/$projectId",
+								})
+							}
+							task={task}
+							triggerClassName="text-ink-subtle hover:text-foreground"
+						/>
 					) : null}
 				</header>
 				{loadError ? (
