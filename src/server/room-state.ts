@@ -147,7 +147,17 @@ async function signCompositeRow(args: {
  * base64 input images for composite synthesis. Walks newest-first and keeps the
  * first row per photo, so only currently-approved angles feed the stitch.
  */
-async function loadApprovedPreviewImages(args: {
+/**
+ * Load the approved Structural Preview image per kept angle, newest-first and
+ * deduped by reference photo. Returns the decoded image bytes alongside the
+ * preview ids and their source photo ids (all three arrays index-aligned), so
+ * callers can both feed the model and attribute each result to its angle.
+ *
+ * Exported because per-angle design generation (see generation.ts) renders one
+ * concept against each approved angle, the same evidence the (now legacy) Room
+ * Composite synthesis consumes.
+ */
+export async function loadApprovedPreviewImages(args: {
 	supabase: SupabaseScoped;
 	userId: string;
 	taskId: string;
@@ -158,6 +168,7 @@ async function loadApprovedPreviewImages(args: {
 		filename: string;
 	}>;
 	previewIds: string[];
+	referencePhotoIds: string[];
 }> {
 	const previewQuery = await args.supabase
 		.from("structural_previews")
@@ -173,6 +184,7 @@ async function loadApprovedPreviewImages(args: {
 		filename: string;
 	}> = [];
 	const previewIds: string[] = [];
+	const referencePhotoIds: string[] = [];
 	const seenPhotoIds = new Set<string>();
 	for (const row of previewQuery.data ?? []) {
 		const photoId = String(row.reference_photo_id);
@@ -190,8 +202,9 @@ async function loadApprovedPreviewImages(args: {
 			filename: `${row.id}.png`,
 		});
 		previewIds.push(String(row.id));
+		referencePhotoIds.push(photoId);
 	}
-	return { images, previewIds };
+	return { images, previewIds, referencePhotoIds };
 }
 
 export async function __loadTaskRoomStateHandler(args: {

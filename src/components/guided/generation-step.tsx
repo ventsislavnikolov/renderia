@@ -68,8 +68,6 @@ export function GenerationStep(props: {
 	briefId: string | null;
 	brief: string;
 	prompt: string;
-	/** The approved Room Composite to generate against (the generation source). */
-	compositeId?: string | null;
 }) {
 	const [images, setImages] = useState<GeneratedImage[] | null>(null);
 	const [selectedFurnitureIds, setSelectedFurnitureIds] = useState<string[]>(
@@ -178,11 +176,8 @@ export function GenerationStep(props: {
 					briefId: props.briefId,
 					prompt: props.prompt,
 					count: VARIATION_COUNT,
-					compositeId: props.compositeId ?? null,
 					furnitureItemIds:
-						props.compositeId && selectedFurnitureIds.length > 0
-							? selectedFurnitureIds
-							: undefined,
+						selectedFurnitureIds.length > 0 ? selectedFurnitureIds : undefined,
 				},
 				headers,
 			})) as {
@@ -227,7 +222,10 @@ export function GenerationStep(props: {
 					headers,
 				});
 				if (cancelledRef.current) return;
-				if (existing.images.length >= VARIATION_COUNT) {
+				// Any prior batch rehydrates the grid — a per-angle run produces one
+				// image per approved angle, so the count varies by room (not a fixed
+				// VARIATION_COUNT). Re-runs stay user-driven via the button.
+				if (existing.images.length > 0) {
 					setImages(existing.images);
 					setActiveJobId(existing.jobId);
 					await refreshJobs(headers);

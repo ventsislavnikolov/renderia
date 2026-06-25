@@ -9,7 +9,11 @@ import {
 } from "../lib/ai/prompts";
 import { getRenovationAiProvider } from "../lib/ai/provider";
 import { findStylePreset } from "../lib/ai/style-presets";
-import type { ProviderDebug, RenovationAiProvider } from "../lib/ai/types";
+import type {
+	GeneratedImageResult,
+	ProviderDebug,
+	RenovationAiProvider,
+} from "../lib/ai/types";
 import {
 	type CreateDesignBriefInput,
 	createDesignBriefSchema,
@@ -43,6 +47,7 @@ import {
 } from "../lib/supabase/server";
 import type { Database } from "../lib/types/database";
 import { normalizeImageToPng } from "./image-normalize";
+import { loadApprovedPreviewImages } from "./room-state";
 
 /**
  * Server functions for detection, brief, and image generation.
@@ -400,10 +405,25 @@ export async function __generateRenovationImagesHandler(args: {
 		? ("1536x1024" as const)
 		: ("auto" as const);
 
+	// Per-angle generation source: when no single source was supplied, render the
+	// design against EACH approved Structural Preview so the batch covers the
+	// whole room as a set of individually coherent per-angle views. This
+	// supersedes the Room Composite as the generation basis — stitching
+	// non-overlapping corners into one frame produced incoherent collages. See
+	// docs/adr/0002.
+	const perAngle = sourceImage
+		? { images: [], previewIds: [], referencePhotoIds: [] }
+		: await loadApprovedPreviewImages({
+				supabase: args.supabase,
+				userId: args.userId,
+				taskId: args.input.taskId,
+			});
+	const hasSource = Boolean(sourceImage) || perAngle.images.length > 0;
+
 	// Furniture references ride along as extra input images on the same edit
-	// call, so they only make sense when a source photo anchors the room.
+	// call, so they only make sense when a source image anchors the room.
 	const furnitureItemIds = args.input.furnitureItemIds ?? [];
-	if (furnitureItemIds.length > 0 && !sourceImage) {
+	if (furnitureItemIds.length > 0 && !hasSource) {
 		throw new Error("Furniture references require a source photo");
 	}
 	const furnitureReferences =
@@ -441,27 +461,20 @@ export async function __generateRenovationImagesHandler(args: {
 				depthCm: reference.depthCm,
 			}))
 		);
-		const prompts = buildConceptVariationPrompts(
-			args.input.prompt,
-			clampedCount
-		).map((prompt) =>
-			furnitureSection ? `${prompt}\n\n${furnitureSection}` : prompt
-		);
-		const providerResult = await args.provider.generateRenovationImages({
-			sourceImage,
-			referenceImages:
-				furnitureReferences.length > 0 ? furnitureReferences : undefined,
-			prompts,
-			outputSize,
-		});
+		const applyFurniture = (prompt: string) =>
+			furnitureSection ? `${prompt}\n\n${furnitureSection}` : prompt;
+		const referenceImages =
+			furnitureReferences.length > 0 ? furnitureReferences : undefined;
 
 		const uploaded: GeneratedImagePayload[] = [];
-		for (let index = 0; index < providerResult.value.length; index += 1) {
-			const image = providerResult.value[index];
-			if (!image) continue;
+		let providerDebug: ProviderDebug | undefined;
+
+		// Persist one provider image as a generated_images row + signed URL.
+		// `index` becomes `variation_index`: the Take ordinal in the legacy path,
+		// the angle ordinal in the per-angle path.
+		const persist = async (index: number, image: GeneratedImageResult) => {
 			const buffer = Buffer.from(image.base64, "base64");
 			const storagePath = `${args.userId}/${jobId}-${index}.png`;
-
 			const upload = await args.supabase.storage
 				.from(GENERATED_BUCKET)
 				.upload(storagePath, buffer, {
@@ -471,7 +484,6 @@ export async function __generateRenovationImagesHandler(args: {
 			if (upload.error) {
 				throw new Error(`Failed to upload variation ${index}`);
 			}
-
 			const inserted = await args.supabase
 				.from("generated_images")
 				.insert({
@@ -486,14 +498,12 @@ export async function __generateRenovationImagesHandler(args: {
 				.select("id, storage_path, variation_index, is_favorite")
 				.single();
 			if (inserted.error) throw wrapSupabaseError(inserted.error);
-
 			const signed = await args.supabase.storage
 				.from(GENERATED_BUCKET)
 				.createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
 			if (signed.error || !signed.data?.signedUrl) {
 				throw new Error("Failed to mint signed URL for generated image");
 			}
-
 			uploaded.push({
 				id: String(inserted.data.id),
 				storagePath: String(inserted.data.storage_path),
@@ -502,6 +512,45 @@ export async function __generateRenovationImagesHandler(args: {
 				isFavorite: Boolean(inserted.data.is_favorite),
 				contents: null,
 			});
+		};
+
+		if (perAngle.images.length > 0) {
+			// One design concept rendered against each approved angle. Every angle
+			// shares the same prompt so the room reads as one consistent design;
+			// the model still produces the geometry of each real photo.
+			const conceptPrompt = applyFurniture(
+				buildConceptVariationPrompts(args.input.prompt, 1)[0] ??
+					args.input.prompt
+			);
+			for (let index = 0; index < perAngle.images.length; index += 1) {
+				const result = await args.provider.generateRenovationImages({
+					sourceImage: perAngle.images[index],
+					referenceImages,
+					prompts: [conceptPrompt],
+					outputSize: "auto",
+				});
+				providerDebug = result.debug;
+				const image = result.value[0];
+				if (image) await persist(index, image);
+			}
+		} else {
+			// Legacy single-source (composite/photo) or text-only path: N Takes
+			// against one source image.
+			const prompts = buildConceptVariationPrompts(
+				args.input.prompt,
+				clampedCount
+			).map(applyFurniture);
+			const result = await args.provider.generateRenovationImages({
+				sourceImage,
+				referenceImages,
+				prompts,
+				outputSize,
+			});
+			providerDebug = result.debug;
+			for (let index = 0; index < result.value.length; index += 1) {
+				const image = result.value[index];
+				if (image) await persist(index, image);
+			}
 		}
 
 		const completion = await args.supabase
@@ -514,10 +563,7 @@ export async function __generateRenovationImagesHandler(args: {
 			.eq("owner_id", args.userId);
 		if (completion.error) throw wrapSupabaseError(completion.error);
 
-		return attachDebugIfDev(
-			{ jobId, images: uploaded },
-			providerResult.debug
-		) as {
+		return attachDebugIfDev({ jobId, images: uploaded }, providerDebug) as {
 			data: { jobId: string; images: GeneratedImagePayload[] };
 			debug?: ProviderDebug;
 		};

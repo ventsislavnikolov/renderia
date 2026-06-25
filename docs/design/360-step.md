@@ -1,120 +1,63 @@
-# 360 step — design (HITL deliverable for #76)
+# "Room" step — design (originally the 360 / Room Composite step, #76)
 
-The "360" step sits between **Preview** and **Brief**:
+> **Superseded (per-angle pivot).** This step no longer synthesises a single
+> wide "360" Room Composite. Stitching four non-overlapping corner angles into
+> one frame produced incoherent collages (visible seams, mismatched
+> perspective), so the design is now generated **per approved angle** instead.
+> Step 05 became a **read-only review** of the approved angles. See ADR 0002 for
+> the original decision and the superseding note.
 
-`Upload → Review → Merge → Preview → 360 → Brief → Generate`
+The step sits between **Preview** and **Brief**:
 
-It builds, shows, and approves the **Room Composite** — a single 3:2 wide
-empty-room view synthesised from every approved Structural Preview. UI label is
-"360 view"; code/types/table use Room Composite (see CONTEXT.md, ADR 0002).
+`Upload → Review → Merge → Preview → Room → Brief → Generate`
 
-Reachability: the step is enabled only when `allPreviewsApproved(roomState)` is
-true (every kept photo has an approved Structural Preview — slice #75).
+It shows every approved Structural Preview side by side so the user confirms the
+whole room before writing the brief. There is **no AI synthesis** here. UI label
+is "Room"; the component is `RoomReviewStep` (`room-review-step.tsx`).
+
+Reachability: the step — and now the Brief and Generate steps — are enabled when
+`allPreviewsApproved(roomState)` is true (every kept photo has an approved
+Structural Preview, slice #75). There is no separate composite-approval gate.
 
 Visual idiom matches the other steps: a single `border border-border bg-surface
-p-10` card, `font-display` numbered heading, `Button` primitives, `role=status`
-progress line.
+p-10` card, `font-display` numbered heading, `Button` primitives.
 
-## State machine
-
-```
-            ┌─────────────┐  Build 360 view   ┌──────────┐
-   enter ──▶│  not-built  │ ────────────────▶ │ building │
-            └─────────────┘                   └────┬─────┘
-                  ▲                                 │ synthesis returns
-                  │ Re-synthesize                   ▼
-                  │                        ┌───────────────────┐
-                  └──────────────────────  │ awaiting-approval │
-                                           └─────────┬─────────┘
-                                                     │ Approve
-                                                     ▼
-                                              ┌────────────┐
-                                              │  approved  │ ─▶ unlocks Brief
-                                              └────────────┘
-```
-
-Invalidation: going back and changing room evidence (re-generating any angle,
-editing appearances/objects) clears approvals via `invalidatePreview`, which
-drops the composite back to `not-built` on return.
-
-## State: not-built
+## Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ 05 / 360 view                                                  │
+│ 5. Review the whole room                                       │
+│ These are your N approved angles. The design is generated      │
+│ against each one, so it reflects the whole room — every angle  │
+│ stays a clean, coherent view rather than one stitched frame.   │
 │                                                                │
-│ 5. Build the 360 view                                          │
-│ Combine your approved angles into one wide empty-room view of  │
-│ the whole captured room. The design is generated against this  │
-│ view, so it reflects the full room — not a single angle.       │
+│  ┌──────────┐ ┌──────────┐                                     │
+│  │  angle A │ │  angle B │   ← approved preview thumbnails      │
+│  └──────────┘ └──────────┘                                     │
+│  ┌──────────┐ ┌──────────┐                                     │
+│  │  angle C │ │  angle D │                                     │
+│  └──────────┘ └──────────┘                                     │
 │                                                                │
-│ Source angles (3 approved)                                     │
-│  ┌────────┐ ┌────────┐ ┌────────┐                              │
-│  │ ✓ IMG  │ │ ✓ IMG  │ │ ✓ IMG  │   ← approved preview thumbs  │
-│  │ wall A │ │ wall B │ │ corner │                              │
-│  └────────┘ └────────┘ └────────┘                              │
-│                                                                │
-│ [ Build 360 view ]                                             │
-│                                                                │
-│ ⓘ This is a wide composite of the angles you photographed,    │
-│   not a literal 360° wrap-around.                              │
+│ [ Continue to brief ]                                          │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## State: building
+The thumbnails come from the wizard's in-memory `previews` record
+(`Record<photoId, { id, signedUrl }>`), already loaded by `loadTaskRoomState` —
+no extra fetch.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 5. Build the 360 view                                          │
-│                                                                │
-│  ░░░░░░░░░░░░░░░░░░░░  Synthesising 360 view…                  │
-│  (skeleton at 3:2 aspect)                                      │
-│                                                                │
-│ [ Building… ] (disabled)                                       │
-└──────────────────────────────────────────────────────────────┘
-```
+## Generation (step 07)
 
-## State: awaiting-approval
+The design is generated against **each approved angle independently**: one
+design concept (a single Take) is rendered on every approved Structural Preview,
+producing one image per angle that together cover the whole room. Each output
+stays photoreal and coherent because it is an edit of one real photo. See
+`__generateRenovationImagesHandler` (the per-angle branch) in
+`src/server/generation.ts`.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 5. Build the 360 view                                          │
-│ Check the wide view matches your room before furnishing it.    │
-│                                                                │
-│ ┌────────────────────────────────────────────────────────┐   │
-│ │                  3:2 wide empty-room composite           │   │
-│ │              (max-h, object-contain, bordered)           │   │
-│ └────────────────────────────────────────────────────────┘   │
-│ Approve only if walls, openings, and kept objects look right.  │
-│                                                                │
-│ [ Approve 360 view ]   [ Re-synthesize ]   (error? inline)    │
-└──────────────────────────────────────────────────────────────┘
-```
+## Deprecated composite code
 
-## State: approved
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 5. Build the 360 view            ✓ Approved — ready for Brief  │
-│                                                                │
-│ ┌────────────────────────────────────────────────────────┐   │
-│ │                  3:2 wide empty-room composite           │   │
-│ └────────────────────────────────────────────────────────┘   │
-│                                                                │
-│ [ Re-synthesize ]   (re-opens approval; clears Brief gate)     │
-└──────────────────────────────────────────────────────────────┘
-```
-
-On Approve, advance to Brief (mirrors `onApproved` in the current preview step).
-
-## Notes for the build slice (#77)
-
-- Persist the composite in `room_composites` (status: generated → approved →
-  superseded; supersede the prior on each re-synthesis). Approval gate mirrors
-  the per-photo preview pattern from #75.
-- Brief unlocks on composite-approved; this becomes the new `reached.brief`
-  predicate (replacing `allPreviewsApproved` as the Brief gate — that now gates
-  the 360 step instead).
-- Empty/edge cases: 1 approved angle still builds (a wider single view); a
-  back-edit that invalidates approvals must reset the composite to not-built.
-```
+The Room Composite synthesis (`generateRoomComposite` / `approveRoomComposite`
+server fns, the `room_composites` table, and the progressive-outpaint provider
+method) is no longer reached from the UI. It is left in place pending a cleanup
+pass and is safe to remove once nothing else references it.

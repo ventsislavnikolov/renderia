@@ -90,6 +90,12 @@ function buildGenerationSupabaseStub(opts: {
 	};
 	uploadResult?: { error: unknown };
 	jobUpdateResult?: { error: unknown };
+	/**
+	 * Approved Structural Preview rows for the per-angle path. Defaults to an
+	 * empty list so legacy single-source / text-only tests stay on the legacy
+	 * branch (no approved previews → no per-angle generation).
+	 */
+	approvedPreviewRows?: { data: Row[] | null; error: unknown };
 }) {
 	const fromMock = vi.fn();
 
@@ -201,6 +207,15 @@ function buildGenerationSupabaseStub(opts: {
 				)
 			);
 			return compositesChain;
+		}
+		if (table === "structural_previews") {
+			const previewsChain: Record<string, (...args: unknown[]) => unknown> = {};
+			previewsChain.select = vi.fn(() => previewsChain);
+			previewsChain.eq = vi.fn(() => previewsChain);
+			previewsChain.order = vi.fn(() =>
+				Promise.resolve(opts.approvedPreviewRows ?? { data: [], error: null })
+			);
+			return previewsChain;
 		}
 		if (table === "generation_jobs") return jobsChain;
 		if (table === "generated_images") return imagesChain;
@@ -658,6 +673,65 @@ describe("generateRenovationImagesHandler", () => {
 		const call = provider.generateRenovationImages.mock.calls[0]?.[0];
 		expect(call?.outputSize).toBe("1536x1024");
 		expect(call?.sourceImage).toBeDefined();
+	});
+
+	it("renders one concept against each approved angle when no single source is set", async () => {
+		const stub = buildGenerationSupabaseStub({
+			approvedPreviewRows: {
+				data: [
+					{
+						id: "prev-a",
+						storage_bucket: "structural-previews",
+						storage_path: "user-1/a.png",
+						status: "approved",
+						reference_photo_id: "photo-a",
+					},
+					{
+						id: "prev-b",
+						storage_bucket: "structural-previews",
+						storage_path: "user-1/b.png",
+						status: "approved",
+						reference_photo_id: "photo-b",
+					},
+				],
+				error: null,
+			},
+		});
+		const provider = buildMockProvider();
+		// One image per angle call — the per-angle path uses value[0] of each.
+		provider.generateRenovationImages.mockResolvedValue({
+			value: [{ base64: "AAAA", contentType: "image/png" as const }],
+			debug: { ...SAMPLE_DEBUG, model: "gpt-image-2" },
+		});
+
+		const result = await __generateRenovationImagesHandler({
+			userId: "user-1",
+			supabase: stub.supabase,
+			provider,
+			providerName: "mock",
+			input: {
+				taskId: "t1",
+				briefId: null,
+				prompt: "PRESERVE EXACTLY",
+				count: 2,
+			},
+		});
+
+		// One provider call per approved angle, each a single-concept prompt so
+		// the whole room shares one consistent design.
+		expect(provider.generateRenovationImages).toHaveBeenCalledTimes(2);
+		for (const call of provider.generateRenovationImages.mock.calls) {
+			expect(call[0]?.prompts).toHaveLength(1);
+			expect(call[0]?.sourceImage).toBeDefined();
+			expect(call[0]?.outputSize).toBe("auto");
+		}
+		// One persisted image per angle, variation_index = angle ordinal.
+		expect(result.data.images).toHaveLength(2);
+		expect(result.data.images[0]?.variationIndex).toBe(0);
+		expect(result.data.images[1]?.variationIndex).toBe(1);
+		expect(stub.fromMock).toHaveBeenCalledWith("structural_previews");
+		// The per-angle path never consults a Room Composite.
+		expect(stub.fromMock).not.toHaveBeenCalledWith("room_composites");
 	});
 
 	it("rejects with 'Task not found' when the task is not owned by the caller", async () => {

@@ -1,5 +1,18 @@
 # The final design is generated from a synthesized Room Composite, not a single Reference Photo
 
+> **Superseded by per-angle generation.** The Room Composite is no longer the
+> generation source. Two attempts failed: a single `gpt-image-2` edit collapsed
+> the multi-angle room to one corner, and a progressive-outpaint panorama
+> produced incoherent collages (visible seams, mismatched perspective) because
+> the four approved angles are non-overlapping corners with nothing to stitch
+> through. The design is now generated **against each approved Structural
+> Preview independently** — one design concept rendered per angle, each output
+> photoreal because it edits one real photo, the set covering the whole room.
+> Step 05 ("360") became a read-only "Room" review of the approved angles. The
+> `room_composites` table and the `generateRoomComposite` / `approveRoomComposite`
+> server fns remain but are unused, pending a cleanup pass. The rest of this ADR
+> is kept for historical context.
+
 Today the furnished renovation concepts are generated from one **Reference Photo**
 — a single camera angle ("POV"). To support full-room design when the Room Set
 contains several angles (and some Photos are poor quality), the flow gains a

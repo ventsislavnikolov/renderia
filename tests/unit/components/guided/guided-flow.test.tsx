@@ -216,28 +216,11 @@ vi.mock("../../../../src/components/guided/layout-preview-step", () => ({
 	),
 }));
 
-vi.mock("../../../../src/components/guided/room-composite-step", () => ({
-	RoomCompositeStep: (props: {
-		composite: { id: string; signedUrl: string; status: string } | null;
-		onCompositeChange: (next: unknown) => void;
-		onApproved: () => void;
-	}) => (
-		<div data-testid="composite-step">
-			<span data-testid="composite-status">
-				{props.composite?.status ?? "none"}
-			</span>
-			<button
-				onClick={() => {
-					props.onCompositeChange({
-						id: "composite-1",
-						signedUrl: "https://signed/composite-1.png",
-						status: "approved",
-					});
-					props.onApproved();
-				}}
-				type="button"
-			>
-				build-and-approve-composite
+vi.mock("../../../../src/components/guided/room-review-step", () => ({
+	RoomReviewStep: (props: { onNext: () => void }) => (
+		<div data-testid="room-step">
+			<button onClick={props.onNext} type="button">
+				continue-to-brief
 			</button>
 		</div>
 	),
@@ -272,17 +255,10 @@ vi.mock("../../../../src/components/guided/brief-step", () => ({
 }));
 
 vi.mock("../../../../src/components/guided/generation-step", () => ({
-	GenerationStep: (props: {
-		briefId: string | null;
-		prompt: string;
-		compositeId?: string | null;
-	}) => (
+	GenerationStep: (props: { briefId: string | null; prompt: string }) => (
 		<div data-testid="generation-step">
 			<span data-testid="generation-brief-id">{props.briefId ?? "null"}</span>
 			<span data-testid="generation-prompt">{props.prompt}</span>
-			<span data-testid="generation-composite-id">
-				{props.compositeId ?? "null"}
-			</span>
 		</div>
 	),
 }));
@@ -323,7 +299,7 @@ describe("GuidedFlow orchestrator", () => {
 		expect(buttons[1]?.textContent).toMatch(/Review/i);
 		expect(buttons[2]?.textContent).toMatch(/Merge/i);
 		expect(buttons[3]?.textContent).toMatch(/Preview/i);
-		expect(buttons[4]?.textContent).toMatch(/360/i);
+		expect(buttons[4]?.textContent).toMatch(/Room/i);
 		expect(buttons[5]?.textContent).toMatch(/Brief/i);
 		expect(buttons[6]?.textContent).toMatch(/Generate/i);
 		expect(buttons[0]?.getAttribute("aria-current")).toBe("step");
@@ -331,7 +307,7 @@ describe("GuidedFlow orchestrator", () => {
 		expect(buttons[6]?.hasAttribute("disabled")).toBe(true);
 	});
 
-	it("advances upload → review → merge → preview → 360 → brief → generate", async () => {
+	it("advances upload → review → merge → preview → room → brief → generate", async () => {
 		const user = userEvent.setup();
 		render(<GuidedFlow projectId="p1" taskId="t1" taskTitle="ceiling" />);
 
@@ -344,10 +320,11 @@ describe("GuidedFlow orchestrator", () => {
 		await user.click(screen.getByText("merge-room-objects"));
 		expect(screen.getByTestId("preview-step")).toBeDefined();
 
+		// Approving every angle unlocks the read-only room review step.
 		await user.click(screen.getByText("approve-preview"));
-		expect(screen.getByTestId("composite-step")).toBeDefined();
+		expect(screen.getByTestId("room-step")).toBeDefined();
 
-		await user.click(screen.getByText("build-and-approve-composite"));
+		await user.click(screen.getByText("continue-to-brief"));
 		expect(screen.getByTestId("brief-step")).toBeDefined();
 
 		await user.click(screen.getByText("generate-brief"));
@@ -360,8 +337,5 @@ describe("GuidedFlow orchestrator", () => {
 		expect(
 			within(generation).getByTestId("generation-prompt").textContent
 		).toBe("APPROVED ROOM OBJECTS");
-		expect(
-			within(generation).getByTestId("generation-composite-id").textContent
-		).toBe("composite-1");
 	});
 });

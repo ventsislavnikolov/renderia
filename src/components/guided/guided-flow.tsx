@@ -20,8 +20,8 @@ import { GenerationStep } from "./generation-step";
 import { LayoutPreviewStep } from "./layout-preview-step";
 import { PhotoReviewStep } from "./photo-review-step";
 import { PhotoUploadStep } from "./photo-upload-step";
-import { type CompositeImage, RoomCompositeStep } from "./room-composite-step";
 import { RoomMergeStep } from "./room-merge-step";
+import { RoomReviewStep } from "./room-review-step";
 
 const DEFAULT_STYLE_RULES =
 	"Scandinavian renovation style with warm neutral palette.";
@@ -49,7 +49,7 @@ const STEP_LABELS: Record<StepId, string> = {
 	review: "Review",
 	merge: "Merge",
 	preview: "Preview",
-	composite: "360",
+	composite: "Room",
 	brief: "Brief",
 	generate: "Generate",
 };
@@ -76,7 +76,6 @@ export function GuidedFlow(props: {
 	// Latest structural preview per reference photo angle, keyed by photo id.
 	const [previews, setPreviews] = useState<Record<string, PreviewImage>>({});
 	// Latest Room Composite (the "360 view") for the task, or null if unbuilt.
-	const [composite, setComposite] = useState<CompositeImage | null>(null);
 	const [brief, setBrief] = useState("");
 	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
@@ -149,7 +148,6 @@ export function GuidedFlow(props: {
 				if (cancelledRef.current) return;
 				setRoomState(loadedRoom.roomState);
 				setPreviews(loadedRoom.previews);
-				setComposite(loadedRoom.composite);
 				hasLoadedRoomStateRef.current = true;
 				setPhotos(
 					projectPhotos.filter((photo) =>
@@ -223,15 +221,18 @@ export function GuidedFlow(props: {
 		roomState.photoIds.every((photoId) =>
 			roomState.reviewedPhotoIds.includes(photoId)
 		);
-	const compositeApproved = composite?.status === "approved";
+	// Every kept angle has an approved Structural Preview. This single gate now
+	// unlocks the read-only Room review, the Brief, and Generate — the design is
+	// generated per-angle, so there is no separate composite-approval step.
+	const allApproved = roomState !== null && allPreviewsApproved(roomState);
 	const reached: Record<StepId, boolean> = {
 		upload: true,
 		review: photos.length > 0 && roomState !== null,
 		merge: reviewedAll,
 		preview: reviewedAll,
-		composite: roomState !== null && allPreviewsApproved(roomState),
-		brief: compositeApproved,
-		generate: compositeApproved && brief.length > 0,
+		composite: allApproved,
+		brief: allApproved,
+		generate: allApproved && brief.length > 0,
 	};
 
 	function goTo(target: StepId) {
@@ -258,7 +259,6 @@ export function GuidedFlow(props: {
 				approvedPhotoIds: [],
 			});
 			setPreviews({});
-			setComposite(null);
 			setBrief("");
 			setBriefId(null);
 			setPrompt("");
@@ -315,9 +315,6 @@ export function GuidedFlow(props: {
 			const { [photoId]: _removed, ...rest } = prev;
 			return rest;
 		});
-		// The composite was synthesised from the prior angle set — drop it so the
-		// user rebuilds it from the changed evidence.
-		setComposite(null);
 	}
 
 	return (
@@ -440,14 +437,11 @@ export function GuidedFlow(props: {
 			) : null}
 
 			{step === "composite" && roomState ? (
-				<RoomCompositeStep
-					composite={composite}
-					onApproved={() => setStep("brief")}
-					onCompositeChange={setComposite}
+				<RoomReviewStep
+					onNext={() => setStep("brief")}
 					photos={photos}
+					previews={previews}
 					roomState={roomState}
-					taskId={props.taskId}
-					taskTitle={props.taskTitle}
 				/>
 			) : null}
 
@@ -479,7 +473,6 @@ export function GuidedFlow(props: {
 				<GenerationStep
 					brief={brief}
 					briefId={briefId}
-					compositeId={composite?.id ?? null}
 					prompt={prompt}
 					taskId={props.taskId}
 				/>
