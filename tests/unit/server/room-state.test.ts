@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RenovationAiProvider } from "../../../src/lib/ai/types";
 import {
-	__approveRoomCompositeHandler,
 	__approveStructuralPreviewHandler,
-	__generateRoomCompositeHandler,
 	__generateStructuralPreviewHandler,
 	__loadTaskRoomStateHandler,
 	__saveTaskRoomStateHandler,
@@ -23,12 +21,8 @@ function buildProvider(): RenovationAiProvider & {
 		generateRenovationImages: vi.fn().mockResolvedValue({
 			value: [{ base64: "AAAA", contentType: "image/png" as const }],
 		}),
-		generateRoomComposite: vi.fn().mockResolvedValue({
-			value: { base64: "BBBB", contentType: "image/png" as const },
-		}),
 	} as unknown as RenovationAiProvider & {
 		generateRenovationImages: ReturnType<typeof vi.fn>;
-		generateRoomComposite: ReturnType<typeof vi.fn>;
 	};
 }
 
@@ -42,9 +36,6 @@ function buildSupabaseStub(opts?: {
 	roomSetInsertResult?: { data: Row | null; error: unknown };
 	previewInsertResult?: { data: Row | null; error: unknown };
 	updateResult?: { data: Row | null; error: unknown };
-	compositeResult?: { data: Row | null; error: unknown };
-	compositeInsertResult?: { data: Row | null; error: unknown };
-	compositeApproveResult?: { data: Row | null; error: unknown };
 }) {
 	const fromMock = vi.fn();
 
@@ -253,50 +244,7 @@ function buildSupabaseStub(opts?: {
 	previewsChain.insert = vi.fn(() => previewInsertChain);
 	previewsChain.update = vi.fn(() => previewUpdateChain);
 
-	const compositeSelectChain: Record<string, (...args: unknown[]) => unknown> =
-		{};
-	compositeSelectChain.select = vi.fn(() => compositeSelectChain);
-	compositeSelectChain.eq = vi.fn(() => compositeSelectChain);
-	compositeSelectChain.order = vi.fn(() => compositeSelectChain);
-	compositeSelectChain.limit = vi.fn(() => compositeSelectChain);
-	compositeSelectChain.maybeSingle = vi.fn(() =>
-		Promise.resolve(opts?.compositeResult ?? { data: null, error: null })
-	);
-	const compositeInsertChain: Record<string, (...args: unknown[]) => unknown> =
-		{};
-	compositeInsertChain.select = vi.fn(() => compositeInsertChain);
-	compositeInsertChain.single = vi.fn(() =>
-		Promise.resolve(
-			opts?.compositeInsertResult ?? {
-				data: {
-					id: "composite-1",
-					storage_bucket: "room-composites",
-					storage_path: "user-1/task-1/composite-1.png",
-					status: "generated",
-				},
-				error: null,
-			}
-		)
-	);
-	const compositeUpdateChain: Record<string, (...args: unknown[]) => unknown> =
-		{};
-	compositeUpdateChain.eq = vi.fn(() => compositeUpdateChain);
-	compositeUpdateChain.select = vi.fn(() => compositeUpdateChain);
-	compositeUpdateChain.maybeSingle = vi.fn(() =>
-		Promise.resolve(
-			opts?.compositeApproveResult ?? {
-				data: { id: "composite-1" },
-				error: null,
-			}
-		)
-	);
-	const compositesChain: Record<string, (...args: unknown[]) => unknown> = {};
-	compositesChain.select = vi.fn(() => compositeSelectChain);
-	compositesChain.insert = vi.fn(() => compositeInsertChain);
-	compositesChain.update = vi.fn(() => compositeUpdateChain);
-
 	fromMock.mockImplementation((table: string) => {
-		if (table === "room_composites") return compositesChain;
 		if (table === "renovation_tasks") return tasksChain;
 		if (table === "task_room_sets") return roomSetChain;
 		if (table === "task_photos") return taskPhotosChain;
@@ -354,7 +302,6 @@ function buildSupabaseStub(opts?: {
 		appearancesChain,
 		objectsChain,
 		previewsChain,
-		compositesChain,
 		roomSetChain,
 		uploadMock,
 		createSignedUrlMock,
@@ -375,7 +322,6 @@ describe("room-state server handlers", () => {
 		expect(result.roomState.reviewedPhotoIds).toStrictEqual(["photo-1"]);
 		expect(result.roomState.referencePhotoId).toBe("photo-2");
 		expect(result.roomState.approvedPhotoIds).toStrictEqual(["photo-2"]);
-		expect(result.composite).toBeNull();
 		expect(result.roomState.objects).toHaveLength(1);
 		expect(result.previews["photo-2"]?.signedUrl).toContain("preview-1.png");
 		expect(result.previews["photo-2"]?.referencePhotoId).toBe("photo-2");
@@ -562,117 +508,5 @@ describe("room-state server handlers", () => {
 
 		expect(stub.previewsChain.update).toHaveBeenCalled();
 		expect(stub.roomSetChain.update).toHaveBeenCalled();
-	});
-
-	it("signs and returns the latest room composite when one exists", async () => {
-		const stub = buildSupabaseStub({
-			compositeResult: {
-				data: {
-					id: "composite-9",
-					storage_bucket: "room-composites",
-					storage_path: "user-1/task-1/composite-9.png",
-					status: "approved",
-				},
-				error: null,
-			},
-		});
-
-		const result = await __loadTaskRoomStateHandler({
-			userId: "user-1",
-			supabase: stub.supabase,
-			input: { taskId: "task-1" },
-		});
-
-		expect(result.composite?.id).toBe("composite-9");
-		expect(result.composite?.status).toBe("approved");
-		expect(result.composite?.signedUrl).toContain("composite-9.png");
-	});
-
-	it("synthesises a room composite from the approved previews and persists it", async () => {
-		const stub = buildSupabaseStub();
-		const provider = buildProvider();
-
-		const result = await __generateRoomCompositeHandler({
-			userId: "user-1",
-			supabase: stub.supabase,
-			provider,
-			input: {
-				taskId: "task-1",
-				taskTitle: "Bedroom refresh",
-				roomState: {
-					photoIds: ["photo-1", "photo-2"],
-					reviewedPhotoIds: ["photo-1", "photo-2"],
-					referencePhotoId: "photo-2",
-					approvedPhotoIds: ["photo-2"],
-					appearances: [],
-					objects: [],
-				},
-			},
-		});
-
-		expect(provider.generateRoomComposite).toHaveBeenCalledWith({
-			previews: [expect.objectContaining({ contentType: "image/png" })],
-			prompt: expect.stringContaining("ROOM COMPOSITE OBJECTIVE"),
-		});
-		expect(stub.uploadMock).toHaveBeenCalledWith(
-			expect.stringContaining("user-1/task-1/"),
-			expect.anything(),
-			expect.objectContaining({ contentType: "image/png", upsert: false })
-		);
-		// Prior composites are superseded before the new row is inserted.
-		expect(stub.compositesChain.update).toHaveBeenCalled();
-		expect(result.composite.id).toBe("composite-1");
-	});
-
-	it("rejects composite synthesis when no previews are approved", async () => {
-		const stub = buildSupabaseStub({
-			previewResult: {
-				data: [
-					{
-						id: "preview-7",
-						storage_bucket: "structural-previews",
-						storage_path: "user-1/preview-7.png",
-						status: "generated",
-						reference_photo_id: "photo-1",
-					},
-				],
-				error: null,
-			},
-		});
-		const provider = buildProvider();
-
-		await expect(
-			__generateRoomCompositeHandler({
-				userId: "user-1",
-				supabase: stub.supabase,
-				provider,
-				input: {
-					taskId: "task-1",
-					taskTitle: "Bedroom refresh",
-					roomState: {
-						photoIds: ["photo-1"],
-						reviewedPhotoIds: ["photo-1"],
-						referencePhotoId: "photo-1",
-						approvedPhotoIds: [],
-						appearances: [],
-						objects: [],
-					},
-				},
-			})
-		).rejects.toThrow(/no approved previews/i);
-		expect(provider.generateRoomComposite).not.toHaveBeenCalled();
-	});
-
-	it("approves a room composite and supersedes the rest", async () => {
-		const stub = buildSupabaseStub();
-
-		const result = await __approveRoomCompositeHandler({
-			userId: "user-1",
-			supabase: stub.supabase,
-			input: { taskId: "task-1", compositeId: "composite-1" },
-		});
-
-		expect(stub.compositesChain.update).toHaveBeenCalled();
-		expect(result.ok).toBe(true);
 	});
 });

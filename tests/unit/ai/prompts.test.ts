@@ -4,10 +4,6 @@ import {
 	buildDesignBriefMarkdown,
 	buildDesignPrompt,
 	buildFurnitureReferenceSection,
-	buildOrderRoomAnglesPrompt,
-	buildRoomCompositeAnchorPrompt,
-	buildRoomCompositeExtendPrompt,
-	buildRoomCompositePrompt,
 	buildStructuralPreviewPrompt,
 	TAKES,
 } from "../../../src/lib/ai/prompts";
@@ -557,44 +553,5 @@ describe("buildConceptVariationPrompts — Take layer", () => {
 			expect(first).toContain(basePrompt);
 			expect(first).toContain("Take: Airy & minimal");
 		}
-	});
-});
-
-describe("Room Composite prompts — progressive outpaint", () => {
-	const baseObjective = buildRoomCompositePrompt({
-		taskTitle: "Bedroom refresh",
-		roomObjects: [],
-		sourcePreviewCount: 4,
-	});
-
-	it("base objective describes a wide panorama, not a single 3:2 frame", () => {
-		expect(baseObjective).toContain("ROOM COMPOSITE OBJECTIVE");
-		expect(baseObjective).toContain("wide panorama");
-		expect(baseObjective).not.toContain("3:2");
-		// Still an empty-room basis, never furnished.
-		expect(baseObjective).toContain("EMPTY room");
-	});
-
-	it("anchor prompt layers the leftmost-tile scaffolding onto the objective", () => {
-		const anchor = buildRoomCompositeAnchorPrompt(baseObjective);
-		expect(anchor).toContain(baseObjective);
-		expect(anchor).toContain("ANCHOR TILE");
-		expect(anchor).toContain("left end of a wider panorama");
-	});
-
-	it("extend prompt pins the left strip and continues the room rightward", () => {
-		const extend = buildRoomCompositeExtendPrompt(baseObjective);
-		expect(extend).toContain(baseObjective);
-		expect(extend).toContain("EXTEND THE PANORAMA RIGHTWARD");
-		expect(extend).toContain("LEFT strip");
-		expect(extend).toContain("RIGHT region");
-		expect(extend).toContain("seam is invisible");
-	});
-
-	it("order prompt asks for a left→right index permutation", () => {
-		const order = buildOrderRoomAnglesPrompt(4);
-		expect(order).toContain("left-to-right");
-		expect(order).toContain("0..3");
-		expect(order).toContain("{ order: [...] }");
 	});
 });

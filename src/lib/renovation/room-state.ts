@@ -43,8 +43,8 @@ export type TaskRoomState = {
 	objects: RoomObject[];
 	/**
 	 * Photos whose latest Structural Preview the user has approved. The flow
-	 * needs an approved preview for *every* kept photo before it can synthesise
-	 * the Room Composite, so approval is tracked per photo rather than as a
+	 * needs an approved preview for *every* kept photo before the design can be
+	 * generated per angle, so approval is tracked per photo rather than as a
 	 * single room-wide flag.
 	 */
 	approvedPhotoIds: string[];
@@ -74,8 +74,8 @@ export function buildInitialRoomState(photoIds: string[]): TaskRoomState {
 
 /**
  * True only when the room set has at least one photo and every kept photo has
- * an approved Structural Preview. This is the gate that unlocks composite
- * synthesis (and, until that step lands, the Brief step).
+ * an approved Structural Preview. This is the gate that unlocks the read-only
+ * Room review, the Brief, and Generate.
  */
 export function allPreviewsApproved(state: TaskRoomState): boolean {
 	return (

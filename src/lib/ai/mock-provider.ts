@@ -76,16 +76,6 @@ export const mockRenovationProvider: RenovationAiProvider = {
 			})),
 		};
 	},
-	async generateRoomComposite() {
-		// Deterministic single empty-room composite so the 360 step is testable
-		// without a network call.
-		return {
-			value: {
-				base64: TRANSPARENT_PNG_BASE64,
-				contentType: "image/png" as const,
-			},
-		};
-	},
 	async listRoomContents() {
 		return {
 			value: [

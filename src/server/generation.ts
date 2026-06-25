@@ -370,47 +370,27 @@ export async function __generateRenovationImagesHandler(args: {
 	if (taskLookup.error) throw wrapSupabaseError(taskLookup.error);
 	if (!taskLookup.data) throw new Error("Task not found");
 
-	// The approved Room Composite is the preferred generation source: a single
-	// wide (3:2) view of the whole captured room. It takes precedence over a
-	// single reference photo. A provided id must load or we fail loudly rather
-	// than silently dropping the user's chosen source geometry.
-	const compositeImage = args.input.compositeId
-		? await loadCompositeImage({
+	// An explicit single reference photo is the legacy/text caller's source.
+	// Missing it is fine — generation falls back to the per-angle path below.
+	const photoImage = args.input.photoId
+		? await loadSourcePhoto({
 				supabase: args.supabase,
 				userId: args.userId,
-				compositeId: args.input.compositeId,
+				photoId: args.input.photoId,
 			})
 		: undefined;
-	if (args.input.compositeId && !compositeImage) {
-		throw new Error("Room composite not found or unavailable");
-	}
-
-	// Fall back to a single source photo only when no composite was supplied
-	// (legacy/text callers). Missing both is an intentional text-only request.
-	const photoImage =
-		!compositeImage && args.input.photoId
-			? await loadSourcePhoto({
-					supabase: args.supabase,
-					userId: args.userId,
-					photoId: args.input.photoId,
-				})
-			: undefined;
-	if (!compositeImage && args.input.photoId && !photoImage) {
+	if (args.input.photoId && !photoImage) {
 		throw new Error("Source photo not found or unavailable");
 	}
 
-	const sourceImage = compositeImage ?? photoImage;
-	// Preserve the composite's 3:2 ratio; let the model choose for a single photo.
-	const outputSize = compositeImage
-		? ("1536x1024" as const)
-		: ("auto" as const);
+	const sourceImage = photoImage;
+	const outputSize = "auto" as const;
 
 	// Per-angle generation source: when no single source was supplied, render the
 	// design against EACH approved Structural Preview so the batch covers the
-	// whole room as a set of individually coherent per-angle views. This
-	// supersedes the Room Composite as the generation basis — stitching
-	// non-overlapping corners into one frame produced incoherent collages. See
-	// docs/adr/0002.
+	// whole room as a set of individually coherent per-angle views. This replaced
+	// the Room Composite as the generation basis — stitching non-overlapping
+	// corners into one frame produced incoherent collages. See docs/adr/0002.
 	const perAngle = sourceImage
 		? { images: [], previewIds: [], referencePhotoIds: [] }
 		: await loadApprovedPreviewImages({
@@ -944,45 +924,6 @@ async function loadSourcePhoto(args: {
 		base64: buffer.toString("base64"),
 		contentType,
 		filename: row.data.original_name || "source.png",
-	};
-}
-
-/**
- * Download the approved Room Composite's bytes for image-edit mode. Like
- * `loadSourcePhoto`, returns `undefined` when the row or object can't be read
- * so the caller can decide how to fail.
- */
-async function loadCompositeImage(args: {
-	supabase: SupabaseScoped;
-	userId: string;
-	compositeId: string;
-}): Promise<
-	| {
-			base64: string;
-			contentType: "image/png" | "image/jpeg" | "image/webp";
-			filename: string;
-	  }
-	| undefined
-> {
-	const row = await args.supabase
-		.from("room_composites")
-		.select("storage_bucket, storage_path")
-		.eq("id", args.compositeId)
-		.eq("owner_id", args.userId)
-		.maybeSingle();
-	if (row.error || !row.data) return;
-
-	const download = await args.supabase.storage
-		.from(row.data.storage_bucket)
-		.download(row.data.storage_path);
-	if (download.error || !download.data) return;
-
-	const buffer = Buffer.from(await download.data.arrayBuffer());
-	const normalized = await normalizeImageToPng(buffer);
-	return {
-		base64: (normalized ?? buffer).toString("base64"),
-		contentType: "image/png" as const,
-		filename: "composite.png",
 	};
 }
 

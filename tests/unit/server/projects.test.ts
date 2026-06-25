@@ -314,7 +314,6 @@ describe("updateProjectHandler", () => {
 function buildDeleteStub(opts: {
 	photos?: { data: Row[] | null; error: unknown };
 	previews?: { data: Row[] | null; error: unknown };
-	composites?: { data: Row[] | null; error: unknown };
 	tasks?: { data: Row[] | null; error: unknown };
 	generated?: { data: Row[] | null; error: unknown };
 	projectsDelete?: { error: unknown };
@@ -322,7 +321,6 @@ function buildDeleteStub(opts: {
 	const results: Record<string, unknown> = {
 		photos: opts.photos ?? { data: [], error: null },
 		structural_previews: opts.previews ?? { data: [], error: null },
-		room_composites: opts.composites ?? { data: [], error: null },
 		renovation_tasks: opts.tasks ?? { data: [], error: null },
 		generated_images: opts.generated ?? { data: [], error: null },
 		projects: opts.projectsDelete ?? { error: null },
@@ -369,7 +367,6 @@ describe("deleteProjectHandler", () => {
 				error: null,
 			},
 			previews: { data: [{ storage_path: "u/sp1.png" }], error: null },
-			composites: { data: [{ storage_path: "u/rc1.png" }], error: null },
 			tasks: { data: [{ id: "t1" }, { id: "t2" }], error: null },
 			generated: { data: [{ storage_path: "u/g1.png" }], error: null },
 		});
@@ -384,12 +381,10 @@ describe("deleteProjectHandler", () => {
 		expect(fromMock).toHaveBeenCalledWith("projects");
 		expect(storageFrom).toHaveBeenCalledWith("source-photos");
 		expect(storageFrom).toHaveBeenCalledWith("structural-previews");
-		expect(storageFrom).toHaveBeenCalledWith("room-composites");
 		expect(storageFrom).toHaveBeenCalledWith("generated-outputs");
 		// The null storage_path is filtered out, never handed to remove().
 		expect(remove).toHaveBeenCalledWith(["u/p1.png"]);
 		expect(remove).toHaveBeenCalledWith(["u/sp1.png"]);
-		expect(remove).toHaveBeenCalledWith(["u/rc1.png"]);
 		expect(remove).toHaveBeenCalledWith(["u/g1.png"]);
 	});
 

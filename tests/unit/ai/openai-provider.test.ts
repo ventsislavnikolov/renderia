@@ -1,4 +1,3 @@
-import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the AI SDK and openai SDK at module level so importing the provider
@@ -494,104 +493,6 @@ describe("openAiRenovationProvider", () => {
 				})
 			).rejects.toThrow("Missing required env var: OPENAI_API_KEY");
 			expect(imagesGenerateMock).not.toHaveBeenCalled();
-		});
-	});
-
-	describe("generateRoomComposite — progressive outpaint", () => {
-		async function pngBase64(width: number, height: number): Promise<string> {
-			const buf = await sharp({
-				create: {
-					width,
-					height,
-					channels: 3,
-					background: { r: 200, g: 200, b: 200 },
-				},
-			})
-				.png()
-				.toBuffer();
-			return buf.toString("base64");
-		}
-
-		function preview(base64: string, id: string) {
-			return {
-				base64,
-				contentType: "image/png" as const,
-				filename: `${id}.png`,
-			};
-		}
-
-		it("orders the angles, then stitches a wide panorama (anchor + one extension per extra angle)", async () => {
-			vi.stubEnv("OPENAI_API_KEY", "sk-test");
-			vi.stubEnv("GEMINI_API_KEY", "g-test");
-			// Vision ordering returns a left→right permutation of the angle indices.
-			generateObjectMock.mockResolvedValueOnce({ object: { order: [1, 0] } });
-			// Every edit returns a decodable 1536×1024 tile so the real sharp
-			// stitching downstream has valid bytes to work on.
-			const tile = await pngBase64(1536, 1024);
-			imagesEditMock.mockResolvedValue({ data: [{ b64_json: tile }] });
-
-			const result = await openAiRenovationProvider.generateRoomComposite({
-				previews: [
-					preview(await pngBase64(80, 60), "a"),
-					preview(await pngBase64(60, 80), "b"),
-				],
-				prompt: "ROOM COMPOSITE OBJECTIVE: stitch the room",
-			});
-
-			// One vision call to order; two image edits (anchor + one extension).
-			expect(generateObjectMock).toHaveBeenCalledTimes(1);
-			expect(imagesEditMock).toHaveBeenCalledTimes(2);
-
-			// The anchor is a plain edit; the extension is a masked outpaint.
-			expect(imagesEditMock.mock.calls[0]?.[0]).not.toHaveProperty("mask");
-			expect(imagesEditMock.mock.calls[1]?.[0]).toHaveProperty("mask");
-			for (const call of imagesEditMock.mock.calls) {
-				expect(call?.[0]).toMatchObject({ size: "1536x1024" });
-			}
-
-			// One wide PNG: 1536 (anchor) + 1024 (one extension) = 2560 px wide.
-			expect(result.value.contentType).toBe("image/png");
-			const meta = await sharp(
-				Buffer.from(result.value.base64, "base64")
-			).metadata();
-			expect(meta.width).toBe(2560);
-			expect(meta.height).toBe(1024);
-			expect(result.debug?.rawResponse).toContain("progressive-outpaint");
-		});
-
-		it("falls back to input order when the ordering vision call fails", async () => {
-			vi.stubEnv("OPENAI_API_KEY", "sk-test");
-			vi.stubEnv("GEMINI_API_KEY", "g-test");
-			generateObjectMock.mockRejectedValueOnce(new Error("vision down"));
-			const tile = await pngBase64(1536, 1024);
-			imagesEditMock.mockResolvedValue({ data: [{ b64_json: tile }] });
-
-			const result = await openAiRenovationProvider.generateRoomComposite({
-				previews: [
-					preview(await pngBase64(80, 60), "a"),
-					preview(await pngBase64(60, 80), "b"),
-					preview(await pngBase64(70, 70), "c"),
-				],
-				prompt: "ROOM COMPOSITE OBJECTIVE: stitch the room",
-			});
-
-			// Three angles → anchor + two extensions, despite the failed ordering.
-			expect(imagesEditMock).toHaveBeenCalledTimes(3);
-			const meta = await sharp(
-				Buffer.from(result.value.base64, "base64")
-			).metadata();
-			expect(meta.width).toBe(1536 + 1024 * 2);
-		});
-
-		it("rejects when there are no approved previews", async () => {
-			vi.stubEnv("OPENAI_API_KEY", "sk-test");
-			await expect(
-				openAiRenovationProvider.generateRoomComposite({
-					previews: [],
-					prompt: "x",
-				})
-			).rejects.toThrow(/at least one approved preview/i);
-			expect(imagesEditMock).not.toHaveBeenCalled();
 		});
 	});
 });

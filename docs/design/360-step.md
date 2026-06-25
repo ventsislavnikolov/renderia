@@ -55,9 +55,9 @@ stays photoreal and coherent because it is an edit of one real photo. See
 `__generateRenovationImagesHandler` (the per-angle branch) in
 `src/server/generation.ts`.
 
-## Deprecated composite code
+## Removed composite code
 
-The Room Composite synthesis (`generateRoomComposite` / `approveRoomComposite`
-server fns, the `room_composites` table, and the progressive-outpaint provider
-method) is no longer reached from the UI. It is left in place pending a cleanup
-pass and is safe to remove once nothing else references it.
+The Room Composite synthesis was removed: the `generateRoomComposite` /
+`approveRoomComposite` server fns, the provider's progressive-outpaint method,
+the composite prompts, and the `room_composites` table (dropped in migration
+0012). Only the read-only review above remains of the old "360" step.

@@ -88,8 +88,9 @@ export type GenerateRenovationImagesInput = {
 	 */
 	prompts: string[];
 	/**
-	 * Output aspect/size. Defaults to "auto" (model picks). Set "1536x1024"
-	 * when the source is a 3:2 Room Composite so the wide ratio is preserved.
+	 * Output aspect/size. Defaults to "auto" (the model picks, which suits a
+	 * per-angle source photo). "1536x1024" forces a 3:2 frame when a caller wants
+	 * a fixed wide ratio.
 	 */
 	outputSize?: "auto" | "1536x1024";
 };
@@ -97,29 +98,6 @@ export type GenerateRenovationImagesInput = {
 export type GeneratedImageResult = {
 	base64: string;
 	contentType: "image/png" | "image/jpeg" | "image/webp";
-};
-
-/**
- * Inputs for `generateRoomComposite` — synthesise one wide panoramic empty-room
- * Room Composite from the approved per-angle Structural Previews. Unlike
- * `generateRenovationImages` (one source photo), every supplied image is room
- * evidence. Because `gpt-image-2` caps a single render at 1536×1024, the live
- * provider orders the angles left→right and progressively outpaints them into
- * one continuous wide panorama (anchor tile + one extension per extra angle),
- * rather than a single 3:2 frame. Produces exactly one (wide) image.
- */
-export type GenerateRoomCompositeInput = {
-	/** The approved Structural Preview images, one per kept photo angle. */
-	previews: Array<{
-		base64: string;
-		contentType: "image/png" | "image/jpeg" | "image/webp";
-		filename: string;
-	}>;
-	/**
-	 * The shared objective prompt (also persisted for provenance). The provider
-	 * wraps it with per-step scaffolding for the anchor and extension tiles.
-	 */
-	prompt: string;
 };
 
 /**
@@ -196,9 +174,6 @@ export type RenovationAiProvider = {
 	generateRenovationImages(
 		input: GenerateRenovationImagesInput
 	): Promise<ProviderResult<GeneratedImageResult[]>>;
-	generateRoomComposite(
-		input: GenerateRoomCompositeInput
-	): Promise<ProviderResult<GeneratedImageResult>>;
 	listRoomContents(
 		input: ListRoomContentsInput
 	): Promise<ProviderResult<string[]>>;

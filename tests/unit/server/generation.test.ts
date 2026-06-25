@@ -79,7 +79,6 @@ type Row = Record<string, unknown>;
  */
 function buildGenerationSupabaseStub(opts: {
 	taskResult?: { data: Row | null; error: unknown };
-	compositeResult?: { data: Row | null; error: unknown };
 	sourcePhotoResult?: { data: Row | null; error: unknown };
 	sourcePhotoDownloadResult?: { data: Blob | null; error: unknown };
 	jobInsertResult?: { data: Row | null; error: unknown };
@@ -189,24 +188,6 @@ function buildGenerationSupabaseStub(opts: {
 				)
 			);
 			return photosChain;
-		}
-		if (table === "room_composites") {
-			const compositesChain: Record<string, (...args: unknown[]) => unknown> =
-				{};
-			compositesChain.select = vi.fn(() => compositesChain);
-			compositesChain.eq = vi.fn(() => compositesChain);
-			compositesChain.maybeSingle = vi.fn(() =>
-				Promise.resolve(
-					opts.compositeResult ?? {
-						data: {
-							storage_bucket: "room-composites",
-							storage_path: "user-1/task-1/composite.png",
-						},
-						error: null,
-					}
-				)
-			);
-			return compositesChain;
 		}
 		if (table === "structural_previews") {
 			const previewsChain: Record<string, (...args: unknown[]) => unknown> = {};
@@ -651,30 +632,6 @@ describe("generateRenovationImagesHandler", () => {
 		).toHaveLength(2);
 	});
 
-	it("generates against the Room Composite as a 3:2 source when compositeId is set", async () => {
-		const stub = buildGenerationSupabaseStub({});
-		const provider = buildMockProvider();
-
-		await __generateRenovationImagesHandler({
-			userId: "user-1",
-			supabase: stub.supabase,
-			provider,
-			providerName: "mock",
-			input: {
-				taskId: "t1",
-				briefId: null,
-				prompt: "PRESERVE EXACTLY",
-				count: 2,
-				compositeId: "11111111-1111-4111-8111-111111111111",
-			},
-		});
-
-		expect(stub.fromMock).toHaveBeenCalledWith("room_composites");
-		const call = provider.generateRenovationImages.mock.calls[0]?.[0];
-		expect(call?.outputSize).toBe("1536x1024");
-		expect(call?.sourceImage).toBeDefined();
-	});
-
 	it("renders one concept against each approved angle when no single source is set", async () => {
 		const stub = buildGenerationSupabaseStub({
 			approvedPreviewRows: {
@@ -730,8 +687,6 @@ describe("generateRenovationImagesHandler", () => {
 		expect(result.data.images[0]?.variationIndex).toBe(0);
 		expect(result.data.images[1]?.variationIndex).toBe(1);
 		expect(stub.fromMock).toHaveBeenCalledWith("structural_previews");
-		// The per-angle path never consults a Room Composite.
-		expect(stub.fromMock).not.toHaveBeenCalledWith("room_composites");
 	});
 
 	it("rejects with 'Task not found' when the task is not owned by the caller", async () => {

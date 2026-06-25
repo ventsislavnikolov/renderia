@@ -158,13 +158,6 @@ const FAKE_PREVIEW = {
 	status: "generated",
 };
 
-const FAKE_COMPOSITE = {
-	id: "77777777-7777-7777-7777-777777777777",
-	storagePath: `${USER_ID}/${TASK_ID}/composite.png`,
-	signedUrl: "/storage/v1/object/room-composites/fake-composite.png?token=fake",
-	status: "generated",
-};
-
 /**
  * Install fake session before any client script runs. We can't write
  * localStorage before navigation (it requires an active page context), so we
@@ -300,7 +293,6 @@ type PageState = {
 	protectedElements: ProtectedElementMockRow[];
 	roomState: TaskRoomStateMock;
 	preview: typeof FAKE_PREVIEW | null;
-	composite: typeof FAKE_COMPOSITE | null;
 };
 
 function buildPageState(overrides: Partial<PageState> = {}): PageState {
@@ -316,7 +308,6 @@ function buildPageState(overrides: Partial<PageState> = {}): PageState {
 			approvedPhotoIds: [],
 		},
 		preview: null,
-		composite: null,
 		...overrides,
 	};
 }
@@ -517,16 +508,7 @@ async function installApiMocks(page: Page, state: PageState) {
 			return serializedResult({
 				roomState: state.roomState,
 				previews,
-				composite: state.composite,
 			});
-		}
-		if (fnId.includes("generateRoomComposite")) {
-			state.composite = { ...FAKE_COMPOSITE, status: "generated" };
-			return serializedResult({ composite: state.composite });
-		}
-		if (fnId.includes("approveRoomComposite")) {
-			state.composite = { ...FAKE_COMPOSITE, status: "approved" };
-			return serializedResult({ ok: true });
 		}
 		if (fnId.includes("saveTaskRoomState")) {
 			const body = route.request().postDataJSON() as {
@@ -700,16 +682,14 @@ async function approveStructuralPreviewAndContinue(page: Page) {
 	await expect(page.getByAltText(/Structural preview/i)).toBeVisible();
 	await page.getByRole("button", { name: /Approve this angle/i }).click();
 	// Approving the only angle satisfies the all-angles gate and advances to the
-	// 360 step.
+	// read-only Room review step.
 	await expect(
-		page.getByRole("heading", { name: /Build the 360 view/i })
+		page.getByRole("heading", { name: /Review the whole room/i })
 	).toBeVisible();
 }
 
-async function buildAndApproveCompositeAndContinue(page: Page) {
-	await page.getByRole("button", { name: /Build 360 view/i }).click();
-	await expect(page.getByAltText(/Room composite 360 view/i)).toBeVisible();
-	await page.getByRole("button", { name: /Approve 360 view/i }).click();
+async function continueFromRoomReviewToBrief(page: Page) {
+	await page.getByRole("button", { name: /Continue to brief/i }).click();
 	await expect(
 		page.getByRole("heading", { name: /Review the design brief/i })
 	).toBeVisible();
@@ -719,7 +699,7 @@ async function advanceToBriefStep(page: Page) {
 	await selectSamplePhotoAndContinue(page);
 	await reviewSamplePhotoAndContinue(page);
 	await approveStructuralPreviewAndContinue(page);
-	await buildAndApproveCompositeAndContinue(page);
+	await continueFromRoomReviewToBrief(page);
 }
 
 test.describe("guided renovation workspace", () => {
@@ -742,7 +722,7 @@ test.describe("guided renovation workspace", () => {
 			"Review",
 			"Merge",
 			"Preview",
-			"360",
+			"Room",
 			"Brief",
 			"Generate",
 		]) {

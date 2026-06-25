@@ -75,7 +75,6 @@ export function GuidedFlow(props: {
 	const [roomState, setRoomState] = useState<TaskRoomState | null>(null);
 	// Latest structural preview per reference photo angle, keyed by photo id.
 	const [previews, setPreviews] = useState<Record<string, PreviewImage>>({});
-	// Latest Room Composite (the "360 view") for the task, or null if unbuilt.
 	const [brief, setBrief] = useState("");
 	const [briefId, setBriefId] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");

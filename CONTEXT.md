@@ -8,8 +8,8 @@ task.
 
 **Project**:
 The top-level grouping a user owns — a property, floor, or client under which
-renovation Tasks (rooms) and all their Photos, previews, composites, and
-generated concepts live. Has a name and optional description. Deleting one is
+renovation Tasks (rooms) and all their Photos, previews, and generated concepts
+live. Has a name and optional description. Deleting one is
 permanent and cascades to everything beneath it; the Furniture Library is
 account-wide and is _not_ scoped to a Project, so it survives.
 _Avoid_: workspace (the whole signed-in account is the workspace), folder
@@ -74,19 +74,21 @@ informal word for this is "layout".
 _Avoid_: layout (informal), render, mockup
 
 **Reference Photo**:
-Historically, the single Photo angle the final design was generated from — the
-"POV". Superseded as the generation source by the Room Composite; still used to
-seed which angle a Structural Preview previews.
+The single Photo angle a Structural Preview is seeded from — the "POV". No
+longer the generation source: the final design is generated per-angle (see
+below), against every approved Structural Preview.
 _Avoid_: POV, main photo
 
-**Room Composite**:
-A single wide (3:2) empty-room view synthesised from every approved Structural
-Preview, covering only the arc the Photos actually captured. Replaces the
-single Reference Photo as the source the final design is generated against, so
-the design reflects the whole captured room rather than one angle. Not a literal
-wrap-around despite the user's informal terms. Code, types, and tables use
-"Room Composite"; the user-facing label is "360 view".
-_Avoid_: 360 layout (informal), panorama (informal — implies full wrap)
+**Per-angle generation**:
+The final design is generated against each approved Structural Preview
+independently — one design concept rendered per angle, producing one image per
+angle that together cover the whole room. Each output stays photoreal because
+it edits one real photo. This replaced the **Room Composite** (a single wide
+"360" empty-room view stitched from all angles): stitching non-overlapping
+corners into one frame produced incoherent collages, so it was removed (the
+`room_composites` table was dropped in migration 0012). The wizard's step 05 is
+now a read-only "Room" review of the approved angles. See docs/adr/0002.
+_Avoid_: 360 view, Room Composite (removed), panorama
 
 **Style**:
 A named aesthetic preset governing the palette, materials, and furniture

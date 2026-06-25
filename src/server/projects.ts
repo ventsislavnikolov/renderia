@@ -176,8 +176,8 @@ function pushRemoval(
  * @internal
  *
  * Hard-delete a project. The FK `ON DELETE CASCADE` chain removes every
- * descendant row (tasks, photos, previews, composites, generated images, and
- * their links), but the cascade is row-only — it never touches Storage. So we
+ * descendant row (tasks, photos, previews, generated images, and their links),
+ * but the cascade is row-only — it never touches Storage. So we
  * gather every Storage object the project owns *before* the delete, then remove
  * them best-effort afterwards. See docs/adr/0003-project-delete-storage-cleanup.md.
  *
@@ -208,14 +208,6 @@ export async function __deleteProjectHandler(args: {
 		.eq("owner_id", args.userId);
 	if (previews.error) throw wrapSupabaseError(previews.error);
 	pushRemoval(removals, "structural-previews", previews.data);
-
-	const composites = await args.supabase
-		.from("room_composites")
-		.select("storage_path")
-		.eq("project_id", projectId)
-		.eq("owner_id", args.userId);
-	if (composites.error) throw wrapSupabaseError(composites.error);
-	pushRemoval(removals, "room-composites", composites.data);
 
 	// generated_images is only task-scoped, so reach it through the project's
 	// tasks.

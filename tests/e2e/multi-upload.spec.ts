@@ -27,7 +27,6 @@ const EMPTY_ROOM_STATE = {
 		approvedPhotoIds: [],
 	},
 	previews: {},
-	composite: null,
 };
 
 test.describe("multi-upload photos", () => {
