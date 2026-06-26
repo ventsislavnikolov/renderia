@@ -502,15 +502,26 @@ export async function __generateRenovationImagesHandler(args: {
 				buildConceptVariationPrompts(args.input.prompt, 1)[0] ??
 					args.input.prompt
 			);
-			for (let index = 0; index < perAngle.images.length; index += 1) {
-				const result = await args.provider.generateRenovationImages({
-					sourceImage: perAngle.images[index],
-					referenceImages,
-					prompts: [conceptPrompt],
-					outputSize: "auto",
-				});
-				providerDebug = result.debug;
-				const image = result.value[0];
+			// Render every approved angle concurrently. Each angle is an
+			// independent single-prompt provider call, so awaiting them in series
+			// multiplied the wall-clock by the angle count (N × ~30–60s) and
+			// tripped the serverless timeout (504). Fan them out and let the
+			// platform's per-function timeout bound a single call instead.
+			const angleResults = await Promise.all(
+				perAngle.images.map((angleImage) =>
+					args.provider.generateRenovationImages({
+						sourceImage: angleImage,
+						referenceImages,
+						prompts: [conceptPrompt],
+						outputSize: "auto",
+					})
+				)
+			);
+			providerDebug = angleResults[0]?.debug;
+			// Persist sequentially once generation is done: these are fast Supabase
+			// writes and keeping them ordered preserves a stable variation_index.
+			for (let index = 0; index < angleResults.length; index += 1) {
+				const image = angleResults[index]?.value[0];
 				if (image) await persist(index, image);
 			}
 		} else {

@@ -89,6 +89,16 @@ const config = defineConfig(({ isSsrBuild }) => ({
 		// "No Output Directory named 'dist'".
 		nitro({
 			traceDeps: ["@sentry/tanstackstart-react"],
+			// Image generation fans out one OpenAI call per approved angle; even
+			// run in parallel a single edit can take >60s, past Vercel's default
+			// function timeout (the source of the 504 on /_serverFn/*). Raise the
+			// ceiling to 5 minutes — within the Team plan's limit. Billing is by
+			// actual execution time, so fast functions are unaffected.
+			vercel: {
+				functions: {
+					maxDuration: 300,
+				},
+			},
 			modules: [
 				(nitro) => {
 					nitro.hooks.hook("compiled", (instance) => {
