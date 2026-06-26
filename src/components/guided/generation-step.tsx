@@ -41,7 +41,12 @@ type GenerationJob = {
 	createdAt: string;
 };
 
-const VARIATION_COUNT = 4;
+/**
+ * Number of variations requested per generation. Must stay in sync with the
+ * server-side cap in `generateRenovationImages` (`generation.ts`), which clamps
+ * `count` to 2 — sending more just gets clamped and makes the label lie.
+ */
+const VARIATION_COUNT = 2;
 
 function jobLabel(job: GenerationJob) {
 	const stamp = new Date(job.createdAt).toLocaleString(undefined, {
@@ -384,7 +389,7 @@ export function GenerationStep(props: {
 
 			{(loading && !generating) || generating ? (
 				<div className="grid gap-6 md:grid-cols-2">
-					{[0, 1].map((i) => (
+					{Array.from({ length: VARIATION_COUNT }, (_, i) => (
 						<article
 							className="grid min-h-[360px] grid-rows-[1fr_auto] overflow-hidden border border-border bg-popover"
 							key={i}

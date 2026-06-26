@@ -81,12 +81,12 @@ describe("GenerationStep", () => {
 				data: expect.objectContaining({
 					taskId: TASK_ID,
 					prompt: "PRESERVE EXACTLY",
-					count: 4,
+					count: 2,
 				}),
 			})
 		);
 
-		// All four variation cards render with signed URLs.
+		// All variation cards render with signed URLs.
 		const imgs = await screen.findAllByRole("img");
 		expect(imgs).toHaveLength(4);
 		expect(imgs[0]?.getAttribute("src")).toContain("job-1-0.png");
