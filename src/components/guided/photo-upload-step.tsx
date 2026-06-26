@@ -10,6 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { PhotoTile, type PhotoTileStatus } from "@/components/ui/photo-tile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { track } from "../../lib/analytics/track";
@@ -106,6 +107,9 @@ export function PhotoUploadStep(props: {
 	const [signedUrls, setSignedUrls] = useState<Map<string, string>>(
 		() => new Map()
 	);
+	// Photo ids whose signed-URL mint failed — so their tile shows a "couldn't
+	// load" fallback instead of spinning a skeleton forever.
+	const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
 	const [loadError, setLoadError] = useState<string | null>(null);
 	// Batch-level message: skipped invalid files, or an over-cap rejection.
 	const [uploadError, setUploadError] = useState<string | null>(null);
@@ -168,7 +172,9 @@ export function PhotoUploadStep(props: {
 	useEffect(() => {
 		if (!photos || photos.length === 0) return;
 		const cancelled = { current: false };
-		const toFetch = photos.filter((photo) => !signedUrls.has(photo.id));
+		const toFetch = photos.filter(
+			(photo) => !signedUrls.has(photo.id) && !failedIds.has(photo.id)
+		);
 		if (toFetch.length === 0) return;
 		void (async () => {
 			const results = await Promise.all(
@@ -176,23 +182,34 @@ export function PhotoUploadStep(props: {
 					const { data, error } = await supabaseBrowser.storage
 						.from(photo.storage_bucket)
 						.createSignedUrl(photo.storage_path, TILE_URL_TTL_SECONDS);
-					if (error || !data) return null;
-					return [photo.id, data.signedUrl] as const;
+					return {
+						id: photo.id,
+						url: error || !data ? null : data.signedUrl,
+					};
 				})
 			);
 			if (cancelled.current || cancelledRef.current) return;
-			setSignedUrls((prev) => {
-				const next = new Map(prev);
-				for (const entry of results) {
-					if (entry) next.set(entry[0], entry[1]);
-				}
-				return next;
-			});
+			const minted = results.filter((entry) => entry.url !== null);
+			const failed = results.filter((entry) => entry.url === null);
+			if (minted.length > 0) {
+				setSignedUrls((prev) => {
+					const next = new Map(prev);
+					for (const entry of minted) next.set(entry.id, entry.url as string);
+					return next;
+				});
+			}
+			if (failed.length > 0) {
+				setFailedIds((prev) => {
+					const next = new Set(prev);
+					for (const entry of failed) next.add(entry.id);
+					return next;
+				});
+			}
 		})();
 		return () => {
 			cancelled.current = true;
 		};
-	}, [photos, signedUrls]);
+	}, [photos, signedUrls, failedIds]);
 
 	const isUploading = uploads.some((item) => item.status === "uploading");
 
@@ -595,7 +612,12 @@ export function PhotoUploadStep(props: {
 						const isSelected = isMultiSelectMode()
 							? selectedIds.has(photo.id)
 							: photo.id === props.selectedPhotoId;
-						const url = signedUrls.get(photo.id);
+						const url = signedUrls.get(photo.id) ?? null;
+						const status: PhotoTileStatus = failedIds.has(photo.id)
+							? "error"
+							: url
+								? "ready"
+								: "loading";
 						return (
 							<li className="relative" key={photo.id}>
 								<button
@@ -609,18 +631,13 @@ export function PhotoUploadStep(props: {
 									onClick={() => togglePhoto(photo)}
 									type="button"
 								>
-									{url ? (
-										<img
-											alt={photo.original_name}
-											className="block aspect-[4/3] w-full bg-background object-cover"
-											src={url}
-										/>
-									) : (
-										<div
-											aria-hidden="true"
-											className="block aspect-[4/3] w-full bg-background"
-										/>
-									)}
+									<PhotoTile
+										alt={photo.original_name}
+										className="aspect-[4/3] w-full"
+										imageClassName="object-cover"
+										status={status}
+										url={url}
+									/>
 									<span className="grid gap-0.5 px-4 py-3">
 										<span className="break-words font-body font-medium text-[0.8125rem] text-foreground">
 											{photo.original_name}

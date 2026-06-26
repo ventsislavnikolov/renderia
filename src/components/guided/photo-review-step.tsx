@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PhotoTile, type PhotoTileStatus } from "@/components/ui/photo-tile";
 import type {
 	RoomAppearance,
 	TaskRoomState,
@@ -69,6 +70,8 @@ export function PhotoReviewStep(props: {
 	const [signedUrls, setSignedUrls] = useState<Map<string, string>>(
 		() => new Map()
 	);
+	// Photo ids whose signed-URL mint failed — drives the tile's error fallback.
+	const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
 	const imageFrameRef = useRef<HTMLDivElement | null>(null);
 	const dragRef = useRef<{
 		id: string;
@@ -100,6 +103,13 @@ export function PhotoReviewStep(props: {
 	const activePhotoUrl = activePhoto
 		? (signedUrls.get(activePhoto.id) ?? null)
 		: null;
+	const activePhotoStatus: PhotoTileStatus = activePhoto
+		? failedIds.has(activePhoto.id)
+			? "error"
+			: activePhotoUrl
+				? "ready"
+				: "loading"
+		: "loading";
 
 	useEffect(() => {
 		if (!activeAppearance && activeAppearances[0]) {
@@ -116,8 +126,13 @@ export function PhotoReviewStep(props: {
 					const signed = await supabaseBrowser.storage
 						.from(photo.storage_bucket)
 						.createSignedUrl(photo.storage_path, SIGNED_URL_TTL_SECONDS);
-					if (signed.error || !signed.data?.signedUrl) return null;
-					return [photo.id, signed.data.signedUrl] as const;
+					return {
+						id: photo.id,
+						url:
+							signed.error || !signed.data?.signedUrl
+								? null
+								: signed.data.signedUrl,
+					};
 				})
 			);
 			if (cancelled) return;
@@ -125,8 +140,19 @@ export function PhotoReviewStep(props: {
 				let changed = false;
 				const next = new Map(prev);
 				for (const entry of results) {
-					if (entry && next.get(entry[0]) !== entry[1]) {
-						next.set(entry[0], entry[1]);
+					if (entry.url && next.get(entry.id) !== entry.url) {
+						next.set(entry.id, entry.url);
+						changed = true;
+					}
+				}
+				return changed ? next : prev;
+			});
+			setFailedIds((prev) => {
+				let changed = false;
+				const next = new Set(prev);
+				for (const entry of results) {
+					if (entry.url === null && !next.has(entry.id)) {
+						next.add(entry.id);
 						changed = true;
 					}
 				}
@@ -448,15 +474,13 @@ export function PhotoReviewStep(props: {
 								className="relative overflow-hidden rounded border border-border bg-background"
 								ref={imageFrameRef}
 							>
-								{activePhotoUrl ? (
-									<img
-										alt={activePhoto.original_name}
-										className="block aspect-[4/3] w-full object-contain"
-										src={activePhotoUrl}
-									/>
-								) : (
-									<div className="aspect-[4/3] w-full bg-muted" />
-								)}
+								<PhotoTile
+									alt={activePhoto.original_name}
+									className="aspect-[4/3] w-full"
+									imageClassName="object-contain"
+									status={activePhotoStatus}
+									url={activePhotoUrl}
+								/>
 								{activeAppearances.map((entry) => {
 									const isSelected = entry.id === activeAppearanceId;
 									const color =

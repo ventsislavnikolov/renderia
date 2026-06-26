@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PhotoTile } from "@/components/ui/photo-tile";
 import { DEFAULT_TEXT_MODEL, type ModelSelection } from "@/lib/ai/models";
 import type { BoundingBox, ProviderDebug } from "@/lib/ai/types";
 import { cn } from "@/lib/utils";
@@ -340,13 +341,13 @@ export function OverlayConfirmStep(props: {
 
 			<div className="grid items-start gap-8 md:grid-cols-[minmax(0,1fr)_360px]">
 				<div className="relative min-h-[320px] border border-border bg-background">
-					{signedUrl ? (
-						<img
-							alt={props.photo.original_name}
-							className="block h-auto w-full"
-							src={signedUrl}
-						/>
-					) : null}
+					<PhotoTile
+						alt={props.photo.original_name}
+						className="min-h-[320px] w-full"
+						fill={false}
+						status={signedUrl ? "ready" : loadError ? "error" : "loading"}
+						url={signedUrl}
+					/>
 					{visibleElements.map(({ id, box }) => {
 						const isSelected = selected.has(id) || elements === null;
 						return (

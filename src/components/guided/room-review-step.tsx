@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { PhotoTile } from "@/components/ui/photo-tile";
 import type { TaskRoomState } from "@/lib/renovation/room-state";
 import type { Tables } from "@/lib/types/database";
 
@@ -53,10 +54,12 @@ export function RoomReviewStep(props: {
 				<ul className="grid list-none grid-cols-2 gap-4 p-0 max-md:grid-cols-1">
 					{angles.map((angle) => (
 						<li className="grid gap-2" key={angle.photoId}>
-							<img
+							<PhotoTile
 								alt={`Approved angle: ${angle.name}`}
-								className="aspect-[4/3] w-full rounded border border-border object-cover"
-								src={angle.signedUrl}
+								className="aspect-[4/3] w-full rounded border border-border"
+								imageClassName="object-cover"
+								status="ready"
+								url={angle.signedUrl}
 							/>
 						</li>
 					))}
