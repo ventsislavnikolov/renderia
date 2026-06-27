@@ -45,6 +45,9 @@
   --muted-foreground: var(--ink-muted);
   --accent: var(--surface);
   --accent-foreground: var(--ink);
+  /* Loading-placeholder fill. Sits a step darker than --surface so the pulse
+     stays visible on white cards/canvas (where --accent would vanish). */
+  --skeleton: #E5E7EB;
   --destructive: var(--warning);
   --destructive-foreground: var(--brand-ink);
   --input: var(--border);
@@ -67,6 +70,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-skeleton: var(--skeleton);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
