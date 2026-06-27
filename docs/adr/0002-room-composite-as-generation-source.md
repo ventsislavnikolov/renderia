@@ -12,6 +12,10 @@
 > Room Composite code and the `room_composites` table were removed (the table is
 > dropped in migration 0012). The rest of this ADR is kept for historical
 > context.
+>
+> **See also ADR 0005**, which re-opens cross-angle coherence — but only for
+> Restructure Suggestions, via an anchor-conditioned pass rather than a shared
+> composite.
 
 Today the furnished renovation concepts are generated from one **Reference Photo**
 — a single camera angle ("POV"). To support full-room design when the Room Set

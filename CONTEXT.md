@@ -52,31 +52,41 @@ _Avoid_: product page, origin
 
 **Room Set**:
 The 1–4 Photos a user attaches to a renovation Task as the evidence for one
-room. The whole set describes the same room from different angles.
+subject — a room for an Interior Task, the facade/garden for an Exterior Task.
+The whole set describes that same subject from different angles. (The name is
+room-biased for historical reasons; it covers exteriors too.)
 _Avoid_: gallery, album
 
 **Appearance**:
-One detected structural element (a window, door, radiator, etc.) located by a
-box within a single Photo. The same real element seen from two angles is two
+One detected structural element located by a box within a single Photo — a
+window, door, or radiator on an Interior Task; a roof, gutter, render panel, or
+fence on an Exterior Task. The same real element seen from two angles is two
 Appearances.
 _Avoid_: detection, box
 
 **Room Object**:
-One real structural element of the room, grouping the Appearances of it across
-Photos. Carries a preservation choice — keep it exactly, or keep its type but
-allow a restyle.
+One real structural element of the subject (room or exterior), grouping the
+Appearances of it across Photos. Carries a preservation choice — keep it exactly, keep its type but
+allow a restyle, or remove it entirely. Removal is the structural disposition a
+Restructure Suggestion uses; an in-place change (widen a doorway, move a wall)
+is expressed as removal of the old Room Object plus a Structural Addition for
+the new one, never as an "edit in place".
 _Avoid_: element, feature
 
 **Structural Preview**:
-An empty-room confirmation image generated for one Photo's angle — the room
-with furniture stripped out and Room Objects kept. One per Photo. The user's
+An empty-subject confirmation image generated for one Photo's angle — the room
+with furniture stripped out (or, for an Exterior Task, the facade with movable
+clutter like cars and bins stripped) and Room Objects kept. One per Photo. The
+user's
 informal word for this is "layout".
 _Avoid_: layout (informal), render, mockup
 
 **Reference Photo**:
 The single Photo angle a Structural Preview is seeded from — the "POV". No
 longer the generation source: the final design is generated per-angle (see
-below), against every approved Structural Preview.
+below), against every approved Structural Preview. Also the anchor angle a
+Restructure Suggestion is realized on first; the remaining angles condition on
+that result so a structural change stays coherent across the Room Set.
 _Avoid_: POV, main photo
 
 **Per-angle generation**:
@@ -105,3 +115,34 @@ generation — accent colours, a specific material, a mood. Narrows or seasons
 the Style; it does not replace the Style's vocabulary and never overrides the
 architectural-fidelity rules.
 _Avoid_: style rules, override layer, prompt
+
+**Exterior Task**:
+A Task whose subject is the outside of a property — facade, roof, garden,
+drive — rather than a room. Distinguished from an Interior Task by the Task's
+category. Shares the Room Set / Appearance / Room Object pipeline, but its
+detected element vocabulary is exterior (roof, gutter, render, fence, door)
+and its fidelity rules are exterior-specific. The same property's inside and
+outside are separate Tasks under one Project.
+_Avoid_: outside photo, landscape, scene
+
+**Restructure Suggestion**:
+A proposed _structural_ change to a Task — moving or removing a wall, adding a
+window or dormer, opening a doorway — paired with a generated render showing
+the change applied. Unlike a Style (cosmetic) or a Room Object's preservation
+choice (keep or restyle an element where it is), it changes the architecture
+itself. It does not discard the architectural-fidelity rules so much as
+_re-anchor_ them: applying one mints a new structural base (a restructured
+Structural Preview), and the normal preserve-and-style layer then runs
+faithfully against that new base. Decomposes into two primitives only: removing
+a Room Object (its `remove` disposition) and adding a Structural Addition.
+Applies to both Interior and Exterior Tasks.
+_Avoid_: restruction (informal), remodel, Style, override
+
+**Structural Addition**:
+A new structural element a Restructure Suggestion introduces where none existed
+— a window, dormer, doorway, or wall. The add half of the remove/add primitive
+pair; the counterpart to a Room Object's `remove` disposition. Carries the new
+element's type and placement, attached to the restructured base rather than to
+any existing Appearance.
+_Avoid_: new object, inserted element, Room Object (an Addition has no source
+Appearance)
