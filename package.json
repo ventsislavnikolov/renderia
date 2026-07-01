@@ -33,7 +33,7 @@
     "@ai-sdk/openai": "^3.0.68",
     "@sentry/tanstackstart-react": "10.57.0",
     "@supabase/supabase-js": "^2.107.0",
-    "@tailwindcss/vite": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.2",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-router": "latest",
