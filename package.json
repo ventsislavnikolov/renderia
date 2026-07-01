@@ -93,7 +93,7 @@
     "semantic-release": "^25.0.3",
     "semantic-release-ado": "^1.4.0",
     "typescript": "^6.0.3",
-    "ultracite": "^7.8.2",
+    "ultracite": "^7.8.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
   },
