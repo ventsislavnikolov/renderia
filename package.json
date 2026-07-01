@@ -94,7 +94,7 @@
     "semantic-release-ado": "^1.4.0",
     "typescript": "^6.0.3",
     "ultracite": "^7.8.2",
-    "vite": "^8.0.16",
+    "vite": "^8.1.2",
     "vitest": "^4.1.8"
   },
   "engines": {
