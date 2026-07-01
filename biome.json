@@ -40,7 +40,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "a11y": {
         "useValidAnchor": "off",
         "useMediaCaption": "off",
@@ -63,11 +63,7 @@
         "useJsonImportAttributes": "off",
         "noUnusedFunctionParameters": "off"
       },
-      "nursery": {
-        "noShadow": "off",
-        "noLeakedRender": "off",
-        "noUnnecessaryConditions": "off"
-      },
+      "nursery": {},
       "performance": {
         "noNamespaceImport": "off",
         "useTopLevelRegex": "off"
@@ -96,7 +92,10 @@
         "noEmptyBlockStatements": "off",
         "noTemplateCurlyInString": "off",
         "noThenProperty": "off",
-        "noControlCharactersInRegex": "off"
+        "noControlCharactersInRegex": "off",
+        "noShadow": "off",
+        "noLeakedRender": "off",
+        "noUnnecessaryConditions": "off"
       }
     }
   },
