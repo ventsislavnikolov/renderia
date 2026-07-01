@@ -89,7 +89,7 @@
     "dotenv-cli": "^11.0.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
-    "playwright": "^1.60.0",
+    "playwright": "^1.61.1",
     "semantic-release": "^25.0.3",
     "semantic-release-ado": "^1.4.0",
     "typescript": "^6.0.3",
