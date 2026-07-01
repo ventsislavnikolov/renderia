@@ -31,7 +31,7 @@
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/google": "^3.0.80",
     "@ai-sdk/openai": "^3.0.68",
-    "@sentry/tanstackstart-react": "10.57.0",
+    "@sentry/tanstackstart-react": "10.62.0",
     "@supabase/supabase-js": "^2.107.0",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-devtools": "latest",
