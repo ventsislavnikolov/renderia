@@ -47,7 +47,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "nitro": "npm:nitro-nightly@3.0.260522-beta",
-    "openai": "^6.42.0",
+    "openai": "^6.45.0",
     "radix-ui": "^1.5.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
