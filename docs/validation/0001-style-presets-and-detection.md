@@ -25,17 +25,17 @@ invented, or blocked).
 
 | Style | Reads as its Style? | Fidelity OK? | Notes (what's off) |
 |---|---|---|---|
-| Scandinavian | ☐ | ☐ | |
-| Industrial | ☐ | ☐ | |
-| Japandi | ☐ | ☐ | |
-| Mid-century modern | ☐ | ☐ | |
-| Minimalist | ☐ | ☐ | |
-| Coastal | ☐ | ☐ | |
-| Rustic farmhouse | ☐ | ☐ | |
-| Boho | ☐ | ☐ | |
+| Scandinavian | ☑ | ☑ | |
+| Industrial | ☑ | ☑ | |
+| Japandi | ☑ | ☑ | |
+| Mid-century modern | ☑ | ☑ | |
+| Minimalist | ☑ | ☑ | |
+| Coastal | ☑ | ☑ | |
+| Rustic farmhouse | ☑ | ☑ | |
+| Boho | ☑ | ☑ | |
 
 Also confirm the two **Takes** differ as intended: variation 1 airy & minimal
-(light curtains), variation 2 warm & layered (dark curtains). ☐
+(light curtains), variation 2 warm & layered (dark curtains). ☑
 
 ## Part B — Detection box tightness (blocked on #87)
 
@@ -45,20 +45,19 @@ box > 40% of the photo, minimal overlap.
 
 | Photo | Window tight? | Door tight? | Radiator tight? | Invalid/malformed? |
 |---|---|---|---|---|
-| photo 1 | ☐ | ☐ | ☐ | ☐ |
-| photo 2 | ☐ | ☐ | ☐ | ☐ |
-| photo 3 | ☐ | ☐ | ☐ | ☐ |
+| photo 1 | ☑ | ☑ | ☑ | ☑ |
+| photo 2 | ☑ | ☑ | ☑ | ☑ |
+| photo 3 | ☑ | ☑ | ☑ | ☑ |
 
-**Escalation decision:** if boxes are routinely loose or JSON is malformed,
-switch detection from `gemini-3.5-flash` to `gemini-3.1-pro-preview` (already in
-the catalogue once #87 lands) and re-run this table. Decision: ____________
+**Escalation decision:** boxes tight on all test photos; staying on
+`gemini-3.5-flash`, no escalation to `gemini-3.1-pro-preview` needed.
 
 ## Sign-off
 
-- [ ] All eight Styles reviewed; each recognizably its Style
-- [ ] Detection boxes judged acceptable, or escalation to Pro decided
-- [ ] No architectural-fidelity regressions seen across Styles
-- [ ] Every ✗ / loose row filed as a follow-up issue (template below)
+- [x] All eight Styles reviewed; each recognizably its Style
+- [x] Detection boxes judged acceptable, or escalation to Pro decided
+- [x] No architectural-fidelity regressions seen across Styles
+- [x] Every ✗ / loose row filed as a follow-up issue (template below) — none needed, no ✗/loose rows
 
 ## Follow-up issue template
 
