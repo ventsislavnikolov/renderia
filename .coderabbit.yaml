@@ -1,0 +1,9 @@
+language: "en-US"
+
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+    # CodeRabbit always reviews the default branch (`main`). Keep this empty so
+    # pull requests targeting any additional base branches are not reviewed.
+    base_branches: []
