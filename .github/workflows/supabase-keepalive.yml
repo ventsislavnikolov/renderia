@@ -1,0 +1,31 @@
+name: Supabase keepalive
+on:
+  schedule:
+    # Daily; Supabase free tier pauses projects after ~7 days without API activity.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping database
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping PostgREST
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 \
+            "$SUPABASE_URL/rest/v1/projects?select=id&limit=1" \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY")
+          echo "PostgREST responded with HTTP $code"
+          case "$code" in
+            2*) exit 0 ;;
+            *) echo "::error::Keepalive ping failed (HTTP $code) — project may be paused"; exit 1 ;;
+          esac
