@@ -100,6 +100,50 @@ corners into one frame produced incoherent collages, so it was removed (the
 now a read-only "Room" review of the approved angles. See docs/adr/0002.
 _Avoid_: 360 view, Room Composite (removed), panorama
 
+**Concept**:
+One named design direction for a Task, realized across every angle of its Room
+Set — the set of per-angle generated images produced from a single brief,
+presented, compared, and favorited as one unit. A generation run produces two
+Concepts (an adaptive contrast pair derived from the Direction). A Concept
+records the Direction it was generated from; regenerating creates new Concepts
+and keeps the old ones in history. Until anchor-conditioned coherence is
+validated, a Concept groups the angles of one direction without guaranteeing
+that furnishings match exactly between angles.
+_Avoid_: take (folded into Concept), variation, design option, render (one
+Concept spans several renders)
+
+**Concept Pack**:
+The export a Task produces once a Concept is chosen — the decision document a
+renovator hands to a contractor or partner. Leads with the visual story: the
+chosen direction, before/after per angle, then what stays and what changes, the
+product list with prices (owned Furniture Items at zero) compared against the
+budget, assumptions and unknown measurements, questions for the contractor, and
+the concept-only disclaimer. Delivered as a read-only share link with a PDF
+download; prices are import-time snapshots from the Furniture Library.
+_Avoid_: export (the act, not the artifact), report, moodboard, summary
+
+**Fidelity Check**:
+The automatic verification that a generated angle still honors its source
+Photo's architecture: detection runs on the render and the result is compared
+against the keep-exactly Room Objects' boxes. A missing element, an invented
+opening, or an element drifted beyond threshold flags the angle with a "check
+this area" badge over the suspect zone — a prompt to look, never a claim of
+correctness, and never a gate on choosing a Concept. A confirmed flag entitles
+a free regeneration of that angle (capped).
+_Avoid_: validation (implies a guarantee), QA, accuracy score
+
+**Refinement**:
+A natural-language instruction applied to an existing Concept ("keep
+everything, but change the floor"), producing a new Concept derived from it —
+the anchor angle regenerates from the current render plus the instruction, and
+the remaining angles condition on the new anchor. The refined Concept records
+its parent, so a Task's history reads as an evolution of directions. Distinct
+from reporting a problem: a structured defect report (moved window/door/
+radiator, wrong scale, missing must-include furniture, mismatched angles,
+off-style) that can trigger a free regeneration instead of minting a new
+deliberate direction.
+_Avoid_: edit (nothing is edited in place), retry, tweak
+
 **Style**:
 A named aesthetic preset governing the palette, materials, and furniture
 vocabulary a generated concept is rendered in (e.g. Scandinavian). Scandinavian
@@ -115,6 +159,16 @@ generation — accent colours, a specific material, a mood. Narrows or seasons
 the Style; it does not replace the Style's vocabulary and never overrides the
 architectural-fidelity rules.
 _Avoid_: style rules, override layer, prompt
+
+**Direction**:
+The design-input step of the guided flow and the bundle of choices it captures
+for one generation: the Style, the free-text Style Direction, the change
+intensity (refresh / makeover / full renovation), Furniture Item picks with
+their roles (must include / if it fits; owned / to buy), and an optional budget
+range. Ends with a structured summary of what will be generated. A Concept
+snapshots the Direction it was generated from.
+_Avoid_: brief (the assembled generation artifact, not the user's choices),
+preferences, settings
 
 **Exterior Task**:
 A Task whose subject is the outside of a property — facade, roof, garden,

@@ -47,3 +47,15 @@ rather than reverting to a shared composite.
   MVP, not the rejected independent-per-angle path.
 - Applies uniformly to Interior and Exterior Tasks, since both share the
   Structural Preview pipeline.
+
+## Validation note (2026-07-24)
+
+The conditioning mechanism was spiked on the *styling* layer first (v2 Concept
+work, wayfinder ticket #137): on a real 2-angle Room Set, a non-anchor angle
+generated with the anchor angle's render as an additional `images.edit`
+reference visibly inherited the anchor's concrete design decisions (art, lamp,
+table styling, textiles), where an unconditioned control diverged. Verdict:
+**go** — anchor-conditioned generation is adopted for v2 Concepts (anchor angle
+first, every other angle conditioned on its render). This materially de-risks
+this ADR's flagged unknown, though restructuring (changing architecture, not
+styling) still deserves its own spike before build.
