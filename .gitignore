@@ -5,6 +5,7 @@ dist-ssr
 *.local
 .superpowers/
 .worktrees/
+.foglamp/
 .env
 .nitro
 .tanstack
